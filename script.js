@@ -1,18 +1,186 @@
-const APPS_SCRIPT_URL="PASTE_YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL_HERE";
-const products=[
-{id:1,n:"TWS AirBuds Pro",c:"Audio",p:1290,e:"🎧",a:true},{id:2,n:"Bluetooth Speaker Mini",c:"Audio",p:990,e:"🔊",a:true},{id:3,n:"Smart Watch S9",c:"Wearables",p:1850,e:"⌚",a:true},{id:4,n:"Fitness Smart Band",c:"Wearables",p:850,e:"⌚",a:false},{id:5,n:"Power Bank 10000mAh",c:"Power & Charging",p:1190,e:"🔋",a:true},{id:6,n:"20W Fast Charger",c:"Power & Charging",p:690,e:"🔌",a:true},{id:7,n:"Fast Charge Type-C Cable",c:"Power & Charging",p:290,e:"🔗",a:false},{id:8,n:"360° Phone Stand",c:"Mobile Accessories",p:350,e:"📱",a:true},{id:9,n:"Wireless Mouse",c:"Mobile Accessories",p:590,e:"🖱️",a:true},{id:10,n:"RGB Strip Light 5M",c:"RGB & Lighting",p:890,e:"🌈",a:true},{id:11,n:"RGB Desk Lamp",c:"RGB & Lighting",p:1250,e:"💡",a:false},{id:12,n:"Smart LED Night Light",c:"Home Gadgets",p:650,e:"🏠",a:true},{id:13,n:"Mini Rechargeable Fan",c:"Home Gadgets",p:780,e:"🌀",a:true},{id:14,n:"Gaming Earphones",c:"Gaming",p:720,e:"🎮",a:true},{id:15,n:"RGB Gaming Mouse Pad",c:"Gaming",p:990,e:"🖥️",a:false}];
-let st={status:"all",cat:"all",search:"",sort:"featured",cart:JSON.parse(localStorage.gbCart||"[]")};
-const $=x=>document.querySelector(x),fmt=n=>new Intl.NumberFormat("en-BD").format(n),save=()=>localStorage.gbCart=JSON.stringify(st.cart);
-function list(){let x=products.filter(p=>(st.status==="all"||(st.status==="available"&&p.a)||(st.status==="out"&&!p.a))&&(st.cat==="all"||p.c===st.cat)&&(!st.search||(p.n+" "+p.c).toLowerCase().includes(st.search.toLowerCase())));if(st.sort==="low")x.sort((a,b)=>a.p-b.p);if(st.sort==="high")x.sort((a,b)=>b.p-a.p);if(st.sort==="name")x.sort((a,b)=>a.n.localeCompare(b.n));return x}
-function render(){let x=list(),box=$("#catalog");box.innerHTML="";$("#empty").classList.toggle("hide",x.length>0);x.forEach(p=>{let d=document.createElement("article");d.className="card";d.innerHTML=`<div class="pic">${p.e}</div><span class="badge ${p.a?"":"out"}">${p.a?"AVAILABLE":"OUT OF STOCK"}</span><div class="body"><div class="muted">${p.c}</div><b>${p.n}</b><div class="price">৳${fmt(p.p)}</div><button class="add" ${p.a?"":"disabled"} data-add="${p.id}">${p.a?"Add to Cart":"Out of Stock"}</button></div>`;box.appendChild(d)});document.querySelectorAll("[data-add]").forEach(b=>b.onclick=()=>add(+b.dataset.add));document.querySelectorAll(".status").forEach(b=>b.classList.toggle("active",b.dataset.status===st.status));renderCart()}
-function add(id){let i=st.cart.find(x=>x.id===id);i?i.q++:st.cart.push({id,q:1});save();render();$("#cart").classList.remove("hide")}
-function chg(id,n){let i=st.cart.find(x=>x.id===id);if(!i)return;i.q+=n;if(i.q<1)st.cart=st.cart.filter(x=>x.id!==id);save();render()}
-function totals(){let sub=st.cart.reduce((s,i)=>{let p=products.find(x=>x.id===i.id);return s+(p?p.p*i.q:0)},0);return{sub,del:sub?(sub>=2000?0:80):0,total:sub+(sub?(sub>=2000?0:80):0)}}
-function renderCart(){let box=$("#cartItems"),t=totals();box.innerHTML=st.cart.length?st.cart.map(i=>{let p=products.find(x=>x.id===i.id);return`<div class="line"><span>${p.n}<br><small>৳${fmt(p.p)} × ${i.q}</small></span><span><button onclick="chg(${i.id},1)">+</button> <button onclick="chg(${i.id},-1)">−</button></span></div>`}).join(""):"<p>Your cart is empty.</p>";$("#cartCount").textContent=st.cart.reduce((s,i)=>s+i.q,0);$("#total").textContent=fmt(t.total);}
-function closeDrawer(){$("#drawer").classList.remove("open");$("#shade").classList.add("hide")}
-function summary(){let t=totals();$("#summary").innerHTML=st.cart.map(i=>{let p=products.find(x=>x.id===i.id);return`<div>${p.n} × ${i.q} — ৳${fmt(p.p*i.q)}</div>`}).join("")+`<hr><b>Total: ৳${fmt(t.total)}</b>`}
-$("#menuBtn").onclick=()=>{$("#drawer").classList.add("open");$("#shade").classList.remove("hide")};$("#closeMenu").onclick=closeDrawer;$("#shade").onclick=closeDrawer;
-document.querySelectorAll("[data-menu]").forEach(b=>b.onclick=()=>{st.status=b.dataset.menu;st.cat="all";closeDrawer();render();location.hash="products"});document.querySelectorAll("[data-cat]").forEach(b=>b.onclick=()=>{st.cat=b.dataset.cat;st.status="all";closeDrawer();render();location.hash="products"});document.querySelectorAll(".status").forEach(b=>b.onclick=()=>{st.status=b.dataset.status;st.cat="all";render()});
-$("#search").oninput=e=>{st.search=e.target.value;render()};$("#sort").onchange=e=>{st.sort=e.target.value;render()};$("#cartBtn").onclick=()=>$("#cart").classList.remove("hide");$("#closeCart").onclick=()=>$("#cart").classList.add("hide");$("#checkout").onclick=()=>{if(!st.cart.length)return alert("Your cart is empty.");$("#cart").classList.add("hide");summary();$("#checkoutModal").classList.remove("hide")};$("#closeCheckout").onclick=()=>$("#checkoutModal").classList.add("hide");$("#done").onclick=()=>$("#success").classList.add("hide");$("#payment").onchange=e=>$("#trxBox").classList.toggle("hide",e.target.value==="Cash on Delivery");
-$("#orderForm").onsubmit=async e=>{e.preventDefault();let f=new FormData(e.target),t=totals(),order={orderId:"GBBD-"+Date.now().toString().slice(-8),createdAt:new Date().toISOString(),customer:{name:f.get("name"),phone:f.get("phone"),district:f.get("district"),area:f.get("area"),address:f.get("address")},paymentMethod:f.get("payment"),transactionId:f.get("transactionId")||"",note:f.get("note")||"",items:st.cart,subtotal:t.sub,delivery:t.del,total:t.total};try{if(!APPS_SCRIPT_URL.includes("PASTE_YOUR")){await fetch(APPS_SCRIPT_URL,{method:"POST",mode:"no-cors",body:JSON.stringify(order)});}else{localStorage.gbLastOrder=JSON.stringify(order)}st.cart=[];save();renderCart();e.target.reset();$("#trxBox").classList.add("hide");$("#orderId").textContent=order.orderId;$("#checkoutModal").classList.add("hide");$("#success").classList.remove("hide")}catch(err){alert("Order submission failed. Please try again.")}};
-render();
+const DELIVERY_FEE = 80;
+const BKASH_NUMBER = "YOUR_BKASH_NUMBER";
+const NAGAD_NUMBER = "YOUR_NAGAD_NUMBER";
+const APPS_SCRIPT_URL = "PASTE_YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL_HERE";
+
+const products = [
+  {id:1,name:"TWS AirBuds Pro",cat:"Audio",price:1290,emoji:"🎧"},
+  {id:2,name:"Bluetooth Speaker Mini",cat:"Audio",price:990,emoji:"🔊"},
+  {id:3,name:"Smart Watch S9",cat:"Wearables",price:1850,emoji:"⌚"},
+  {id:4,name:"Fitness Smart Band",cat:"Wearables",price:850,emoji:"⌚"},
+  {id:5,name:"Power Bank 10000mAh",cat:"Power & Charging",price:1190,emoji:"🔋"},
+  {id:6,name:"20W Fast Charger",cat:"Power & Charging",price:690,emoji:"🔌"},
+  {id:7,name:"Fast Charge Type-C Cable",cat:"Power & Charging",price:290,emoji:"🔗"},
+  {id:8,name:"360° Phone Stand",cat:"Mobile Accessories",price:350,emoji:"📱"},
+  {id:9,name:"Wireless Mouse",cat:"Mobile Accessories",price:590,emoji:"🖱️"},
+  {id:10,name:"RGB Strip Light 5M",cat:"RGB & Lighting",price:890,emoji:"🌈"},
+  {id:11,name:"RGB Desk Lamp",cat:"RGB & Lighting",price:1250,emoji:"💡"},
+  {id:12,name:"Smart LED Night Light",cat:"Home Gadgets",price:650,emoji:"🏮"},
+  {id:13,name:"Mini Rechargeable Fan",cat:"Home Gadgets",price:780,emoji:"🌀"},
+  {id:14,name:"Gaming Earphones",cat:"Gaming",price:720,emoji:"🎮"},
+  {id:15,name:"RGB Gaming Mouse Pad",cat:"Gaming",price:990,emoji:"🖱️"}
+];
+
+let cart = JSON.parse(localStorage.getItem("gbbd_cart") || "[]");
+let currentCategory = "All Products";
+
+const $ = id => document.getElementById(id);
+const money = n => "৳" + Number(n).toLocaleString("en-BD");
+
+function saveCart(){localStorage.setItem("gbbd_cart",JSON.stringify(cart));updateCart();}
+function showAllProducts(){currentCategory="All Products";renderProducts();$("products").scrollIntoView({behavior:"smooth"});}
+function filterCategory(cat){currentCategory=cat;renderProducts();$("products").scrollIntoView({behavior:"smooth"});}
+
+function filteredProducts(){
+  const q = $("searchInput").value.trim().toLowerCase();
+  let list = products.filter(p => currentCategory==="All Products" || p.cat===currentCategory);
+  if(q) list=list.filter(p => (p.name+" "+p.cat).toLowerCase().includes(q));
+  const sort=$("sortSelect").value;
+  if(sort==="low") list.sort((a,b)=>a.price-b.price);
+  if(sort==="high") list.sort((a,b)=>b.price-a.price);
+  return list;
+}
+
+function renderProducts(){
+  const list=filteredProducts();
+  $("sectionTitle").textContent=currentCategory;
+  $("productCount").textContent=`${list.length} products`;
+  $("productsGrid").innerHTML=list.map(p=>`
+    <article class="product-card">
+      <div class="product-img">${p.emoji}</div>
+      <div class="category">${p.cat}</div>
+      <h3>${p.name}</h3>
+      <div class="price">${money(p.price)}</div>
+      <button class="add-btn" onclick="addToCart(${p.id})">Add to Cart</button>
+    </article>`).join("") || `<div class="empty" style="grid-column:1/-1">No products found.</div>`;
+}
+
+function addToCart(id){
+  const item=cart.find(x=>x.id===id);
+  if(item)item.qty++;
+  else cart.push({id,qty:1});
+  saveCart();
+  openCart();
+}
+
+function changeQty(id,delta){
+  const item=cart.find(x=>x.id===id); if(!item)return;
+  item.qty+=delta;
+  if(item.qty<=0)cart=cart.filter(x=>x.id!==id);
+  saveCart();
+}
+
+function removeItem(id){cart=cart.filter(x=>x.id!==id);saveCart();}
+
+function totals(){
+  const subtotal=cart.reduce((s,i)=>{const p=products.find(x=>x.id===i.id);return s+p.price*i.qty},0);
+  return {subtotal,delivery:subtotal?DELIVERY_FEE:0,total:subtotal+(subtotal?DELIVERY_FEE:0)};
+}
+
+function updateCart(){
+  $("cartCount").textContent=cart.reduce((s,i)=>s+i.qty,0);
+  const t=totals();
+  $("cartSubtotal").textContent=money(t.subtotal);
+  $("cartDelivery").textContent=money(t.delivery);
+  $("cartTotal").textContent=money(t.total);
+  $("checkoutTotal").textContent=money(t.total);
+  $("checkoutBtn").disabled=!cart.length;
+  $("cartItems").innerHTML=cart.length?cart.map(i=>{
+    const p=products.find(x=>x.id===i.id);
+    return `<div class="cart-row">
+      <div class="mini-img">${p.emoji}</div>
+      <div><h4>${p.name}</h4><small>${money(p.price)} each</small>
+        <div class="qty"><button onclick="changeQty(${p.id},-1)">−</button><b>${i.qty}</b><button onclick="changeQty(${p.id},1)">+</button>
+        <button class="remove" onclick="removeItem(${p.id})">Remove</button></div>
+      </div>
+      <strong>${money(p.price*i.qty)}</strong>
+    </div>`;
+  }).join(""):`<div class="empty">Your cart is empty.</div>`;
+}
+
+function openMenu(){ $("sideMenu").classList.add("open"); $("overlay").classList.remove("hidden"); }
+function closeMenu(){ $("sideMenu").classList.remove("open"); if(!$("cartDrawer").classList.contains("open"))$("overlay").classList.add("hidden");}
+function openCart(){ $("cartDrawer").classList.add("open"); $("overlay").classList.remove("hidden"); updateCart(); }
+function closeCart(){ $("cartDrawer").classList.remove("open"); if(!$("sideMenu").classList.contains("open"))$("overlay").classList.add("hidden");}
+function closeCheckout(){ $("checkoutModal").classList.add("hidden"); }
+function closeSuccess(){ $("successModal").classList.add("hidden"); }
+
+$("menuBtn").onclick=openMenu;
+$("cartBtn").onclick=openCart;
+$("overlay").onclick=()=>{closeMenu();closeCart();};
+document.querySelectorAll('[data-close="menu"]').forEach(b=>b.onclick=closeMenu);
+document.querySelectorAll('[data-close="cart"]').forEach(b=>b.onclick=closeCart);
+document.querySelectorAll('[data-close="checkout"]').forEach(b=>b.onclick=closeCheckout);
+
+$("searchInput").addEventListener("input",renderProducts);
+$("sortSelect").addEventListener("change",renderProducts);
+
+document.querySelectorAll('input[name="payment"]').forEach(r=>{
+  r.addEventListener("change",()=>{
+    const manual=r.value!=="Cash on Delivery";
+    $("transactionBox").classList.toggle("hidden",!manual);
+  });
+});
+
+$("checkoutBtn").onclick=()=>{
+  if(!cart.length)return;
+  closeCart();
+  $("checkoutModal").classList.remove("hidden");
+  updateCart();
+};
+
+function makeOrderId(){
+  return "GBBD-" + Date.now().toString().slice(-8);
+}
+
+$("checkoutForm").addEventListener("submit",async e=>{
+  e.preventDefault();
+  if(!cart.length)return;
+  const form=new FormData(e.target);
+  const payment=form.get("payment");
+  const transactionId=String(form.get("transactionId")||"").trim();
+  if(payment!=="Cash on Delivery" && !transactionId){
+    alert("Please enter the transaction ID for the selected payment method.");
+    return;
+  }
+
+  const t=totals();
+  const order={
+    orderId:makeOrderId(),
+    createdAt:new Date().toISOString(),
+    customer:{
+      name:String(form.get("name")).trim(),
+      phone:String(form.get("phone")).trim(),
+      district:String(form.get("district")).trim(),
+      area:String(form.get("area")).trim(),
+      address:String(form.get("address")).trim()
+    },
+    paymentMethod:payment,
+    transactionId,
+    note:String(form.get("note")||"").trim(),
+    items:cart.map(i=>{const p=products.find(x=>x.id===i.id);return {id:p.id,name:p.name,price:p.price,qty:i.qty};}),
+    subtotal:t.subtotal,delivery:t.delivery,total:t.total
+  };
+
+  localStorage.setItem("gbbd_last_order",JSON.stringify(order));
+  const orders=JSON.parse(localStorage.getItem("gbbd_orders")||"[]");
+  orders.unshift(order);
+  localStorage.setItem("gbbd_orders",JSON.stringify(orders));
+
+  if(APPS_SCRIPT_URL && !APPS_SCRIPT_URL.includes("PASTE_YOUR")){
+    try{
+      await fetch(APPS_SCRIPT_URL,{method:"POST",mode:"no-cors",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify(order)});
+    }catch(err){console.warn("Order sync failed:",err);}
+  }
+
+  cart=[];
+  saveCart();
+  e.target.reset();
+  $("transactionBox").classList.add("hidden");
+  closeCheckout();
+  $("successOrderId").textContent=order.orderId;
+  $("successModal").classList.remove("hidden");
+});
+
+renderProducts();
+updateCart();

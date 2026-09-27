@@ -1,9 +1,149 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Gadget Bazar BD</title><link rel="stylesheet" href="style.css"></head><body>
-<header><a class="logo" href="#">🛒 Gadget <b>Bazar</b> BD</a><button id="menuBtn" aria-label="Menu">⋮</button><button id="cartBtn">🛒 <span id="cartCount">0</span></button></header>
-<div id="shade" class="hide"></div><aside id="drawer"><div class="drawerHead"><b>Menu</b><button id="closeMenu">✕</button></div><button data-menu="all">🏠 Product List</button><button data-menu="available">🟢 Available</button><button data-menu="out">🔴 Out of Stock</button><hr><button data-cat="Audio">🎧 Audio</button><button data-cat="Wearables">⌚ Wearables</button><button data-cat="Power & Charging">🔋 Power & Charging</button><button data-cat="Mobile Accessories">📱 Mobile Accessories</button><button data-cat="RGB & Lighting">💡 RGB & Lighting</button><button data-cat="Home Gadgets">🏠 Home Gadgets</button><button data-cat="Gaming">🎮 Gaming</button></aside>
-<section class="hero"><small>SMART • MODERN • AFFORDABLE</small><h1>Upgrade Your <span>Everyday</span></h1><p>Electronics, mobile accessories, RGB lighting & home gadgets.</p><a href="#products">Shop Now</a></section>
-<main><section id="products"><div class="toolbar"><input id="search" placeholder="Search gadgets..."><select id="sort"><option value="featured">Featured</option><option value="low">Price: Low to High</option><option value="high">Price: High to Low</option><option value="name">Name A-Z</option></select></div><div class="filters"><button class="status active" data-status="all">All Products</button><button class="status" data-status="available">🟢 Available</button><button class="status" data-status="out">🔴 Out of Stock</button></div><h2>Product List</h2><div id="catalog" class="grid"></div><p id="empty" class="hide">No products found.</p></section></main>
-<div id="cart" class="overlay hide"><aside class="cartBox"><button class="x" id="closeCart">✕</button><h2>Your Cart</h2><div id="cartItems"></div><div class="tot"><span>Total</span><b>৳<span id="total">0</span></b></div><button class="primary" id="checkout">Proceed to Checkout</button></aside></div>
-<div id="checkoutModal" class="modal hide"><div class="modalBox"><button class="x" id="closeCheckout">✕</button><h2>Customer Details</h2><form id="orderForm"><label>Full Name *<input name="name" required></label><label>Phone Number *<input name="phone" required inputmode="tel" placeholder="01XXXXXXXXX" pattern="01[0-9]{9}"></label><label>District *<input name="district" required></label><label>Area / Upazila *<input name="area" required></label><label>Full Address *<textarea name="address" required></textarea></label><label>Payment Method *<select name="payment" id="payment"><option>Cash on Delivery</option><option>bKash (manual)</option><option>Nagad (manual)</option></select></label><label id="trxBox" class="hide">Transaction ID<input name="transactionId"></label><label>Order Note<textarea name="note" placeholder="Optional"></textarea></label><div id="summary" class="summary"></div><p class="safe">Never enter card number, PIN or OTP.</p><button class="primary" type="submit">Place Order</button></form></div></div>
-<div id="success" class="modal hide"><div class="modalBox success"><div class="check">✓</div><h2>Order Placed!</h2><p>Your Order ID:</p><strong id="orderId"></strong><p>We will contact you soon.</p><button class="primary" id="done">Continue Shopping</button></div></div>
-<footer><b>Gadget Bazar BD</b><p>Electronics • Mobile Accessories • RGB • Home Gadgets</p><small>© 2026 Gadget Bazar BD</small></footer><script src="script.js"></script></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#071426">
+  <title>Gadget Bazar BD</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="#" onclick="showAllProducts();return false;">
+    <span class="logo">🛒</span><span>Gadget <b>Bazar</b> BD</span>
+  </a>
+  <div class="top-actions">
+    <button class="icon-btn" id="menuBtn" aria-label="Open menu">☰</button>
+    <button class="cart-btn" id="cartBtn" aria-label="Open cart">🛒 <span id="cartCount">0</span></button>
+  </div>
+</header>
+
+<div id="overlay" class="overlay hidden"></div>
+
+<aside id="sideMenu" class="side-menu">
+  <div class="drawer-head">
+    <strong>Categories</strong>
+    <button class="close-btn" data-close="menu">×</button>
+  </div>
+  <button class="menu-item" onclick="showAllProducts();closeMenu()">🏠 All Products</button>
+  <div class="menu-label">Shop by category</div>
+  <button class="menu-item" onclick="filterCategory('Audio');closeMenu()">🎧 Audio</button>
+  <button class="menu-item" onclick="filterCategory('Wearables');closeMenu()">⌚ Wearables</button>
+  <button class="menu-item" onclick="filterCategory('Power & Charging');closeMenu()">🔋 Power & Charging</button>
+  <button class="menu-item" onclick="filterCategory('Mobile Accessories');closeMenu()">📱 Mobile Accessories</button>
+  <button class="menu-item" onclick="filterCategory('RGB & Lighting');closeMenu()">💡 RGB & Lighting</button>
+  <button class="menu-item" onclick="filterCategory('Home Gadgets');closeMenu()">🏠 Home Gadgets</button>
+  <button class="menu-item" onclick="filterCategory('Gaming');closeMenu()">🎮 Gaming</button>
+</aside>
+
+<main>
+  <section class="hero">
+    <div class="hero-copy">
+      <p class="eyebrow">SMART • MODERN • AFFORDABLE</p>
+      <h1>Upgrade Your <span>Everyday</span></h1>
+      <p>Electronics, mobile accessories, RGB lighting & home gadgets.</p>
+      <button class="primary" onclick="document.getElementById('products').scrollIntoView({behavior:'smooth'})">Shop Now</button>
+    </div>
+  </section>
+
+  <section class="shop" id="products">
+    <div class="toolbar">
+      <input id="searchInput" type="search" placeholder="Search gadgets..." autocomplete="off">
+      <select id="sortSelect" aria-label="Sort products">
+        <option value="featured">Featured</option>
+        <option value="low">Price: Low to High</option>
+        <option value="high">Price: High to Low</option>
+      </select>
+    </div>
+    <div class="section-head">
+      <h2 id="sectionTitle">All Products</h2>
+      <span id="productCount"></span>
+    </div>
+    <div id="productsGrid" class="products-grid"></div>
+  </section>
+</main>
+
+<div id="cartDrawer" class="cart-drawer">
+  <div class="drawer-head">
+    <strong>Your Cart</strong>
+    <button class="close-btn" data-close="cart">×</button>
+  </div>
+  <div id="cartItems" class="cart-items"></div>
+  <div class="cart-summary">
+    <div><span>Subtotal</span><strong id="cartSubtotal">৳0</strong></div>
+    <div><span>Delivery</span><strong id="cartDelivery">৳0</strong></div>
+    <div class="total"><span>Total</span><strong id="cartTotal">৳0</strong></div>
+    <button id="checkoutBtn" class="primary full">Checkout</button>
+  </div>
+</div>
+
+<div id="checkoutModal" class="modal hidden">
+  <div class="modal-card">
+    <div class="modal-head">
+      <div><strong>Checkout</strong><small>Customer & payment information</small></div>
+      <button class="close-btn" data-close="checkout">×</button>
+    </div>
+
+    <form id="checkoutForm">
+      <h3>Customer Information</h3>
+      <label>Full Name *
+        <input name="name" required maxlength="80" placeholder="Your full name">
+      </label>
+      <label>Phone Number *
+        <input name="phone" required inputmode="tel" maxlength="20" placeholder="01XXXXXXXXX">
+      </label>
+      <div class="two-col">
+        <label>District *
+          <input name="district" required maxlength="50" placeholder="District">
+        </label>
+        <label>Area / Upazila *
+          <input name="area" required maxlength="60" placeholder="Area / Upazila">
+        </label>
+      </div>
+      <label>Full Address *
+        <textarea name="address" required maxlength="250" rows="3" placeholder="House, road, village / detailed address"></textarea>
+      </label>
+      <label>Order Note (optional)
+        <textarea name="note" maxlength="200" rows="2" placeholder="Any delivery note"></textarea>
+      </label>
+
+      <h3>Payment Method</h3>
+      <div class="payment-options">
+        <label class="pay-option"><input type="radio" name="payment" value="Cash on Delivery" checked><span>💵 Cash on Delivery<small>Pay when your order arrives.</small></span></label>
+        <label class="pay-option"><input type="radio" name="payment" value="bKash (manual)"><span>📲 bKash<small>Manual payment. Add transaction ID below after payment.</small></span></label>
+        <label class="pay-option"><input type="radio" name="payment" value="Nagad (manual)"><span>📲 Nagad<small>Manual payment. Add transaction ID below after payment.</small></span></label>
+      </div>
+
+      <div id="transactionBox" class="hidden">
+        <label>Transaction ID
+          <input name="transactionId" maxlength="40" placeholder="Enter transaction ID">
+        </label>
+        <p class="payment-note">Before using bKash/Nagad, set your own payment number in <code>script.js</code>. Never ask customers for PIN, OTP or CVV.</p>
+      </div>
+
+      <div class="checkout-total">
+        <span>Payable Total</span><strong id="checkoutTotal">৳0</strong>
+      </div>
+      <button class="primary full" type="submit">Place Order</button>
+    </form>
+  </div>
+</div>
+
+<div id="successModal" class="modal hidden">
+  <div class="modal-card success-card">
+    <div class="success-icon">✓</div>
+    <h2>Order Placed!</h2>
+    <p>Your order has been saved successfully.</p>
+    <div class="order-id"><span>Order ID</span><strong id="successOrderId"></strong></div>
+    <p class="small">Keep your Order ID for future reference.</p>
+    <button class="primary full" onclick="closeSuccess()">Continue Shopping</button>
+  </div>
+</div>
+
+<footer>© 2026 Gadget Bazar BD • COD & manual payment options</footer>
+<script src="script.js"></script>
+</body>
+</html>
