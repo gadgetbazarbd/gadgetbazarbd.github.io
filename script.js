@@ -285,11 +285,16 @@ $("checkoutForm").addEventListener("submit",async e=>{
     subtotal:t.subtotal,delivery:t.delivery,total:t.total
   };
 
-  localStorage.setItem("gbbd_last_order",JSON.stringify(order));
-  const orders=JSON.parse(localStorage.getItem("gbbd_orders")||"[]");
-  orders.unshift(order);
-  localStorage.setItem("gbbd_orders",JSON.stringify(orders));
+  localStorage.setItem("gbbd_last_order", JSON.stringify(order));
 
+try {
+  await db.collection("orders").doc(order.orderId).set(order);
+  console.log("Order saved to Firebase:", order.orderId);
+} catch (error) {
+  console.error("Firebase order save failed:", error);
+  alert("Order save failed. Please try again.");
+  return;
+}
   if(APPS_SCRIPT_URL && !APPS_SCRIPT_URL.includes("PASTE_YOUR")){
     try{
       await fetch(APPS_SCRIPT_URL,{method:"POST",mode:"no-cors",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify(order)});
