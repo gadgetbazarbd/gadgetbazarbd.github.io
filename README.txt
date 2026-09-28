@@ -1,14 +1,13 @@
-GADGET BAZAR BD — ADMIN PRO V1
+Gadget Bazar BD Admin Pro V2
 
-Files: admin.html, admin.css, admin.js
+Login: admin / admin123
 
-Demo login:
-Username: admin
-Password: admin123
+Changes:
+- Fixed the duplicate $() bug that broke login.
+- Product image can be selected directly from Android Gallery.
+- Image preview before saving.
+- Image size limited to 2.5 MB for local browser storage.
+- Cache-busting added to CSS/JS.
+- Existing dashboard, products, orders, customers, categories, delivery, payments and settings retained.
 
-IMPORTANT:
-This is a standalone admin prototype using browser localStorage. It includes the complete UI/control structure for products, orders, customers, categories, delivery, payments, settings, dashboard, import/export and mobile layout.
-
-It is NOT yet connected to the public customer website. A shared backend/data store is required for live cross-device synchronization. Firestore and Google Sheets are intentionally not used in this version.
-
-Next integration stage: connect the existing Gadget Bazar BD customer site to the same data API/backend, then admin changes and customer orders can sync live.
+Important: this is still Local Mode. It is not a shared online backend and does not automatically sync with the public customer website yet.
