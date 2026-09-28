@@ -1724,7 +1724,7 @@ function closeModal() {
    EXPORT
 ========================= */
 
-function exportData() {
+ function exportData() {
   const blob =
     new Blob(
       [
