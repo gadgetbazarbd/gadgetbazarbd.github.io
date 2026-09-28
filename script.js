@@ -292,8 +292,9 @@ try {
   console.log("Order saved to Firebase:", order.orderId);
 } catch (error) {
   console.error("Firebase order save failed:", error);
-  alert("Order save failed. Please try again.");
+  alert("Firebase Error:\n" + error.code + "\n" + error.message);
   return;
+}
 }
   if(APPS_SCRIPT_URL && !APPS_SCRIPT_URL.includes("PASTE_YOUR")){
     try{
