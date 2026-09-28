@@ -95,14 +95,21 @@
       <label>Phone Number *
         <input name="phone" required inputmode="tel" maxlength="20" placeholder="01XXXXXXXXX">
       </label>
-      <div class="two-col">
+      <div class="two-col location-grid">
         <label>District *
-          <input name="district" required maxlength="50" placeholder="District">
+          <div class="search-select">
+            <input id="districtInput" name="district" required maxlength="60" placeholder="Type district name..." autocomplete="off">
+            <div id="districtSuggestions" class="suggestions hidden"></div>
+          </div>
         </label>
         <label>Area / Upazila *
-          <input name="area" required maxlength="60" placeholder="Area / Upazila">
+          <div class="search-select">
+            <input id="upazilaInput" name="area" required maxlength="70" placeholder="Select district first..." autocomplete="off" disabled>
+            <div id="upazilaSuggestions" class="suggestions hidden"></div>
+          </div>
         </label>
       </div>
+      <div id="deliveryInfo" class="delivery-info">Select your district to calculate delivery charge.</div>
       <label>Full Address *
         <textarea name="address" required maxlength="250" rows="3" placeholder="House, road, village / detailed address"></textarea>
       </label>

@@ -20,3 +20,59 @@ footer{text-align:center;color:#70879d;padding:25px;border-top:1px solid var(--l
 @media(min-width:700px){.products-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.product-img{height:180px}}
 @media(min-width:1000px){.products-grid{grid-template-columns:repeat(4,minmax(0,1fr))}.hero{padding-left:max(7vw,50px)}}
 @media(max-width:520px){.brand{font-size:17px}.toolbar{grid-template-columns:1fr}.hero{min-height:440px;padding:50px 22px}.two-col{grid-template-columns:1fr}.products-grid{gap:10px}.product-card{padding:10px}.product-img{height:125px}.hero h1{font-size:48px}}
+
+
+/* V5 location autocomplete */
+.search-select{position:relative}
+.search-select input{width:100%}
+.suggestions{position:absolute;z-index:50;left:0;right:0;top:calc(100% + 4px);max-height:220px;overflow:auto;background:#0b1b31;border:1px solid rgba(66,153,255,.35);border-radius:12px;box-shadow:0 14px 35px rgba(0,0,0,.35)}
+.suggestion{display:block;width:100%;padding:11px 13px;background:transparent;border:0;color:#fff;text-align:left;cursor:pointer;font:inherit}
+.suggestion:hover,.suggestion:focus{background:rgba(45,142,255,.16)}
+.delivery-info{margin:10px 0 16px;padding:11px 13px;border:1px solid rgba(45,142,255,.2);border-radius:10px;background:rgba(45,142,255,.07);font-size:13px;color:#c8d8ee}
+@media(max-width:650px){.location-grid{grid-template-columns:1fr}.suggestions{max-height:180px}}
+
+
+.product-actions{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:8px;
+  margin-top:12px;
+}
+.product-actions button{
+  width:100%;
+  margin:0;
+}
+.buy-btn{
+  border:0;
+  border-radius:12px;
+  padding:12px 10px;
+  font:inherit;
+  font-weight:700;
+  cursor:pointer;
+  background:#1d7aff;
+  color:#fff;
+}
+.buy-btn:hover{filter:brightness(1.08);}
+.gb-toast{
+  position:fixed;
+  left:50%;
+  bottom:22px;
+  transform:translate(-50%,20px);
+  opacity:0;
+  pointer-events:none;
+  z-index:9999;
+  background:#0b1d33;
+  color:#fff;
+  border:1px solid rgba(255,255,255,.14);
+  border-radius:12px;
+  padding:10px 16px;
+  box-shadow:0 10px 30px rgba(0,0,0,.28);
+  transition:.2s ease;
+}
+.gb-toast.show{
+  opacity:1;
+  transform:translate(-50%,0);
+}
+@media(max-width:520px){
+  .product-actions{grid-template-columns:1fr;}
+}

@@ -1,4 +1,15 @@
-const DELIVERY_FEE = 80;
+// Delivery settings — change these numbers later when you decide your final rates.
+const DELIVERY_SETTINGS = {
+  dhaka: 60,
+  nearby: 100,
+  outside: 130
+};
+const NEARBY_DISTRICTS = ["Gazipur","Narayanganj","Narsingdi","Munshiganj","Manikganj"];
+
+let selectedDistrict = "";
+let selectedUpazila = "";
+let locationData = [];
+let locationLoaded = false;
 const BKASH_NUMBER = "YOUR_BKASH_NUMBER";
 const NAGAD_NUMBER = "YOUR_NAGAD_NUMBER";
 const APPS_SCRIPT_URL = "PASTE_YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL_HERE";
@@ -28,6 +39,20 @@ const $ = id => document.getElementById(id);
 const money = n => "৳" + Number(n).toLocaleString("en-BD");
 
 function saveCart(){localStorage.setItem("gbbd_cart",JSON.stringify(cart));updateCart();}
+function showToast(message){
+  let t=document.getElementById("gbToast");
+  if(!t){
+    t=document.createElement("div");
+    t.id="gbToast";
+    t.className="gb-toast";
+    document.body.appendChild(t);
+  }
+  t.textContent=message;
+  t.classList.add("show");
+  clearTimeout(window.__gbToastTimer);
+  window.__gbToastTimer=setTimeout(()=>t.classList.remove("show"),1600);
+}
+
 function showAllProducts(){currentCategory="All Products";renderProducts();$("products").scrollIntoView({behavior:"smooth"});}
 function filterCategory(cat){currentCategory=cat;renderProducts();$("products").scrollIntoView({behavior:"smooth"});}
 
@@ -51,7 +76,10 @@ function renderProducts(){
       <div class="category">${p.cat}</div>
       <h3>${p.name}</h3>
       <div class="price">${money(p.price)}</div>
-      <button class="add-btn" onclick="addToCart(${p.id})">Add to Cart</button>
+      <div class="product-actions">
+        <button class="add-btn" onclick="addToCart(${p.id})">Add to Cart</button>
+        <button class="buy-btn" onclick="buyNow(${p.id})">Buy Now</button>
+      </div>
     </article>`).join("") || `<div class="empty" style="grid-column:1/-1">No products found.</div>`;
 }
 
@@ -60,7 +88,16 @@ function addToCart(id){
   if(item)item.qty++;
   else cart.push({id,qty:1});
   saveCart();
-  openCart();
+  // Add to Cart only adds the item; it does not open checkout or the cart drawer.
+  showToast("Added to cart");
+}
+
+function buyNow(id){
+  // Buy Now starts checkout directly with only this product.
+  const existing=cart.find(x=>x.id===id);
+  cart = [{id, qty:1}];
+  saveCart();
+  openCheckout();
 }
 
 function changeQty(id,delta){
@@ -72,9 +109,26 @@ function changeQty(id,delta){
 
 function removeItem(id){cart=cart.filter(x=>x.id!==id);saveCart();}
 
+function getDeliveryFee(){
+  if(!cart.length || !selectedDistrict) return 0;
+  if(selectedDistrict === "Dhaka") return DELIVERY_SETTINGS.dhaka;
+  if(NEARBY_DISTRICTS.includes(selectedDistrict)) return DELIVERY_SETTINGS.nearby;
+  return DELIVERY_SETTINGS.outside;
+}
+
 function totals(){
   const subtotal=cart.reduce((s,i)=>{const p=products.find(x=>x.id===i.id);return s+p.price*i.qty},0);
-  return {subtotal,delivery:subtotal?DELIVERY_FEE:0,total:subtotal+(subtotal?DELIVERY_FEE:0)};
+  const delivery=subtotal?getDeliveryFee():0;
+  return {subtotal,delivery,total:subtotal+delivery};
+}
+
+function updateDeliveryInfo(){
+  const box=$("deliveryInfo"); if(!box) return;
+  if(!selectedDistrict){ box.textContent="Select your district to calculate delivery charge."; return; }
+  const fee=getDeliveryFee();
+  const zone=selectedDistrict==="Dhaka"?"Dhaka":(NEARBY_DISTRICTS.includes(selectedDistrict)?"Nearby Dhaka":"Outside Dhaka");
+  box.textContent=`Delivery: ${money(fee)} • ${zone}`;
+  updateCart();
 }
 
 function updateCart(){
@@ -96,6 +150,71 @@ function updateCart(){
       <strong>${money(p.price*i.qty)}</strong>
     </div>`;
   }).join(""):`<div class="empty">Your cart is empty.</div>`;
+}
+
+async function loadLocations(){
+  if(locationLoaded) return;
+  const url="https://iqbalhasandev.github.io/bangladesh-geo-json/bangladesh-geo.json";
+  try{
+    const res=await fetch(url,{cache:"force-cache"});
+    if(!res.ok) throw new Error("Location data unavailable");
+    locationData=await res.json();
+    locationLoaded=true;
+  }catch(err){
+    console.warn("Location data could not be loaded:",err);
+    // Fallback district list keeps the checkout usable if the external dataset is unavailable.
+    locationData=[
+      {bn_name:"ঢাকা",name:"Dhaka",districts:[]},{bn_name:"কুষ্টিয়া",name:"Kushtia",districts:[]},{bn_name:"চট্টগ্রাম",name:"Chattogram",districts:[]},{bn_name:"খুলনা",name:"Khulna",districts:[]},{bn_name:"বরিশাল",name:"Barishal",districts:[]},{bn_name:"রাজশাহী",name:"Rajshahi",districts:[]},{bn_name:"সিলেট",name:"Sylhet",districts:[]},{bn_name:"রংপুর",name:"Rangpur",districts:[]},{bn_name:"ময়মনসিংহ",name:"Mymensingh",districts:[]}
+    ];
+  }
+}
+
+function allDistricts(){
+  const out=[];
+  for(const div of locationData){ for(const d of (div.districts||[])){ out.push({name:d.name,bn:d.bn_name,upazilas:d.upazilas||[]}); } }
+  return out;
+}
+
+function districtMatches(q){
+  const term=q.trim().toLowerCase();
+  return allDistricts().filter(d=>!term || `${d.name} ${d.bn}`.toLowerCase().includes(term)).slice(0,15);
+}
+
+function upazilaMatches(q){
+  const d=allDistricts().find(x=>x.name===selectedDistrict || x.bn===selectedDistrict);
+  if(!d) return [];
+  const term=q.trim().toLowerCase();
+  return (d.upazilas||[]).filter(u=>`${u.name} ${u.bn_name||u.bn||""}`.toLowerCase().includes(term)).slice(0,20);
+}
+
+function renderSuggestions(el,items,type){
+  if(!items.length){el.innerHTML="";el.classList.add("hidden");return;}
+  el.innerHTML=items.map((x,i)=>`<button type="button" class="suggestion" data-index="${i}">${x.bn_name||x.bn||x.name} <small>${x.name}</small></button>`).join("");
+  el.classList.remove("hidden");
+  el.querySelectorAll(".suggestion").forEach((b,i)=>b.onclick=()=>{
+    if(type==="district"){
+      const x=items[i]; selectedDistrict=x.name; selectedUpazila="";
+      $("districtInput").value=x.bn_name||x.bn||x.name;
+      $("districtSuggestions").classList.add("hidden");
+      const u=$("upazilaInput"); u.disabled=false; u.value=""; u.placeholder="Type/select upazila...";
+      updateDeliveryInfo();
+    }else{
+      const x=items[i]; selectedUpazila=x.name;
+      $("upazilaInput").value=x.bn_name||x.bn||x.name;
+      $("upazilaSuggestions").classList.add("hidden");
+    }
+  });
+}
+
+async function setupLocationPickers(){
+  await loadLocations();
+  const di=$("districtInput"), ui=$("upazilaInput");
+  if(!di || !ui) return;
+  di.addEventListener("focus",()=>renderSuggestions($("districtSuggestions"),districtMatches(di.value),"district"));
+  di.addEventListener("input",()=>{selectedDistrict="";selectedUpazila="";ui.value="";ui.disabled=true;updateDeliveryInfo();renderSuggestions($("districtSuggestions"),districtMatches(di.value),"district")});
+  ui.addEventListener("focus",()=>renderSuggestions($("upazilaSuggestions"),upazilaMatches(ui.value),"upazila"));
+  ui.addEventListener("input",()=>renderSuggestions($("upazilaSuggestions"),upazilaMatches(ui.value),"upazila"));
+  document.addEventListener("click",e=>{if(!e.target.closest(".search-select")){$("districtSuggestions").classList.add("hidden");$("upazilaSuggestions").classList.add("hidden")}});
 }
 
 function openMenu(){ $("sideMenu").classList.add("open"); $("overlay").classList.remove("hidden"); }
@@ -144,6 +263,10 @@ $("checkoutForm").addEventListener("submit",async e=>{
     return;
   }
 
+  if(!selectedDistrict || !selectedUpazila){
+    alert("Please select a district and upazila from the suggestions.");
+    return;
+  }
   const t=totals();
   const order={
     orderId:makeOrderId(),
@@ -151,8 +274,8 @@ $("checkoutForm").addEventListener("submit",async e=>{
     customer:{
       name:String(form.get("name")).trim(),
       phone:String(form.get("phone")).trim(),
-      district:String(form.get("district")).trim(),
-      area:String(form.get("area")).trim(),
+      district:selectedDistrict,
+      area:selectedUpazila,
       address:String(form.get("address")).trim()
     },
     paymentMethod:payment,
@@ -176,6 +299,10 @@ $("checkoutForm").addEventListener("submit",async e=>{
   cart=[];
   saveCart();
   e.target.reset();
+  selectedDistrict=""; selectedUpazila="";
+  $("upazilaInput").disabled=true;
+  $("upazilaInput").placeholder="Select district first...";
+  updateDeliveryInfo();
   $("transactionBox").classList.add("hidden");
   closeCheckout();
   $("successOrderId").textContent=order.orderId;
@@ -184,3 +311,5 @@ $("checkoutForm").addEventListener("submit",async e=>{
 
 renderProducts();
 updateCart();
+
+setupLocationPickers();
