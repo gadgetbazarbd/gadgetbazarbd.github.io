@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Panel</title>
+  <link rel="stylesheet" href="admin.css">
+</head>
+
+<body>
+
+  <aside class="sidebar">
+    <h2>ADMIN</h2>
+
+    <button class="menu active" onclick="showPage('dashboard')">
+      Dashboard
+    </button>
+
+    <button class="menu" onclick="showPage('products')">
+      Products
+    </button>
+
+    <button class="menu" onclick="showPage('orders')">
+      Orders
+    </button>
+
+    <button class="menu" onclick="showPage('settings')">
+      Settings
+    </button>
+  </aside>
+
+
+  <main class="main">
+
+    <!-- Dashboard -->
+    <section id="dashboard" class="page">
+      <h1>Dashboard</h1>
+
+      <div class="cards">
+        <div class="card">
+          <span>Total Products</span>
+          <strong id="totalProducts">0</strong>
+        </div>
+
+        <div class="card">
+          <span>Total Orders</span>
+          <strong id="totalOrders">0</strong>
+        </div>
+
+        <div class="card">
+          <span>Pending Orders</span>
+          <strong id="pendingOrders">0</strong>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- Products -->
+    <section id="products" class="page hidden">
+
+      <div class="page-head">
+        <h1>Products</h1>
+        <button class="add-btn" onclick="openProductForm()">
+          + Add Product
+        </button>
+      </div>
+
+      <div id="productList" class="product-list"></div>
+
+    </section>
+
+
+    <!-- Orders -->
+    <section id="orders" class="page hidden">
+      <h1>Orders</h1>
+
+      <div id="orderList" class="order-list">
+        <p class="empty">No orders yet.</p>
+      </div>
+    </section>
+
+
+    <!-- Settings -->
+    <section id="settings" class="page hidden">
+      <h1>Settings</h1>
+
+      <div class="settings-box">
+        <label>Store Name</label>
+        <input id="storeName" type="text" placeholder="Your Store">
+
+        <button onclick="saveSettings()">
+          Save Settings
+        </button>
+      </div>
+    </section>
+
+  </main>
+
+
+  <!-- Product Modal -->
+  <div id="productModal" class="modal hidden">
+
+    <div class="modal-box">
+
+      <div class="modal-head">
+        <h2 id="modalTitle">Add Product</h2>
+        <button onclick="closeProductForm()">×</button>
+      </div>
+
+      <input id="productName" type="text" placeholder="Product name">
+
+      <input id="productPrice" type="number" placeholder="Price">
+
+      <input id="productStock" type="number" placeholder="Stock">
+
+      <input id="productCategory" type="text" placeholder="Category">
+
+      <input id="productImage" type="text" placeholder="Image URL">
+
+      <button class="save-btn" onclick="saveProduct()">
+        Save Product
+      </button>
+
+    </div>
+
+  </div>
+
+
+  <script src="admin.js"></script>
+
+</body>
+</html>
