@@ -1,23 +1,31 @@
-# Gadget Bazar BD — V1 Prototype
+# Gadget Bazar BD Admin Website
 
-This is a front-end demo for the Gadget Bazar BD store.
+This is a polished, mobile-responsive admin dashboard for Gadget Bazar BD.
 
-Included:
-- Responsive mobile-first design
-- Search
-- Category filtering
-- Product cards and product details
-- Cart and quantity controls
-- Delivery calculation
-- Cash-on-delivery checkout UI
-- Order ID generation
-- Demo order/cart persistence in browser localStorage
+## Included
+- Admin login (demo: `admin` / `admin123`)
+- Dashboard KPIs and sales overview
+- Product CRUD, active/hidden state, featured state
+- Orders table, search/filter, status updates, order details
+- Customer directory
+- Sales reports
+- Delivery settings
+- Category management
+- COD / bKash / Nagad settings
+- Store/general settings
+- JSON export/import for backup and migration
+- No Firestore, no Google Sheets, no paid dependency
 
-IMPORTANT:
-The checkout currently saves demo orders only in the customer's browser. It is NOT a real shared order-management backend.
-Before public launch, connect checkout to a secure backend/form endpoint (for example, Google Apps Script or another suitable service) so orders reach the store owner.
+## Current storage model
+The app uses browser `localStorage` so it works immediately on GitHub Pages and can be tested without a backend.
 
-Files:
-- index.html
-- style.css
-- script.js
+## Future connection point
+When you are ready to connect the customer website, add an API adapter around these data objects:
+- `db.products`
+- `db.orders`
+- `db.customers`
+- `db.delivery`
+- `db.payments`
+- `db.settings`
+
+Replace `load()` / `save()` with `fetch()` calls to your chosen backend. The UI already separates data rendering from storage so this swap can be made later without redesigning the dashboard.
