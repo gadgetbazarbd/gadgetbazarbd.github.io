@@ -323,7 +323,8 @@ function closeSuccess(){$("successModal").classList.add("hidden");}
 async function submitOrderToSupabase(order){
   // Matches the standard orders table used by the Gadget Bazar BD Admin V3.
   const row={
-    order_id: order.orderId,
+  order_id: order.orderId,
+  order_number: order.orderId,
     customer_name: order.customer.name,
     phone: order.customer.phone,
     district: order.customer.district,
