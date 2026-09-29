@@ -2048,9 +2048,73 @@ async function refreshDashboard(){
 
 
 /* =========================================================
-   LOGOUT
+   LOGIN
 ========================================================= */
 
+async function login(){
+
+  const email =
+    $('loginUser')?.value.trim();
+
+  const password =
+    $('loginPass')?.value;
+
+  if(!email || !password){
+
+    alert('Please enter admin email and password.');
+
+    return;
+  }
+
+  try{
+
+    const {
+      data,
+      error
+    } = await sb.auth.signInWithPassword({
+      email,
+      password
+    });
+
+    if(error)
+      throw error;
+
+    if(!data?.user){
+
+      alert('Login failed.');
+
+      return;
+    }
+
+    if(data.user.id !== ADMIN_UID){
+
+      await sb.auth.signOut();
+
+      alert('You are not authorized as admin.');
+
+      return;
+    }
+
+    $('login')?.classList.add('hidden');
+
+    $('app')?.classList.remove('hidden');
+
+    await loadCloud();
+
+    render();
+
+  }catch(e){
+
+    console.error('LOGIN ERROR:',e);
+
+    alert(
+      'Login failed.\n\n' +
+      (e?.message || 'Invalid email or password.')
+    );
+
+  }
+
+}
 async function logout(){
 
   try{
