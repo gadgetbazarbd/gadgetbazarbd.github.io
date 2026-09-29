@@ -401,9 +401,9 @@ $("checkoutForm").addEventListener("submit",async e=>{
   };
 
   try{
-    await submitOrderToSupabase(order);
-  }catch(err){
-  console.error("Order submission failed:", err);
+  await submitOrderToSupabase(order);
+}catch(err){
+  console.error("ORDER ERROR:", err);
 
   alert(
     "ORDER ERROR\n\n" +
