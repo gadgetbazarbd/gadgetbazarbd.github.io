@@ -403,11 +403,18 @@ $("checkoutForm").addEventListener("submit",async e=>{
   try{
     await submitOrderToSupabase(order);
   }catch(err){
-    console.error("Order submission failed:",err);
-    alert("Order could not be submitted. Please try again.");
-    return;
-  }
+  console.error("Order submission failed:", err);
 
+  alert(
+    "ORDER ERROR\n\n" +
+    "Message: " + (err.message || "Unknown") + "\n" +
+    "Code: " + (err.code || "N/A") + "\n" +
+    "Details: " + (err.details || "N/A") + "\n" +
+    "Hint: " + (err.hint || "N/A")
+  );
+
+  return;
+}
   localStorage.setItem("gbbd_last_order",JSON.stringify(order));
   const orders=JSON.parse(localStorage.getItem("gbbd_orders")||"[]");
   orders.unshift(order);
