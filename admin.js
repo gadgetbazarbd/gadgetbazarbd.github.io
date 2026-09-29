@@ -2,7 +2,7 @@
 const SUPABASE_URL = 'https://vwwysrdqexjtlmpmevub.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_vYHW5zcCIPipjPS-tuxnRA_dS125qax';
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-const BUCKET = 'product-images';
+const BUCKET = 'product images';
 let page = 'dashboard';
 let productsCache = [];
 let ordersCache = [];
