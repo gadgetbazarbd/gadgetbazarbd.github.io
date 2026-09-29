@@ -2192,7 +2192,7 @@ document.addEventListener(
 ========================================================= */
 
 window.$ = $;
-
+window.login = login;
 window.render = render;
 
 window.go = go;
