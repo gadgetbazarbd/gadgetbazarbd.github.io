@@ -1,13 +1,28 @@
-Gadget Bazar BD Admin Pro V2
+Gadget Bazar BD — Customer Site (Supabase Connected)
 
-Login: admin / admin123
+Design/UI:
+- Original V6 design and CSS retained.
+- Cart, Buy Now, Checkout, district/upazila picker and delivery UI retained.
 
-Changes:
-- Fixed the duplicate $() bug that broke login.
-- Product image can be selected directly from Android Gallery.
-- Image preview before saving.
-- Image size limited to 2.5 MB for local browser storage.
-- Cache-busting added to CSS/JS.
-- Existing dashboard, products, orders, customers, categories, delivery, payments and settings retained.
+Supabase:
+- Customer site reads active products from public.products.
+- Customer orders are inserted into public.orders.
+- Delivery settings are read from public.delivery_settings when available.
+- Uses the Supabase publishable key only; never put a service_role key in this site.
 
-Important: this is still Local Mode. It is not a shared online backend and does not automatically sync with the public customer website yet.
+Deploy:
+- Replace the current customer-site files on GitHub Pages with:
+  index.html
+  script.js
+  style.css
+
+After deployment:
+1. Add/edit a product in Admin Panel.
+2. Refresh customer site and verify it appears.
+3. Place a test COD order.
+4. Check Admin Panel > Orders.
+
+Note:
+- The orders insert mapping expects the Admin V3 orders table fields:
+  order_id, customer_name, phone, district, upazila, address, note,
+  items, subtotal, delivery_fee, total, payment_method, transaction_id, status.
