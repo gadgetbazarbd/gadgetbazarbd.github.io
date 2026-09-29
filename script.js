@@ -321,6 +321,27 @@ function closeCheckout(){$("checkoutModal").classList.add("hidden");}
 function closeSuccess(){$("successModal").classList.add("hidden");}
 
 async function submitOrderToSupabase(order){
+  const row = {
+    order_number: order.orderId,
+    customer_name: order.customer.name,
+    phone: order.customer.phone,
+    items: order.items,
+    subtotal: Number(order.subtotal) || 0,
+    delivery_charge: Number(order.delivery) || 0
+  };
+
+  const { data, error } = await sb
+    .from("orders")
+    .insert(row)
+    .select();
+
+  if(error){
+    console.error("SUPABASE ORDER ERROR:", error);
+    throw error;
+  }
+
+  console.log("ORDER SAVED:", data);
+}
   // Matches the standard orders table used by the Gadget Bazar BD Admin V3.
   const row={
   order_id: order.orderId,
