@@ -1949,12 +1949,10 @@ function customers(){
 function render(){
 
   const app =
-    $('app') ||
     $('content') ||
     $('main');
 
   if(!app) return;
-
   let html = '';
 
   switch(currentSection){
