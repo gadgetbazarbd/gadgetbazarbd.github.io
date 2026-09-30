@@ -2823,7 +2823,7 @@ window.openModal =
 
 window.toggleSidebar =
   toggleSidebar;
-
+window.toggleSide = toggleSidebar;
 window.addProduct =
   addProduct;
 
