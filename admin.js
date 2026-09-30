@@ -201,7 +201,7 @@ function customers(){
   return `<div class="section-head"><div><h3>Customers</h3><p>Customers from your orders</p></div></div><div class="table-wrap"><table class="table"><thead><tr><th>Name</th><th>Phone</th><th>Orders</th></tr></thead><tbody>${list.length?list.map(c=>`<tr><td>${esc(c.name)}</td><td>${esc(c.phone)}</td><td>${c.orders}</td></tr>`).join(''):`<tr><td colspan="3" class="empty">No customers yet</td></tr>`}</tbody></table></div>`
 }
 function delivery(){return `<div class="section-head"><div><h3>Delivery Settings</h3><p>Delivery charges</p></div></div><div class="card"><p>Delivery settings section is ready for configuration.</p><p>Current customer checkout uses the delivery settings already connected to the store.</p></div>`}
-function payment(){return `<div class="section-head"><div><h3>Payment Settings</h3><p>Payment methods</p></div></div><div class="card"><p>Payment settings will be configured later.</p><p>Current checkout continues to support Cash on Delivery and the existing payment options.</p></div>`}
+function payments(){return `<div class="section-head"><div><h3>Payment Settings</h3><p>Payment methods</p></div></div><div class="card"><p>Payment settings will be configured later.</p><p>Current checkout continues to support Cash on Delivery and the existing payment options.</p></div>`}
 function settings(){return `<div class="section-head"><div><h3>Store Settings</h3><p>Gadget Bazar BD</p></div></div><div class="card"><p>Store settings are connected to Supabase.</p><p>Admin account and product storage are active.</p></div>`}
 
 function toggleCatalog(){
