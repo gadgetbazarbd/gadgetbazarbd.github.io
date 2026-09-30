@@ -1,28 +1,35 @@
 /* =========================================================
    GADGET BAZAR BD — ADMIN PANEL
-   Supabase Version
+   SUPABASE VERSION
 ========================================================= */
 
-const SUPABASE_URL = 'https://vwwysrdqexjtlmpmevub.supabase.co';
+const SUPABASE_URL =
+  'https://vwwysrdqexjtlmpmevub.supabase.co';
 
 const SUPABASE_KEY =
   'sb_publishable_vYHW5zcCIPipjPS-tuxnRA_dS125qax';
 
-const sb = window.supabase.createClient(
-  SUPABASE_URL,
-  SUPABASE_KEY
-);
+const sb =
+  window.supabase.createClient(
+    SUPABASE_URL,
+    SUPABASE_KEY
+  );
 
-const BUCKET = 'product images';
+const BUCKET =
+  'product images';
 
-const ADMIN_UID = '9aa2e054-a19a-4f86-aaf7-25f13e720722';
+const ADMIN_UID =
+  '9aa2e054-a19a-4f86-aaf7-25f13e720722';
 
 let productsCache = [];
 let ordersCache = [];
 let categoriesCache = [];
 
-let currentSection = 'dashboard';
-let editingProductId = null;
+let currentSection =
+  'dashboard';
+
+let editingProductId =
+  null;
 
 
 /* =========================================================
@@ -43,61 +50,88 @@ function esc(value){
 }
 
 function money(value){
-  return '৳' + Number(value || 0).toLocaleString('en-BD');
+  return '৳' +
+    Number(value || 0)
+      .toLocaleString('en-BD');
 }
 
 function showError(error){
+
   console.error(error);
 
   alert(
     'Something went wrong.\n\n' +
-    (error?.message || error || 'Unknown error')
+    (
+      error?.message ||
+      error ||
+      'Unknown error'
+    )
   );
 }
 
 function closeModal(){
+
   if($('modal')){
-    $('modal').classList.add('hidden');
+    $('modal')
+      .classList
+      .add('hidden');
   }
+
 }
 
 function openModal(title,body){
+
   if($('modalTitle')){
-    $('modalTitle').textContent = title;
+    $('modalTitle')
+      .textContent = title;
   }
 
   if($('modalBody')){
-    $('modalBody').innerHTML = body;
+    $('modalBody')
+      .innerHTML = body;
   }
 
   if($('modal')){
-    $('modal').classList.remove('hidden');
+    $('modal')
+      .classList
+      .remove('hidden');
   }
+
 }
 
 
 /* =========================================================
-   SUPABASE AUTH
+   AUTH
 ========================================================= */
 
 async function checkAdmin(){
 
   const {
     data:{session}
-  } = await sb.auth.getSession();
+  } =
+    await sb.auth.getSession();
 
   if(!session){
-    location.href = 'login.html';
+
+    location.href =
+      'login.html';
+
     return false;
   }
 
-  if(session.user.id !== ADMIN_UID){
+  if(
+    session.user.id !==
+    ADMIN_UID
+  ){
 
     await sb.auth.signOut();
 
-    alert('You are not authorized as admin.');
+    alert(
+      'You are not authorized as admin.'
+    );
 
-    location.href = 'login.html';
+    location.href =
+      'login.html';
 
     return false;
   }
@@ -110,38 +144,52 @@ async function checkAdmin(){
    IMAGE UPLOAD
 ========================================================= */
 
-async function uploadImage(file,id){
+async function uploadImage(
+  file,
+  id
+){
 
   if(!file) return '';
 
   const ext =
-    (file.name.split('.').pop() || 'jpg')
+    (
+      file.name
+        .split('.')
+        .pop() ||
+      'jpg'
+    )
       .toLowerCase()
-      .replace(/[^a-z0-9]/g,'');
+      .replace(
+        /[^a-z0-9]/g,
+        ''
+      );
 
   const path =
     `products/${id}_${Date.now()}.${ext}`;
 
   const {
     error
-  } = await sb.storage
-    .from(BUCKET)
-    .upload(
-      path,
-      file,
-      {
-        upsert:true,
-        contentType:file.type
-      }
-    );
+  } =
+    await sb.storage
+      .from(BUCKET)
+      .upload(
+        path,
+        file,
+        {
+          upsert:true,
+          contentType:file.type
+        }
+      );
 
-  if(error) throw error;
+  if(error)
+    throw error;
 
   const {
     data
-  } = sb.storage
-    .from(BUCKET)
-    .getPublicUrl(path);
+  } =
+    sb.storage
+      .from(BUCKET)
+      .getPublicUrl(path);
 
   return data.publicUrl;
 }
@@ -157,24 +205,34 @@ async function loadCloud(){
     productsResult,
     ordersResult,
     categoriesResult
-  ] = await Promise.all([
+  ] =
+    await Promise.all([
 
-    sb
-      .from('products')
-      .select('*')
-      .order('created_at',{ascending:false}),
+      sb
+        .from('products')
+        .select('*')
+        .order(
+          'created_at',
+          {ascending:false}
+        ),
 
-    sb
-      .from('orders')
-      .select('*')
-      .order('created_at',{ascending:false}),
+      sb
+        .from('orders')
+        .select('*')
+        .order(
+          'created_at',
+          {ascending:false}
+        ),
 
-    sb
-      .from('categories')
-      .select('*')
-      .order('name',{ascending:true})
+      sb
+        .from('categories')
+        .select('*')
+        .order(
+          'name',
+          {ascending:true}
+        )
 
-  ]);
+    ]);
 
   if(productsResult.error)
     throw productsResult.error;
@@ -193,6 +251,7 @@ async function loadCloud(){
 
   categoriesCache =
     categoriesResult.data || [];
+
 }
 
 
@@ -205,14 +264,21 @@ async function refreshProducts(){
   const {
     data,
     error
-  } = await sb
-    .from('products')
-    .select('*')
-    .order('created_at',{ascending:false});
+  } =
+    await sb
+      .from('products')
+      .select('*')
+      .order(
+        'created_at',
+        {ascending:false}
+      );
 
-  if(error) throw error;
+  if(error)
+    throw error;
 
-  productsCache = data || [];
+  productsCache =
+    data || [];
+
 }
 
 
@@ -225,14 +291,21 @@ async function refreshOrders(){
   const {
     data,
     error
-  } = await sb
-    .from('orders')
-    .select('*')
-    .order('created_at',{ascending:false});
+  } =
+    await sb
+      .from('orders')
+      .select('*')
+      .order(
+        'created_at',
+        {ascending:false}
+      );
 
-  if(error) throw error;
+  if(error)
+    throw error;
 
-  ordersCache = data || [];
+  ordersCache =
+    data || [];
+
 }
 
 
@@ -255,26 +328,35 @@ function dashboard(){
 
   const pendingOrders =
     ordersCache.filter(
-      o => (o.status || 'Pending') === 'Pending'
+      o =>
+        (o.status || 'Pending') ===
+        'Pending'
     ).length;
 
   const deliveredOrders =
     ordersCache.filter(
-      o => (o.status || '') === 'Delivered'
+      o =>
+        (o.status || '') ===
+        'Delivered'
     ).length;
 
   const revenue =
     ordersCache
       .filter(
-        o => (o.status || '') !== 'Cancelled'
+        o =>
+          (o.status || '') !==
+          'Cancelled'
       )
       .reduce(
         (sum,o) =>
-          sum + Number(
+          sum +
+          Number(
             o.total ||
             (
               Number(o.subtotal || 0) +
-              Number(o.delivery_charge || 0)
+              Number(
+                o.delivery_charge || 0
+              )
             )
           ),
         0
@@ -286,6 +368,7 @@ function dashboard(){
   return `
 
     <div class="section-head">
+
       <div>
         <h3>Dashboard</h3>
         <p>Gadget Bazar BD overview</p>
@@ -296,38 +379,63 @@ function dashboard(){
         onclick="refreshDashboard()">
         ↻ Refresh
       </button>
+
     </div>
 
     <div class="stats-grid">
 
       <div class="stat-card">
-        <div class="stat-label">Total Products</div>
-        <div class="stat-value">${totalProducts}</div>
+        <div class="stat-label">
+          Total Products
+        </div>
+        <div class="stat-value">
+          ${totalProducts}
+        </div>
       </div>
 
       <div class="stat-card">
-        <div class="stat-label">Active Products</div>
-        <div class="stat-value">${activeProducts}</div>
+        <div class="stat-label">
+          Active Products
+        </div>
+        <div class="stat-value">
+          ${activeProducts}
+        </div>
       </div>
 
       <div class="stat-card">
-        <div class="stat-label">Total Orders</div>
-        <div class="stat-value">${totalOrders}</div>
+        <div class="stat-label">
+          Total Orders
+        </div>
+        <div class="stat-value">
+          ${totalOrders}
+        </div>
       </div>
 
       <div class="stat-card">
-        <div class="stat-label">Pending Orders</div>
-        <div class="stat-value">${pendingOrders}</div>
+        <div class="stat-label">
+          Pending Orders
+        </div>
+        <div class="stat-value">
+          ${pendingOrders}
+        </div>
       </div>
 
       <div class="stat-card">
-        <div class="stat-label">Delivered</div>
-        <div class="stat-value">${deliveredOrders}</div>
+        <div class="stat-label">
+          Delivered
+        </div>
+        <div class="stat-value">
+          ${deliveredOrders}
+        </div>
       </div>
 
       <div class="stat-card">
-        <div class="stat-label">Revenue</div>
-        <div class="stat-value">${money(revenue)}</div>
+        <div class="stat-label">
+          Revenue
+        </div>
+        <div class="stat-value">
+          ${money(revenue)}
+        </div>
       </div>
 
     </div>
@@ -341,6 +449,7 @@ function dashboard(){
       <table class="table">
 
         <thead>
+
           <tr>
             <th>Order ID</th>
             <th>Customer</th>
@@ -348,6 +457,7 @@ function dashboard(){
             <th>Total</th>
             <th>Status</th>
           </tr>
+
         </thead>
 
         <tbody>
@@ -357,13 +467,37 @@ function dashboard(){
             ? recent.map(o => {
 
                 const status =
-                  o.status || 'Pending';
+                  o.status ||
+                  'Pending';
 
                 const orderNumber =
                   o.order_number ||
                   o.order_id ||
                   o.id ||
                   '';
+
+                const customerName =
+                  o.customer_name ||
+                  o.customer?.name ||
+                  o.name ||
+                  '—';
+
+                const phone =
+                  o.phone ||
+                  o.customer_phone ||
+                  o.customer?.phone ||
+                  '—';
+
+                const total =
+                  o.total ||
+                  (
+                    Number(
+                      o.subtotal || 0
+                    ) +
+                    Number(
+                      o.delivery_charge || 0
+                    )
+                  );
 
                 return `
 
@@ -374,45 +508,33 @@ function dashboard(){
                     </td>
 
                     <td>
-                      ${esc(
-                        o.customer_name ||
-                        o.customer?.name ||
-                        o.name ||
-                        '—'
-                      )}
+                      ${esc(customerName)}
                     </td>
 
                     <td>
-                      ${esc(
-                        o.phone ||
-                        o.customer_phone ||
-                        o.customer?.phone ||
-                        '—'
-                      )}
+                      ${esc(phone)}
                     </td>
 
                     <td>
-                      ${money(
-                        o.total ||
-                        (
-                          Number(o.subtotal || 0) +
-                          Number(o.delivery_charge || 0)
-                        )
-                      )}
+                      ${money(total)}
                     </td>
 
                     <td>
+
                       <span class="pill ${
                         status === 'Delivered'
-                        ? 'green'
-                        : status === 'Cancelled'
-                        ? 'red'
-                        : status === 'Pending'
-                        ? 'yellow'
-                        : 'blue'
+                          ? 'green'
+                          : status === 'Cancelled'
+                          ? 'red'
+                          : status === 'Pending'
+                          ? 'yellow'
+                          : 'blue'
                       }">
+
                         ${esc(status)}
+
                       </span>
+
                     </td>
 
                   </tr>
@@ -421,11 +543,19 @@ function dashboard(){
 
               }).join('')
             : `
+
               <tr>
-                <td colspan="5" class="empty">
+
+                <td
+                  colspan="5"
+                  class="empty">
+
                   No orders yet
+
                 </td>
+
               </tr>
+
             `
           }
 
@@ -436,6 +566,7 @@ function dashboard(){
     </div>
 
   `;
+
 }
 
 
@@ -446,94 +577,113 @@ function dashboard(){
 function products(){
 
   const rows =
-    productsCache.map((p,i) => {
+    productsCache
+      .map((p,i) => {
 
-      const active =
-        p.active !== false;
+        const active =
+          p.active !== false;
 
-      return `
+        return `
 
-        <tr>
+          <tr>
 
-          <td>
+            <td>
 
-            ${
-              p.image
-              ? `
-                <img
-                  src="${esc(p.image)}"
-                  style="
-                    width:50px;
-                    height:50px;
-                    object-fit:cover;
-                    border-radius:10px;
-                  "
-                >
-              `
-              : '—'
-            }
+              ${
+                p.image
+                ? `
 
-          </td>
+                  <img
+                    src="${esc(p.image)}"
+                    style="
+                      width:50px;
+                      height:50px;
+                      object-fit:cover;
+                      border-radius:10px;
+                    "
+                  >
 
-          <td>
-            ${esc(p.name)}
-          </td>
+                `
+                : '—'
+              }
 
-          <td>
-            ${esc(p.category || '—')}
-          </td>
+            </td>
 
-          <td>
-            ${money(p.price)}
-          </td>
+            <td>
+              ${esc(p.name)}
+            </td>
 
-          <td>
-            ${esc(p.stock ?? 0)}
-          </td>
+            <td>
+              ${esc(
+                p.category || '—'
+              )}
+            </td>
 
-          <td>
+            <td>
+              ${money(p.price)}
+            </td>
 
-            <span class="pill ${
-              active
-              ? 'green'
-              : 'red'
-            }">
+            <td>
+              ${esc(p.stock ?? 0)}
+            </td>
 
-              ${active ? 'Active' : 'Inactive'}
+            <td>
 
-            </span>
+              <span class="pill ${
+                active
+                  ? 'green'
+                  : 'red'
+              }">
 
-          </td>
+                ${
+                  active
+                  ? 'Active'
+                  : 'Inactive'
+                }
 
-          <td class="actions">
+              </span>
 
-            <button
-              class="btn"
-              onclick="editProduct(${i})">
-              Edit
-            </button>
+            </td>
 
-            <button
-              class="btn danger"
-              onclick="deleteProduct(${i})">
-              Delete
-            </button>
+            <td class="actions">
 
-          </td>
+              <button
+                class="btn"
+                onclick="editProduct(${i})">
 
-        </tr>
+                Edit
 
-      `;
+              </button>
 
-    }).join('');
+              <button
+                class="btn danger"
+                onclick="deleteProduct(${i})">
+
+                Delete
+
+              </button>
+
+            </td>
+
+          </tr>
+
+        `;
+
+      })
+      .join('');
 
   return `
 
     <div class="section-head">
 
       <div>
+
         <h3>Products</h3>
-        <p>Manage your Gadget Bazar BD products</p>
+
+        <p>
+          Manage your Gadget Bazar BD products
+        </p>
+
       </div>
 
       <div class="toolbar">
@@ -541,13 +691,21 @@ function products(){
         <button
           class="btn primary"
           onclick="addProduct()">
+
           + Add Product
+
         </button>
 
         <button
           class="btn muted"
-          onclick="refreshProducts().then(render).catch(showError)">
+          onclick="
+            refreshProducts()
+              .then(render)
+              .catch(showError)
+          ">
+
           ↻ Refresh
+
         </button>
 
       </div>
@@ -577,11 +735,19 @@ function products(){
           ${
             rows ||
             `
+
               <tr>
-                <td colspan="7" class="empty">
+
+                <td
+                  colspan="7"
+                  class="empty">
+
                   No products yet
+
                 </td>
+
               </tr>
+
             `
           }
 
@@ -592,6 +758,7 @@ function products(){
     </div>
 
   `;
+
 }
 
 
@@ -601,13 +768,14 @@ function products(){
 
 function addProduct(){
 
-  editingProductId = null;
+  editingProductId =
+    null;
 
   openModal(
     'Add Product',
-
     productForm()
   );
+
 }
 
 
@@ -622,13 +790,14 @@ function editProduct(i){
 
   if(!p) return;
 
-  editingProductId = p.id;
+  editingProductId =
+    p.id;
 
   openModal(
     'Edit Product',
-
     productForm(p)
   );
+
 }
 
 
@@ -646,12 +815,17 @@ function productForm(p = {}){
   const categoryOptions =
     categories
       .map(
-        c =>
-          `<option ${
-            p.category === c
-            ? 'selected'
-            : ''
-          }>${esc(c)}</option>`
+        c => `
+          <option
+            value="${esc(c)}"
+            ${
+              p.category === c
+                ? 'selected'
+                : ''
+            }>
+            ${esc(c)}
+          </option>
+        `
       )
       .join('');
 
@@ -660,23 +834,29 @@ function productForm(p = {}){
     <div class="form-grid">
 
       <label>
+
         Product Name
 
         <input
           id="productName"
-          value="${esc(p.name || '')}"
+          value="${esc(
+            p.name || ''
+          )}"
           placeholder="Product name"
         >
 
       </label>
 
       <label>
+
         Category
 
         <input
           id="productCategory"
           list="categoryList"
-          value="${esc(p.category || '')}"
+          value="${esc(
+            p.category || ''
+          )}"
           placeholder="Audio"
         >
 
@@ -689,42 +869,52 @@ function productForm(p = {}){
       </label>
 
       <label>
+
         Price
 
         <input
           id="productPrice"
           type="number"
           min="0"
-          value="${Number(p.price || 0)}"
+          value="${Number(
+            p.price || 0
+          )}"
         >
 
       </label>
 
       <label>
+
         Discount
 
         <input
           id="productDiscount"
           type="number"
           min="0"
-          value="${Number(p.discount || 0)}"
+          value="${Number(
+            p.discount || 0
+          )}"
         >
 
       </label>
 
       <label>
+
         Stock
 
         <input
           id="productStock"
           type="number"
           min="0"
-          value="${Number(p.stock || 0)}"
+          value="${Number(
+            p.stock || 0
+          )}"
         >
 
       </label>
 
       <label>
+
         Status
 
         <select id="productActive">
@@ -733,29 +923,32 @@ function productForm(p = {}){
             value="true"
             ${
               p.active !== false
-              ? 'selected'
-              : ''
-            }
-          >
+                ? 'selected'
+                : ''
+            }>
+
             Active
+
           </option>
 
           <option
             value="false"
             ${
               p.active === false
-              ? 'selected'
-              : ''
-            }
-          >
+                ? 'selected'
+                : ''
+            }>
+
             Inactive
+
           </option>
 
         </select>
 
       </label>
 
-      <label style="grid-column:1/-1">
+      <label
+        style="grid-column:1/-1">
 
         Product Image
 
@@ -770,7 +963,9 @@ function productForm(p = {}){
       ${
         p.image
         ? `
-          <div style="grid-column:1/-1">
+
+          <div
+            style="grid-column:1/-1">
 
             <img
               src="${esc(p.image)}"
@@ -783,6 +978,7 @@ function productForm(p = {}){
             >
 
           </div>
+
         `
         : ''
       }
@@ -794,18 +990,23 @@ function productForm(p = {}){
       <button
         class="btn muted"
         onclick="closeModal()">
+
         Cancel
+
       </button>
 
       <button
         class="btn primary"
         onclick="saveProduct()">
+
         Save Product
+
       </button>
 
     </div>
 
   `;
+
 }
 
 
@@ -816,29 +1017,46 @@ function productForm(p = {}){
 async function saveProduct(){
 
   const name =
-    $('productName')?.value.trim();
+    $('productName')
+      ?.value
+      .trim();
 
   const category =
-    $('productCategory')?.value.trim();
+    $('productCategory')
+      ?.value
+      .trim();
 
   const price =
-    Number($('productPrice')?.value || 0);
+    Number(
+      $('productPrice')
+        ?.value || 0
+    );
 
   const discount =
-    Number($('productDiscount')?.value || 0);
+    Number(
+      $('productDiscount')
+        ?.value || 0
+    );
 
   const stock =
-    Number($('productStock')?.value || 0);
+    Number(
+      $('productStock')
+        ?.value || 0
+    );
 
   const active =
-    $('productActive')?.value === 'true';
+    $('productActive')
+      ?.value === 'true';
 
   const file =
-    $('productImage')?.files?.[0];
+    $('productImage')
+      ?.files?.[0];
 
   if(!name){
 
-    alert('Product name is required.');
+    alert(
+      'Product name is required.'
+    );
 
     return;
   }
@@ -849,7 +1067,7 @@ async function saveProduct(){
       editingProductId ||
       crypto.randomUUID();
 
-    let oldProduct =
+    const oldProduct =
       productsCache.find(
         p => p.id === id
       );
@@ -882,12 +1100,15 @@ async function saveProduct(){
 
     const {
       error
-    } = await sb
-      .from('products')
-      .upsert(
-        payload,
-        { onConflict:'id' }
-      );
+    } =
+      await sb
+        .from('products')
+        .upsert(
+          payload,
+          {
+            onConflict:'id'
+          }
+        );
 
     if(error)
       throw error;
@@ -900,8 +1121,8 @@ async function saveProduct(){
 
     alert(
       editingProductId
-      ? 'Product updated successfully.'
-      : 'Product added successfully.'
+        ? 'Product updated successfully.'
+        : 'Product added successfully.'
     );
 
   }catch(e){
@@ -929,17 +1150,23 @@ async function deleteProduct(i){
       `Delete "${p.name}"?`
     )
   ){
+
     return;
+
   }
 
   try{
 
     const {
       error
-    } = await sb
-      .from('products')
-      .delete()
-      .eq('id',p.id);
+    } =
+      await sb
+        .from('products')
+        .delete()
+        .eq(
+          'id',
+          p.id
+        );
 
     if(error)
       throw error;
@@ -964,188 +1191,261 @@ async function deleteProduct(i){
 function orders(){
 
   const rows =
-    ordersCache.map((o,i) => {
+    ordersCache
+      .map((o,i) => {
 
-      const status =
-        o.status || 'Pending';
+        const status =
+          o.status ||
+          'Pending';
 
-      const orderNumber =
-        o.order_number ||
-        o.order_id ||
-        o.id ||
-        '#' + (i + 1);
+        const orderNumber =
+          o.order_number ||
+          o.order_id ||
+          o.id ||
+          '#' + (i + 1);
 
-      const total =
-        o.total ||
-        (
-          Number(o.subtotal || 0) +
-          Number(o.delivery_charge || 0)
-        );
+        const total =
+          o.total ||
+          (
+            Number(
+              o.subtotal || 0
+            ) +
+            Number(
+              o.delivery_charge || 0
+            )
+          );
 
-      let buttons = '';
+        let buttons = '';
 
-      /* Pending → Confirm */
+        /* Pending → Confirm */
 
-      if(status === 'Pending'){
+        if(
+          status === 'Pending'
+        ){
 
-        buttons += `
-          <button
-            class="btn primary"
-            onclick="updateOrderStatus(${i},'Confirmed')">
-            Confirm
-          </button>
-        `;
-
-      }
-
-      /* Confirmed → Processing */
-
-      if(status === 'Confirmed'){
-
-        buttons += `
-          <button
-            class="btn primary"
-            onclick="updateOrderStatus(${i},'Processing')">
-            Processing
-          </button>
-        `;
-
-      }
-
-      /* Processing → Shipped */
-
-      if(status === 'Processing'){
-
-        buttons += `
-          <button
-            class="btn primary"
-            onclick="updateOrderStatus(${i},'Shipped')">
-            Shipped
-          </button>
-        `;
-
-      }
-
-      /* Shipped → Delivered */
-
-      if(status === 'Shipped'){
-
-        buttons += `
-          <button
-            class="btn primary"
-            onclick="updateOrderStatus(${i},'Delivered')">
-            Delivered
-          </button>
-        `;
-
-      }
-
-      /* Cancel */
-
-      if(
-        status !== 'Delivered' &&
-        status !== 'Cancelled'
-      ){
-
-        buttons += `
-          <button
-            class="btn danger"
-            onclick="updateOrderStatus(${i},'Cancelled')">
-            Cancel
-          </button>
-        `;
-
-      }
-
-      return `
-
-        <tr>
-
-          <td>
-            ${esc(orderNumber)}
-          </td>
-
-          <td>
-            ${esc(
-              o.customer_name ||
-              o.customer?.name ||
-              o.name ||
-              '—'
-            )}
-          </td>
-
-          <td>
-            ${esc(
-              o.phone ||
-              o.customer_phone ||
-              o.customer?.phone ||
-              '—'
-            )}
-          </td>
-
-          <td>
-            ${money(total)}
-          </td>
-
-          <td>
-            ${esc(
-              o.payment_method ||
-              o.paymentMethod ||
-              'COD'
-            )}
-          </td>
-
-          <td>
-
-            <span class="pill ${
-              status === 'Delivered'
-              ? 'green'
-              : status === 'Cancelled'
-              ? 'red'
-              : status === 'Pending'
-              ? 'yellow'
-              : 'blue'
-            }">
-
-              ${esc(status)}
-
-            </span>
-
-          </td>
-
-          <td class="actions">
+          buttons += `
 
             <button
-              class="btn"
-              onclick="viewOrder(${i})">
-              View
+              class="btn primary"
+              onclick="
+                updateOrderStatus(
+                  ${i},
+                  'Confirmed'
+                )
+              ">
+
+              Confirm
+
             </button>
 
-            ${buttons}
+          `;
 
-          </td>
+        }
 
-        </tr>
+        /* Confirmed → Processing */
 
-      `;
+        if(
+          status === 'Confirmed'
+        ){
 
-    }).join('');
+          buttons += `
+
+            <button
+              class="btn primary"
+              onclick="
+                updateOrderStatus(
+                  ${i},
+                  'Processing'
+                )
+              ">
+
+              Processing
+
+            </button>
+
+          `;
+
+        }
+
+        /* Processing → Shipped */
+
+        if(
+          status === 'Processing'
+        ){
+
+          buttons += `
+
+            <button
+              class="btn primary"
+              onclick="
+                updateOrderStatus(
+                  ${i},
+                  'Shipped'
+                )
+              ">
+
+              Shipped
+
+            </button>
+
+          `;
+
+        }
+
+        /* Shipped → Delivered */
+
+        if(
+          status === 'Shipped'
+        ){
+
+          buttons += `
+
+            <button
+              class="btn primary"
+              onclick="
+                updateOrderStatus(
+                  ${i},
+                  'Delivered'
+                )
+              ">
+
+              Delivered
+
+            </button>
+
+          `;
+
+        }
+
+        /* Cancel */
+
+        if(
+          status !== 'Delivered' &&
+          status !== 'Cancelled'
+        ){
+
+          buttons += `
+
+            <button
+              class="btn danger"
+              onclick="
+                updateOrderStatus(
+                  ${i},
+                  'Cancelled'
+                )
+              ">
+
+              Cancel
+
+            </button>
+
+          `;
+
+        }
+
+        return `
+
+          <tr>
+
+            <td>
+              ${esc(orderNumber)}
+            </td>
+
+            <td>
+              ${esc(
+                o.customer_name ||
+                o.customer?.name ||
+                o.name ||
+                '—'
+              )}
+            </td>
+
+            <td>
+              ${esc(
+                o.phone ||
+                o.customer_phone ||
+                o.customer?.phone ||
+                '—'
+              )}
+            </td>
+
+            <td>
+              ${money(total)}
+            </td>
+
+            <td>
+              ${esc(
+                o.payment_method ||
+                o.paymentMethod ||
+                'COD'
+              )}
+            </td>
+
+            <td>
+
+              <span class="pill ${
+                status === 'Delivered'
+                  ? 'green'
+                  : status === 'Cancelled'
+                  ? 'red'
+                  : status === 'Pending'
+                  ? 'yellow'
+                  : 'blue'
+              }">
+
+                ${esc(status)}
+
+              </span>
+
+            </td>
+
+            <td class="actions">
+
+              <button
+                class="btn"
+                onclick="viewOrder(${i})">
+
+                View
+
+              </button>
+
+              ${buttons}
+
+            </td>
+
+          </tr>
+
+        `;
+
+      })
+      .join('');
 
   return `
 
     <div class="section-head">
 
       <div>
+
         <h3>Orders</h3>
-        <p>Manage customer orders</p>
+
+        <p>
+          Manage customer orders
+        </p>
+
       </div>
 
       <div class="toolbar">
 
         <button
           class="btn muted"
-          onclick="refreshOrders().then(render).catch(showError)">
+          onclick="
+            refreshOrders()
+              .then(render)
+              .catch(showError)
+          ">
+
           ↻ Refresh
+
         </button>
 
       </div>
@@ -1177,14 +1477,19 @@ function orders(){
           ${
             rows ||
             `
+
               <tr>
+
                 <td
                   colspan="7"
-                  class="empty"
-                >
+                  class="empty">
+
                   No orders yet
+
                 </td>
+
               </tr>
+
             `
           }
 
@@ -1195,6 +1500,7 @@ function orders(){
     </div>
 
   `;
+
 }
 
 
@@ -1228,7 +1534,7 @@ function viewOrder(i){
     '';
 
   const district =
-       o.district ||
+    o.district ||
     o.customer?.district ||
     '';
 
@@ -1250,16 +1556,22 @@ function viewOrder(i){
   const total =
     o.total ||
     (
-      Number(o.subtotal || 0) +
-      Number(o.delivery_charge || 0)
+      Number(
+        o.subtotal || 0
+      ) +
+      Number(
+        o.delivery_charge || 0
+      )
     );
 
   const status =
-    o.status || 'Pending';
+    o.status ||
+    'Pending';
 
   openModal(
 
-    'Order ' + orderNumber,
+    'Order ' +
+      orderNumber,
 
     `
 
@@ -1274,9 +1586,18 @@ function viewOrder(i){
         </p>
 
         <p>
+
           ${esc(district)}
-          ${district || upazila ? ', ' : ''}
+
+          ${
+            district ||
+            upazila
+              ? ', '
+              : ''
+          }
+
           ${esc(upazila)}
+
         </p>
 
         <p>
@@ -1286,39 +1607,59 @@ function viewOrder(i){
         <hr>
 
         <p>
+
           <b>Payment:</b>
+
           ${esc(payment)}
+
           ${
             o.transaction_id
-            ? ' · TXN: ' +
-              esc(o.transaction_id)
-            : ''
+              ? ' · TXN: ' +
+                esc(
+                  o.transaction_id
+                )
+              : ''
           }
+
         </p>
 
         <p>
+
           <b>Status:</b>
           ${esc(status)}
+
         </p>
 
         <p>
+
           <b>Subtotal:</b>
           ${money(o.subtotal)}
+
         </p>
 
         <p>
+
           <b>Delivery:</b>
-          ${money(o.delivery_charge)}
+          ${money(
+            o.delivery_charge
+          )}
+
         </p>
 
         <p>
+
           <b>Total:</b>
           ${money(total)}
+
         </p>
 
         <p>
+
           <b>Note:</b>
-          ${esc(o.note || '—')}
+          ${esc(
+            o.note || '—'
+          )}
+
         </p>
 
       </div>
@@ -1327,63 +1668,108 @@ function viewOrder(i){
 
         ${
           status === 'Pending'
-          ? `
-            <button
-              class="btn primary"
-              onclick="updateOrderStatus(${i},'Confirmed')">
-              Confirm Order
-            </button>
-          `
-          : ''
+            ? `
+
+              <button
+                class="btn primary"
+                onclick="
+                  updateOrderStatus(
+                    ${i},
+                    'Confirmed'
+                  )
+                ">
+
+                Confirm Order
+
+              </button>
+
+            `
+            : ''
         }
 
         ${
           status === 'Confirmed'
-          ? `
-            <button
-              class="btn primary"
-              onclick="updateOrderStatus(${i},'Processing')">
-              Processing
-            </button>
-          `
-          : ''
+            ? `
+
+              <button
+                class="btn primary"
+                onclick="
+                  updateOrderStatus(
+                    ${i},
+                    'Processing'
+                  )
+                ">
+
+                Processing
+
+              </button>
+
+            `
+            : ''
         }
 
         ${
           status === 'Processing'
-          ? `
-            <button
-              class="btn primary"
-              onclick="updateOrderStatus(${i},'Shipped')">
-              Shipped
-            </button>
-          `
-          : ''
+            ? `
+
+              <button
+                class="btn primary"
+                onclick="
+                  updateOrderStatus(
+                    ${i},
+                    'Shipped'
+                  )
+                ">
+
+                Shipped
+
+              </button>
+
+            `
+            : ''
         }
 
         ${
           status === 'Shipped'
-          ? `
-            <button
-              class="btn primary"
-              onclick="updateOrderStatus(${i},'Delivered')">
-              Delivered
-            </button>
-          `
-          : ''
+            ? `
+
+              <button
+                class="btn primary"
+                onclick="
+                  updateOrderStatus(
+                    ${i},
+                    'Delivered'
+                  )
+                ">
+
+                Delivered
+
+              </button>
+
+            `
+            : ''
         }
 
         ${
           status !== 'Delivered' &&
           status !== 'Cancelled'
-          ? `
-            <button
-              class="btn danger"
-              onclick="updateOrderStatus(${i},'Cancelled')">
-              Cancel
-            </button>
-          `
-          : ''
+            ? `
+
+              <button
+                class="btn danger"
+                onclick="
+                  updateOrderStatus(
+                    ${i},
+                    'Cancelled'
+                  )
+                ">
+
+                Cancel
+
+              </button>
+
+            `
+            : ''
         }
 
       </div>
@@ -1406,12 +1792,16 @@ async function updateOrderStatus(
   const order =
     ordersCache[i];
 
-  if(!order) return;
+  if(!order)
+    return;
 
   const oldStatus =
-    order.status || 'Pending';
+    order.status ||
+    'Pending';
 
-  if(oldStatus === newStatus)
+  if(
+    oldStatus === newStatus
+  )
     return;
 
   const orderNumber =
@@ -1435,15 +1825,16 @@ async function updateOrderStatus(
 
     const {
       error
-    } = await sb
-      .from('orders')
-      .update({
-        status: newStatus
-      })
-      .eq(
-        'id',
-        order.id
-      );
+    } =
+      await sb
+        .from('orders')
+        .update({
+          status:newStatus
+        })
+        .eq(
+          'id',
+          order.id
+        );
 
     if(error)
       throw error;
@@ -1473,44 +1864,62 @@ async function updateOrderStatus(
 function categories(){
 
   const rows =
-    categoriesCache.map((c,i) => `
+    categoriesCache
+      .map(
+        (c,i) => `
 
-      <tr>
+          <tr>
 
-        <td>
-          ${esc(c.name)}
-        </td>
+            <td>
+              ${esc(c.name)}
+            </td>
 
-        <td>
-          ${esc(c.slug || '—')}
-        </td>
+            <td>
+              ${esc(
+                c.slug || '—'
+              )}
+            </td>
 
-        <td>
+            <td>
 
-          <button
-            class="btn danger"
-            onclick="deleteCategory(${i})">
-            Delete
-          </button>
+              <button
+                class="btn danger"
+                onclick="
+                  deleteCategory(${i})
+                ">
 
-        </td>
+                Delete
 
-      </tr>
+              </button>
 
-    `).join('');
+            </td>
+
+          </tr>
+
+        `
+      )
+      .join('');
 
   return `
 
     <div class="section-head">
 
       <div>
+
         <h3>Categories</h3>
+
+        <p>
+          Manage product categories
+        </p>
+
       </div>
 
       <button
         class="btn primary"
         onclick="addCategory()">
+
         + Add Category
+
       </button>
 
     </div>
@@ -1522,9 +1931,11 @@ function categories(){
         <thead>
 
           <tr>
+
             <th>Name</th>
             <th>Slug</th>
             <th>Action</th>
+
           </tr>
 
         </thead>
@@ -1534,11 +1945,19 @@ function categories(){
           ${
             rows ||
             `
+
               <tr>
-                <td colspan="3" class="empty">
+
+                <td
+                  colspan="3"
+                  class="empty">
+
                   No categories
+
                 </td>
+
               </tr>
+
             `
           }
 
@@ -1549,6 +1968,7 @@ function categories(){
     </div>
 
   `;
+
 }
 
 
@@ -1571,6 +1991,13 @@ function addCategory(){
         <input
           id="categoryName"
           placeholder="Audio"
+          style="
+            width:100%;
+            margin-top:6px;
+            padding:10px;
+            border:1px solid #dce3ec;
+            border-radius:8px;
+          "
         >
 
       </label>
@@ -1580,13 +2007,17 @@ function addCategory(){
         <button
           class="btn muted"
           onclick="closeModal()">
+
           Cancel
+
         </button>
 
         <button
           class="btn primary"
           onclick="saveCategory()">
+
           Save
+
         </button>
 
       </div>
@@ -1604,11 +2035,15 @@ function addCategory(){
 async function saveCategory(){
 
   const name =
-    $('categoryName')?.value.trim();
+    $('categoryName')
+      ?.value
+      .trim();
 
   if(!name){
 
-    alert('Category name is required.');
+    alert(
+      'Category name is required.'
+    );
 
     return;
 
@@ -1619,17 +2054,24 @@ async function saveCategory(){
     const slug =
       name
         .toLowerCase()
-        .replace(/[^a-z0-9]+/g,'-')
-        .replace(/^-|-$/g,'');
+        .replace(
+          /[^a-z0-9]+/g,
+          '-'
+        )
+        .replace(
+          /^-|-$/g,
+          ''
+        );
 
     const {
       error
-    } = await sb
-      .from('categories')
-      .insert({
-        name,
-        slug
-      });
+    } =
+      await sb
+        .from('categories')
+        .insert({
+          name,
+          slug
+        });
 
     if(error)
       throw error;
@@ -1637,10 +2079,11 @@ async function saveCategory(){
     const {
       data,
       error:loadError
-    } = await sb
-      .from('categories')
-      .select('*')
-      .order('name');
+    } =
+      await sb
+        .from('categories')
+        .select('*')
+        .order('name');
 
     if(loadError)
       throw loadError;
@@ -1670,7 +2113,8 @@ async function deleteCategory(i){
   const c =
     categoriesCache[i];
 
-  if(!c) return;
+  if(!c)
+    return;
 
   if(
     !confirm(
@@ -1686,10 +2130,14 @@ async function deleteCategory(i){
 
     const {
       error
-    } = await sb
-      .from('categories')
-      .delete()
-      .eq('id',c.id);
+    } =
+      await sb
+        .from('categories')
+        .delete()
+        .eq(
+          'id',
+          c.id
+        );
 
     if(error)
       throw error;
@@ -1711,7 +2159,7 @@ async function deleteCategory(i){
 
 
 /* =========================================================
-   DELIVERY SETTINGS
+   DELIVERY
 ========================================================= */
 
 function delivery(){
@@ -1722,10 +2170,12 @@ function delivery(){
 
       <div>
 
-        <h3>Delivery Settings</h3>
+        <h3>
+          Delivery Settings
+        </h3>
 
         <p>
-          Delivery settings are connected to Supabase.
+          Delivery settings
         </p>
 
       </div>
@@ -1740,8 +2190,8 @@ function delivery(){
 
       <p>
         You can configure Dhaka,
-        nearby districts and outside Dhaka
-        delivery charges here.
+        nearby districts and
+        outside Dhaka delivery charges here.
       </p>
 
     </div>
@@ -1752,7 +2202,7 @@ function delivery(){
 
 
 /* =========================================================
-   PAYMENT SETTINGS
+   PAYMENT
 ========================================================= */
 
 function payment(){
@@ -1763,7 +2213,9 @@ function payment(){
 
       <div>
 
-        <h3>Payment Settings</h3>
+        <h3>
+          Payment Settings
+        </h3>
 
         <p>
           Payment settings
@@ -1781,8 +2233,8 @@ function payment(){
 
       <p>
         Current checkout continues to support
-        Cash on Delivery and the existing payment
-        options.
+        Cash on Delivery and the existing
+        payment options.
       </p>
 
     </div>
@@ -1804,7 +2256,9 @@ function settings(){
 
       <div>
 
-        <h3>Store Settings</h3>
+        <h3>
+          Store Settings
+        </h3>
 
         <p>
           Gadget Bazar BD
@@ -1843,7 +2297,8 @@ function customers(){
       o.customer?.phone ||
       '';
 
-    if(!phone) return;
+    if(!phone)
+      return;
 
     unique[phone] = {
 
@@ -1856,7 +2311,10 @@ function customers(){
       phone,
 
       orders:
-        (unique[phone]?.orders || 0) + 1
+        (
+          unique[phone]?.orders ||
+          0
+        ) + 1
 
     };
 
@@ -1871,7 +2329,9 @@ function customers(){
 
       <div>
 
-        <h3>Customers</h3>
+        <h3>
+          Customers
+        </h3>
 
         <p>
           Customers from your orders
@@ -1901,33 +2361,41 @@ function customers(){
 
           ${
             list.length
-            ? list.map(c => `
+            ? list.map(
+                c => `
 
-                <tr>
+                  <tr>
 
-                  <td>
-                    ${esc(c.name)}
-                  </td>
+                    <td>
+                      ${esc(c.name)}
+                    </td>
 
-                  <td>
-                    ${esc(c.phone)}
-                  </td>
+                    <td>
+                      ${esc(c.phone)}
+                    </td>
 
-                  <td>
-                    ${c.orders}
-                  </td>
+                    <td>
+                      ${c.orders}
+                    </td>
 
-                </tr>
+                  </tr>
 
-              `).join('')
+                `
+              ).join('')
             : `
+
               <tr>
+
                 <td
                   colspan="3"
                   class="empty">
+
                   No customers yet
+
                 </td>
+
               </tr>
+
             `
           }
 
@@ -1943,19 +2411,106 @@ function customers(){
 
 
 /* =========================================================
+   NAVIGATION
+========================================================= */
+
+function go(section){
+
+  currentSection =
+    section;
+
+  document
+    .querySelectorAll('.nav')
+    .forEach(el => {
+
+      el.classList.toggle(
+        'active',
+        el.dataset.page ===
+        section
+      );
+
+    });
+
+  const titleMap = {
+
+    dashboard:'Dashboard',
+    products:'Products',
+    orders:'Orders',
+    customers:'Customers',
+    categories:'Categories',
+    delivery:'Delivery',
+    payments:'Payments',
+    settings:'Settings'
+
+  };
+
+  const subtitleMap = {
+
+    dashboard:'Store overview',
+    products:'Manage products',
+    orders:'Manage customer orders',
+    customers:'Customer list',
+    categories:'Manage categories',
+    delivery:'Delivery settings',
+    payments:'Payment settings',
+    settings:'Store settings'
+
+  };
+
+  if($('pageTitle')){
+
+    $('pageTitle')
+      .textContent =
+      titleMap[section] ||
+      'Dashboard';
+
+  }
+
+  if($('pageSub')){
+
+    $('pageSub')
+      .textContent =
+      subtitleMap[section] ||
+      'Store overview';
+
+  }
+
+  render();
+
+  if(
+    window.innerWidth <= 720
+  ){
+
+    const sidebar =
+      document.querySelector(
+        '.sidebar'
+      );
+
+    sidebar?.classList
+      .remove('open');
+
+  }
+
+}
+
+
+/* =========================================================
    RENDER
 ========================================================= */
 
 function render(){
 
-  const app =
-    $('content') ||
-    $('main');
+  const content =
+    $('content');
 
-  if(!app) return;
+  if(!content)
+    return;
+
   let html = '';
 
-  switch(currentSection){
+  switch(
+    currentSection
+  ){
 
     case 'dashboard':
       html = dashboard();
@@ -1981,7 +2536,7 @@ function render(){
       html = delivery();
       break;
 
-    case 'payment':
+    case 'payments':
       html = payment();
       break;
 
@@ -1994,32 +2549,8 @@ function render(){
 
   }
 
-  app.innerHTML = html;
-
-}
-
-
-/* =========================================================
-   NAVIGATION
-========================================================= */
-
-function go(section){
-
-  currentSection =
-    section;
-
-  document
-    .querySelectorAll('[data-section]')
-    .forEach(el => {
-
-      el.classList.toggle(
-        'active',
-        el.dataset.section === section
-      );
-
-    });
-
-  render();
+  content.innerHTML =
+    html;
 
 }
 
@@ -2052,16 +2583,25 @@ async function refreshDashboard(){
 async function login(){
 
   const email =
-    $('loginUser')?.value.trim();
+    $('loginUser')
+      ?.value
+      .trim();
 
   const password =
-    $('loginPass')?.value;
+    $('loginPass')
+      ?.value;
 
-  if(!email || !password){
+  if(
+    !email ||
+    !password
+  ){
 
-    alert('Please enter admin email and password.');
+    alert(
+      'Please enter admin email and password.'
+    );
 
     return;
+
   }
 
   try{
@@ -2069,33 +2609,48 @@ async function login(){
     const {
       data,
       error
-    } = await sb.auth.signInWithPassword({
-      email,
-      password
-    });
+    } =
+      await sb.auth
+        .signInWithPassword({
+          email,
+          password
+        });
 
     if(error)
       throw error;
 
     if(!data?.user){
 
-      alert('Login failed.');
+      alert(
+        'Login failed.'
+      );
 
       return;
+
     }
 
-    if(data.user.id !== ADMIN_UID){
+    if(
+      data.user.id !==
+      ADMIN_UID
+    ){
 
       await sb.auth.signOut();
 
-      alert('You are not authorized as admin.');
+      alert(
+        'You are not authorized as admin.'
+      );
 
       return;
+
     }
 
-    $('login')?.classList.add('hidden');
+    $('login')
+      ?.classList
+      .add('hidden');
 
-    $('app')?.classList.remove('hidden');
+    $('app')
+      ?.classList
+      .remove('hidden');
 
     await loadCloud();
 
@@ -2103,16 +2658,28 @@ async function login(){
 
   }catch(e){
 
-    console.error('LOGIN ERROR:',e);
+    console.error(
+      'LOGIN ERROR:',
+      e
+    );
 
     alert(
       'Login failed.\n\n' +
-      (e?.message || 'Invalid email or password.')
+      (
+        e?.message ||
+        'Invalid email or password.'
+      )
     );
 
   }
 
 }
+
+
+/* =========================================================
+   LOGOUT
+========================================================= */
+
 async function logout(){
 
   try{
@@ -2138,15 +2705,50 @@ async function logout(){
 function toggleSidebar(){
 
   const sidebar =
-    document.querySelector('.sidebar');
+    document.querySelector(
+      '.sidebar'
+    );
 
   if(sidebar){
 
-    sidebar.classList.toggle('open');
+    sidebar.classList.toggle(
+      'open'
+    );
 
   }
 
 }
+
+
+/* =========================================================
+   NAV BUTTON EVENTS
+========================================================= */
+
+document.addEventListener(
+  'DOMContentLoaded',
+  () => {
+
+    document
+      .querySelectorAll(
+        '.nav'
+      )
+      .forEach(button => {
+
+        button.addEventListener(
+          'click',
+          () => {
+
+            go(
+              button.dataset.page
+            );
+
+          }
+        );
+
+      });
+
+  }
+);
 
 
 /* =========================================================
@@ -2160,7 +2762,16 @@ async function init(){
     const ok =
       await checkAdmin();
 
-    if(!ok) return;
+    if(!ok)
+      return;
+
+    $('login')
+      ?.classList
+      .add('hidden');
+
+    $('app')
+      ?.classList
+      .remove('hidden');
 
     await loadCloud();
 
@@ -2189,17 +2800,26 @@ document.addEventListener(
    GLOBAL FUNCTIONS
 ========================================================= */
 
-window.$ = $;
-window.login = login;
-window.render = render;
+window.$ =
+  $;
 
-window.go = go;
+window.login =
+  login;
 
-window.logout = logout;
+window.render =
+  render;
 
-window.closeModal = closeModal;
+window.go =
+  go;
 
-window.openModal = openModal;
+window.logout =
+  logout;
+
+window.closeModal =
+  closeModal;
+
+window.openModal =
+  openModal;
 
 window.toggleSidebar =
   toggleSidebar;
