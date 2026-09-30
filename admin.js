@@ -121,7 +121,18 @@ function productForm(p={}){
 }
 async function saveProduct(){
   const name=$('productName')?.value.trim(),category=$('productCategory')?.value.trim();
-  const price=Number($('productPrice')?.value||0),discount=Number($('productDiscount')?.value||0),stock=Number($('productStock')?.value||0);
+  const priceRaw=$('productPrice')?.value ?? '0';
+  const discountRaw=$('productDiscount')?.value ?? '0';
+  const stockRaw=$('productStock')?.value ?? '0';
+  const price=Number(priceRaw), discount=Number(discountRaw), stock=Number(stockRaw);
+  if(!Number.isFinite(price)||!Number.isFinite(discount)||!Number.isFinite(stock)||price<0||discount<0||stock<0){
+    alert('Please enter valid non-negative numbers for Price, Discount and Stock.');
+    return;
+  }
+  if(price>999999999999||discount>999999999999||stock>2147483647){
+    alert('The number is too large. Please enter a smaller Price, Discount or Stock value.');
+    return;
+  }
   const active=$('productActive')?.value==='true',file=$('productImage')?.files?.[0];
   if(!name){alert('Product name is required.');return}
   try{
