@@ -1186,3 +1186,284 @@ setInterval(
   refreshStore,
   60000
 );
+/* =========================================================
+   GADGET BAZAR BD — ADMIN SETTINGS SYNC FIX
+========================================================= */
+
+async function loadStoreData(){
+
+  try{
+
+    const [deliveryRes, paymentRes] = await Promise.all([
+
+      sb
+        .from("delivery_settings")
+        .select("*")
+        .limit(1)
+        .maybeSingle(),
+
+      sb
+        .from("payment_settings")
+        .select("*")
+        .limit(1)
+        .maybeSingle()
+
+    ]);
+
+    if(deliveryRes.error)
+      throw deliveryRes.error;
+
+    if(paymentRes.error)
+      throw paymentRes.error;
+
+
+    /* DELIVERY */
+
+    if(deliveryRes.data){
+
+      const d = deliveryRes.data;
+
+      DELIVERY_SETTINGS = {
+
+        dhaka: Number(
+          d.dhaka_charge ?? 60
+        ),
+
+        nearby: Number(
+          d.nearby_charge ?? 100
+        ),
+
+        outside: Number(
+          d.outside_charge ?? 130
+        )
+
+      };
+
+    }
+
+
+    /* PAYMENT */
+
+    if(paymentRes.data){
+
+      const p = paymentRes.data;
+
+      const cod =
+        p.cod_enabled !== false;
+
+      const bkash =
+        p.bkash_enabled === true;
+
+
+      applyPaymentSettings(
+        cod,
+        bkash
+      );
+
+    }
+
+  }catch(err){
+
+    console.error(
+      "SETTINGS LOAD ERROR:",
+      err
+    );
+
+  }
+
+}
+
+
+/* =========================================================
+   PAYMENT UI SYNC
+========================================================= */
+
+function applyPaymentSettings(
+  codEnabled,
+  bkashEnabled
+){
+
+  const radios =
+    document.querySelectorAll(
+      'input[name="payment"]'
+    );
+
+  radios.forEach(radio=>{
+
+    const value =
+      String(radio.value||"")
+        .trim()
+        .toLowerCase();
+
+    let enabled = false;
+
+    if(
+      value === "cash on delivery" ||
+      value === "cod"
+    ){
+
+      enabled = codEnabled;
+
+    }else if(
+      value === "bkash" ||
+      value === "b-kash"
+    ){
+
+      enabled = bkashEnabled;
+
+    }
+
+    radio.disabled = !enabled;
+
+    const label =
+      radio.closest("label") ||
+      radio.parentElement;
+
+    if(label){
+
+      label.style.display =
+        enabled ? "" : "none";
+
+    }
+
+  });
+
+
+  /* Automatically select an enabled method */
+
+  const checked =
+    document.querySelector(
+      'input[name="payment"]:checked'
+    );
+
+
+  if(!checked || checked.disabled){
+
+    const firstEnabled =
+      [...radios].find(
+        r=>!r.disabled
+      );
+
+    if(firstEnabled){
+
+      firstEnabled.checked=true;
+
+      firstEnabled.dispatchEvent(
+        new Event("change")
+      );
+
+    }
+
+  }
+
+
+  /* No payment method available */
+
+  const enabledCount =
+    [...radios]
+      .filter(r=>!r.disabled)
+      .length;
+
+  const checkoutBtn =
+    $("checkoutBtn");
+
+  if(checkoutBtn){
+
+    checkoutBtn.disabled =
+      !cart.length ||
+      enabledCount===0;
+
+  }
+
+}
+
+
+/* =========================================================
+   SUPABASE ORDER — PAYMENT DATA FIX
+========================================================= */
+
+async function submitOrderToSupabase(order){
+
+  const row = {
+
+    order_number:
+      order.orderId,
+
+    customer_name:
+      order.customer.name,
+
+    phone:
+      order.customer.phone,
+
+    items:
+      order.items,
+
+    subtotal:
+      Number(order.subtotal)||0,
+
+    delivery_charge:
+      Number(order.delivery)||0,
+
+    payment_method:
+      order.paymentMethod || "Cash on Delivery",
+
+    transaction_id:
+      order.transactionId || null,
+
+    status:
+      "Pending"
+
+  };
+
+
+  const {data,error} =
+    await sb
+      .from("orders")
+      .insert(row)
+      .select();
+
+
+  if(error){
+
+    console.error(
+      "SUPABASE ORDER ERROR:",
+      error
+    );
+
+    throw error;
+
+  }
+
+
+  console.log(
+    "ORDER SAVED:",
+    data
+  );
+
+}
+
+
+/* =========================================================
+   PAYMENT VALIDATION BEFORE ORDER
+========================================================= */
+
+function isPaymentMethodEnabled(method){
+
+  const radios =
+    document.querySelectorAll(
+      'input[name="payment"]'
+    );
+
+  const radio =
+    [...radios].find(
+      r=>String(r.value||"")
+        .trim()
+        .toLowerCase() ===
+        String(method||"")
+        .trim()
+        .toLowerCase()
+    );
+
+  return !!radio && !radio.disabled;
+
+}
