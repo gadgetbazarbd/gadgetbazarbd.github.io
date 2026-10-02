@@ -3941,6 +3941,24 @@ window.processImport=
    START
 ========================================================= */
 
+document.addEventListener('click', function(e){
+
+  const nav = e.target.closest('[data-section]');
+
+  if(nav){
+
+    e.preventDefault();
+
+    const section = nav.dataset.section;
+
+    if(section){
+      go(section);
+    }
+
+    return;
+  }
+
+});
 document.addEventListener(
   'DOMContentLoaded',
   init
