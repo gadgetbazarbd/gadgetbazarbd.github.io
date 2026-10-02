@@ -65,6 +65,36 @@
     </div>
     <div id="productsGrid" class="products-grid"></div>
   </section>
+  <!-- Order Tracking -->
+<section class="tracking-section" id="orderTracking">
+  <div class="tracking-card">
+    <div class="tracking-icon">📦</div>
+
+    <h2>Track Your Orders</h2>
+    <p>Enter your phone number to see all your orders.</p>
+
+    <div class="tracking-form">
+      <input
+        id="trackPhone"
+        type="tel"
+        placeholder="Enter phone number"
+        inputmode="tel"
+        autocomplete="tel"
+        maxlength="20"
+      >
+
+      <button
+        id="trackOrderBtn"
+        class="primary full"
+        type="button"
+      >
+        Track Orders
+      </button>
+    </div>
+
+    <div id="trackingResult" class="tracking-result hidden"></div>
+  </div>
+</section>
 </main>
 
 <div id="cartDrawer" class="cart-drawer">
