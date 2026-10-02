@@ -1467,3 +1467,276 @@ function isPaymentMethodEnabled(method){
   return !!radio && !radio.disabled;
 
 }
+/* =========================================================
+   GADGET BAZAR BD — PHONE ORDER TRACKING
+========================================================= */
+
+async function trackOrdersByPhone(){
+
+  const phoneInput =
+    document.getElementById("trackPhone");
+
+  const resultBox =
+    document.getElementById("trackingResult");
+
+  const trackBtn =
+    document.getElementById("trackOrderBtn");
+
+  if(!phoneInput || !resultBox) return;
+
+  const phone =
+    phoneInput.value.trim();
+
+  if(!phone){
+
+    resultBox.classList.remove("hidden");
+
+    resultBox.innerHTML = `
+      <div class="tracking-error">
+        Please enter your phone number.
+      </div>
+    `;
+
+    return;
+  }
+
+  if(trackBtn){
+
+    trackBtn.disabled = true;
+    trackBtn.textContent = "Searching...";
+
+  }
+
+  resultBox.classList.remove("hidden");
+
+  resultBox.innerHTML = `
+    <div class="tracking-loading">
+      Searching your orders...
+    </div>
+  `;
+
+  try{
+
+    const { data, error } =
+      await sb.rpc(
+        "track_orders_by_phone",
+        {
+          p_phone: phone
+        }
+      );
+
+    if(error){
+
+      console.error(
+        "TRACKING ERROR:",
+        error
+      );
+
+      throw error;
+
+    }
+
+    if(!data || data.length === 0){
+
+      resultBox.innerHTML = `
+        <div class="tracking-empty">
+          <strong>No orders found</strong>
+          <p>No order was found for this phone number.</p>
+        </div>
+      `;
+
+      return;
+
+    }
+
+    resultBox.innerHTML = `
+      <div class="tracking-count">
+        ${data.length}
+        order${data.length > 1 ? "s" : ""}
+        found
+      </div>
+
+      ${data.map(order => {
+
+        const items =
+          Array.isArray(order.items)
+            ? order.items
+            : [];
+
+        const productList =
+          items.length
+
+          ? items.map(item => {
+
+              const name =
+                item.name ||
+                item.product_name ||
+                item.title ||
+                "Product";
+
+              const qty =
+                Number(
+                  item.quantity ??
+                  item.qty ??
+                  1
+                );
+
+              return `
+                <div class="tracking-product">
+                  <span>
+                    ${escapeHtml(name)}
+                  </span>
+
+                  <strong>
+                    ×${qty}
+                  </strong>
+                </div>
+              `;
+
+            }).join("")
+
+          : `
+            <div class="tracking-product">
+              Product details unavailable
+            </div>
+          `;
+
+        const status =
+          String(
+            order.status || "Pending"
+          );
+
+        const statusClass =
+          status
+            .toLowerCase()
+            .replace(/\s+/g,"-");
+
+        const date =
+          order.created_at
+            ? new Date(
+                order.created_at
+              ).toLocaleDateString()
+            : "";
+
+        return `
+          <div class="tracking-order">
+
+            <div class="tracking-order-head">
+
+              <div>
+                <small>
+                  Order ID
+                </small>
+
+                <strong>
+                  ${escapeHtml(
+                    order.order_number || ""
+                  )}
+                </strong>
+              </div>
+
+              <span
+                class="tracking-status ${statusClass}"
+              >
+                ${escapeHtml(status)}
+              </span>
+
+            </div>
+
+            <div class="tracking-products">
+              ${productList}
+            </div>
+
+            <div class="tracking-order-bottom">
+
+              <span>
+                📅 ${escapeHtml(date)}
+              </span>
+
+              <strong>
+                ৳${Number(
+                  order.total || 0
+                ).toFixed(0)}
+              </strong>
+
+            </div>
+
+          </div>
+        `;
+
+      }).join("")}
+    `;
+
+  }catch(error){
+
+    console.error(error);
+
+    resultBox.innerHTML = `
+      <div class="tracking-error">
+
+        <strong>
+          Something went wrong.
+        </strong>
+
+        <p>
+          Please try again.
+        </p>
+
+      </div>
+    `;
+
+  }finally{
+
+    if(trackBtn){
+
+      trackBtn.disabled = false;
+      trackBtn.textContent =
+        "Track Orders";
+
+    }
+
+  }
+
+}
+
+
+/* =========================================================
+   TRACKING BUTTON
+========================================================= */
+
+document.addEventListener(
+  "DOMContentLoaded",
+  () => {
+
+    const btn =
+      document.getElementById(
+        "trackOrderBtn"
+      );
+
+    if(btn){
+
+      btn.addEventListener(
+        "click",
+        trackOrdersByPhone
+      );
+
+    }
+
+  }
+);
+
+
+/* =========================================================
+   SAFE HTML
+========================================================= */
+
+function escapeHtml(value){
+
+  return String(value ?? "")
+    .replace(/&/g,"&amp;")
+    .replace(/</g,"&lt;")
+    .replace(/>/g,"&gt;")
+    .replace(/"/g,"&quot;")
+    .replace(/'/g,"&#039;");
+
+}
