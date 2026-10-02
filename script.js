@@ -10,7 +10,7 @@ const DEFAULT_DELIVERY_SETTINGS={dhaka:60,nearby:100,outside:130};
 let DELIVERY_SETTINGS={...DEFAULT_DELIVERY_SETTINGS};
 let NEARBY_DISTRICTS=["Gazipur","Narayanganj","Narsingdi","Munshiganj","Manikganj"];
 let PAYMENT_SETTINGS={cod_enabled:true,bkash_enabled:false,bkash_number:"",nagad_enabled:false,nagad_number:""};
-let products=[],cart=JSON.parse(localStorage.getItem("gbbd_cart")||"[]");
+let products=[],categories=[],cart=JSON.parse(localStorage.getItem("gbbd_cart")||"[]");
 let currentCategory="All Products",selectedDistrict="",selectedUpazila="";
 let locationData=[],locationLoaded=false;
 
@@ -27,6 +27,30 @@ function normalizeProduct(r){return{
  price:Number(r.price||0),discount:Number(r.discount||0),stock:Number(r.stock??r.stock_quantity??0),
  image:r.image||r.image_url||"",featured:!!r.featured,emoji:r.emoji||"📦"
 };}
+
+
+async function loadCategories(){
+ const {data,error}=await sb.from("categories").select("*").order("name",{ascending:true});
+ if(error)throw error;
+ categories=(data||[]).filter(c=>c.active!==false && String(c.name||'').trim());
+ renderCategoryMenu();
+}
+function renderCategoryMenu(){
+ const menu=$("sideMenu");
+ if(!menu)return;
+ menu.querySelectorAll('[onclick*="filterCategory"]').forEach(el=>el.remove());
+ let box=$("dynamicCategories");
+ if(!box){
+   box=document.createElement("div");
+   box.id="dynamicCategories";
+   box.style.cssText="padding:8px 0 16px;";
+   menu.appendChild(box);
+ }
+ const names=[...new Set(categories.map(c=>String(c.name).trim()))];
+ box.innerHTML=`<div style="padding:8px 16px;color:#7895af;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em">Categories</div>`
+   + `<button type="button" class="menu-item" onclick="filterCategory('All Products');closeMenu()">All Products</button>`
+   + names.map(n=>`<button type="button" class="menu-item" onclick="filterCategory(${JSON.stringify(n)});closeMenu()">${esc(n)}</button>`).join("");
+}
 
 async function loadProducts(){
  const {data,error}=await sb.from("products").select("*").eq("active",true).order("created_at",{ascending:false});
@@ -56,7 +80,7 @@ async function loadStoreData(){
 }
 
 async function refreshStore(){
- try{await Promise.all([loadProducts(),loadStoreData()]);renderProducts();updateCart();setTimeout(setupLocationPickers,0);}
+ try{await Promise.all([loadProducts(),loadCategories(),loadStoreData()]);renderProducts();updateCart();setTimeout(setupLocationPickers,0);}
  catch(e){console.error(e);toast("Products could not be loaded");}
 }
 
