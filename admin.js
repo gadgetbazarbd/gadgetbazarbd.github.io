@@ -504,8 +504,8 @@ function toggleCatalog(){
   if($('catalogArrow'))$('catalogArrow').textContent=catalogOpen?'⌄':'›'
 }
 function setNavActive(section){
-  document.querySelectorAll('.nav[data-page]').forEach(x=>x.classList.toggle('active',x.dataset.page===section));
-  document.querySelectorAll('.subnav-item').forEach(x=>x.classList.toggle('active-sub',x.dataset.page===section));
+  document.querySelectorAll('.nav[data-page], .nav[data-section]').forEach(x=>x.classList.toggle('active',(x.dataset.page||x.dataset.section)===section));
+  document.querySelectorAll('.subnav-item').forEach(x=>x.classList.toggle('active-sub',(x.dataset.page||x.dataset.section)===section));
 
   if(section==='products'||section==='categories'){
     catalogOpen=true;
@@ -560,7 +560,7 @@ async function refreshDashboard(){
 ========================================================= */
 
 async function login(){
-  const email=$('loginUser')?.value.trim(),password=$('loginPass')?.value;
+  const email=($('loginEmail')?.value||$('loginUser')?.value||'').trim(),password=$('loginPassword')?.value??$('loginPass')?.value;
   if(!email||!password){alert('Please enter admin email and password.');return}
 
   try{
@@ -635,12 +635,12 @@ async function importData(e){
 ========================================================= */
 
 document.addEventListener('DOMContentLoaded',()=>{
-  document.querySelectorAll('.nav[data-page],.subnav-item').forEach(btn=>{
-    btn.addEventListener('click',()=>go(btn.dataset.page))
+  document.querySelectorAll('.nav[data-page],.nav[data-section],.subnav-item').forEach(btn=>{
+    btn.addEventListener('click',e=>{e.preventDefault();go(btn.dataset.page||btn.dataset.section);});
   });
 
   $('importFile')?.addEventListener('change',importData);
-  $('loginPass')?.addEventListener('keydown',e=>{
+  ($('loginPass')||$('loginPassword'))?.addEventListener('keydown',e=>{
     if(e.key==='Enter')login()
   });
   $('modal')?.addEventListener('click',e=>{
@@ -699,3 +699,68 @@ window.toggleSidebar=toggleSidebar;
 window.toggleSide=toggleSidebar;
 window.toggleCatalog=toggleCatalog;
 window.exportData=exportData;
+
+
+/* =========================================================
+   COMPATIBILITY + CATEGORY/PAYMENT FIXES
+========================================================= */
+
+// Support both the older data-page markup and the newer data-section markup.
+document.addEventListener('click',function(e){
+  const nav=e.target.closest('[data-section],[data-page]');
+  if(nav){
+    e.preventDefault();
+    const section=nav.dataset.section||nav.dataset.page;
+    if(section) go(section);
+  }
+});
+
+// Full payment settings UI (COD + bKash + Nagad + numbers)
+let paymentSettingsFull={cod_enabled:true,bkash_enabled:false,bkash_number:'',nagad_enabled:false,nagad_number:''};
+async function loadPaymentSettingsFull(){
+  const {data,error}=await sb.from('payment_settings').select('*').limit(1).maybeSingle();
+  if(error) throw error;
+  if(data) paymentSettingsFull={
+    cod_enabled:data.cod_enabled!==false,
+    bkash_enabled:data.bkash_enabled===true,
+    bkash_number:data.bkash_number||'',
+    nagad_enabled:data.nagad_enabled===true,
+    nagad_number:data.nagad_number||''
+  };
+}
+function payments(){
+  const p=paymentSettingsFull;
+  return `<div class="section-head"><div><h3>Payment Settings</h3><p>Manage COD, bKash and Nagad</p></div><button class="btn muted" onclick="loadPaymentSettingsFull().then(render).catch(showError)">↻ Refresh</button></div>
+  <div class="card"><div class="form-grid">
+    <label class="full"><input id="codEnabled" type="checkbox" ${p.cod_enabled?'checked':''}> <b>Enable Cash on Delivery (COD)</b></label>
+    <label class="full"><input id="bkashEnabled" type="checkbox" ${p.bkash_enabled?'checked':''}> <b>Enable bKash</b></label>
+    <label>bKash Number<input id="bkashNumber" type="tel" value="${esc(p.bkash_number)}" placeholder="01XXXXXXXXX"></label>
+    <label class="full"><input id="nagadEnabled" type="checkbox" ${p.nagad_enabled?'checked':''}> <b>Enable Nagad</b></label>
+    <label>Nagad Number<input id="nagadNumber" type="tel" value="${esc(p.nagad_number)}" placeholder="01XXXXXXXXX"></label>
+  </div><div class="btn-row"><button class="btn primary" id="savePaymentBtn" onclick="savePaymentSettingsFull()">Save Payment Settings</button></div></div>`;
+}
+async function savePaymentSettingsFull(){
+  const cod=!!$('codEnabled')?.checked,bkash=!!$('bkashEnabled')?.checked,nagad=!!$('nagadEnabled')?.checked;
+  const bn=($('bkashNumber')?.value||'').trim(),nn=($('nagadNumber')?.value||'').trim();
+  if(bkash&&!bn){alert('Please enter bKash number.');return;}
+  if(nagad&&!nn){alert('Please enter Nagad number.');return;}
+  try{
+    const {data:row,error:rerr}=await sb.from('payment_settings').select('id').limit(1).maybeSingle();
+    if(rerr)throw rerr;
+    const payload={cod_enabled:cod,bkash_enabled:bkash,bkash_number:bn,nagad_enabled:nagad,nagad_number:nn};
+    const res=row?.id?await sb.from('payment_settings').update(payload).eq('id',row.id):await sb.from('payment_settings').insert(payload);
+    if(res.error)throw res.error;
+    paymentSettingsFull={cod_enabled:cod,bkash_enabled:bkash,bkash_number:bn,nagad_enabled:nagad,nagad_number:nn};
+    alert('Payment settings saved successfully.'); render();
+  }catch(e){showError(e)}
+}
+window.loadPaymentSettingsFull=loadPaymentSettingsFull;
+window.savePaymentSettingsFull=savePaymentSettingsFull;
+
+// Make the Add Product category control refresh from the latest category list.
+window.refreshCategoriesForProduct=async function(){
+  const {data,error}=await sb.from('categories').select('*').order('name',{ascending:true});
+  if(error)throw error;
+  categoriesCache=data||[];
+  render();
+};
