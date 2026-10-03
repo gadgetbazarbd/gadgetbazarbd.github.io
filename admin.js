@@ -21,6 +21,8 @@ let catalogOpen=true;
 function $(id){return document.getElementById(id)}
 function esc(v){return String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;')}
 function money(v){return '৳'+Number(v||0).toLocaleString('en-BD')}
+function stockState(p){const n=Number(p?.stock??0);return n>0?`In Stock (${n})`:'Out of Stock'}
+function productStatus(p){return p?.active!==false?'Active':'Inactive'}
 function showError(e){console.error(e);alert('Something went wrong.\n\n'+(e?.message||e||'Unknown error'))}
 function closeModal(){$('modal')?.classList.add('hidden')}
 function openModal(title,body){
@@ -147,7 +149,7 @@ function products(){
 }
 function productRows(list){
   if(!list.length)return `<tr><td colspan="7" class="empty">No products found</td></tr>`;
-  return list.map(p=>`<tr><td>${p.image?`<img class="thumb" src="${esc(p.image)}" alt="">`:'—'}</td><td><b>${esc(p.name)}</b></td><td>${esc(p.category||'—')}</td><td>${money(p.price)}</td><td>${Number(p.stock||0)}</td><td><span class="pill ${p.active!==false?'green':'red'}">${p.active!==false?'Active':'Inactive'}</span></td><td class="actions"><button class="btn muted" onclick="editProduct(${productsCache.indexOf(p)})">Edit</button><button class="btn danger" onclick="deleteProduct(${productsCache.indexOf(p)})">Delete</button></td></tr>`).join('')
+  return list.map(p=>`<tr><td>${p.image?`<img class="thumb" src="${esc(p.image)}" alt="${esc(p.name)}">`:'—'}</td><td><b>${esc(p.name)}</b></td><td>${esc(p.category||'—')}</td><td>${money(p.price)}${Number(p.discount||0)>0?`<br><small>${Number(p.discount)}% off</small>`:''}</td><td><span class="pill ${Number(p.stock||0)>0?'green':'red'}">${esc(stockState(p))}</span></td><td><span class="pill ${p.active!==false?'green':'red'}">${productStatus(p)}</span></td><td class="actions"><button class="btn muted" onclick="editProduct(${productsCache.indexOf(p)})">Edit</button><button class="btn ${p.active!==false?'danger':'primary'}" onclick="toggleProductActive(${productsCache.indexOf(p)})">${p.active!==false?'Disable':'Enable'}</button><button class="btn danger" onclick="deleteProduct(${productsCache.indexOf(p)})">Delete</button></td></tr>`).join('')
 }
 function filterProducts(){
   const q=($('productSearch')?.value||'').toLowerCase().trim();
@@ -167,10 +169,10 @@ function productForm(p={}){
   const opts=categoriesCache.map(c=>`<option value="${esc(c.name)}" ${p.category===c.name?'selected':''}>${esc(c.name)}</option>`).join('');
   return `<div class="form-grid">
     <label>Product Name<input id="productName" value="${esc(p.name||'')}" placeholder="e.g. TWS AirBuds Pro"></label>
-    <label>Category<input id="productCategory" list="categoryList" value="${esc(p.category||'')}" placeholder="Audio"><datalist id="categoryList">${opts}</datalist></label>
+    <label>Category<select id="productCategory"><option value="">Select category</option>${opts}</select></label>
     <label>Price<input id="productPrice" type="number" min="0" value="${Number(p.price||0)}"></label>
-    <label>Discount<input id="productDiscount" type="number" min="0" value="${Number(p.discount||0)}"></label>
-    <label>Stock<input id="productStock" type="number" min="0" value="${Number(p.stock||0)}"></label>
+    <label>Discount (%)<input id="productDiscount" type="number" min="0" max="100" step="0.1" value="${Number(p.discount||0)}"><small>0-100% discount.</small></label>
+    <label>Stock<input id="productStock" type="number" min="0" step="1" value="${Number(p.stock||0)}"><small>0 = Out of Stock; 1+ = Available.</small></label>
     <label>Status<select id="productActive"><option value="true" ${p.active!==false?'selected':''}>Active</option><option value="false" ${p.active===false?'selected':''}>Inactive</option></select></label>
     <label class="full">Product Image<input id="productImage" type="file" accept="image/*"></label>
     ${p.image?`<label class="full">Current Image<img class="product-preview" src="${esc(p.image)}" alt=""></label>`:''}
@@ -183,8 +185,8 @@ async function saveProduct(){
   const stockRaw=$('productStock')?.value ?? '0';
   const price=Number(priceRaw), discount=Number(discountRaw), stock=Number(stockRaw);
 
-  if(!Number.isFinite(price)||!Number.isFinite(discount)||!Number.isFinite(stock)||price<0||discount<0||stock<0){
-    alert('Please enter valid non-negative numbers for Price, Discount and Stock.');
+  if(!Number.isFinite(price)||!Number.isFinite(discount)||!Number.isFinite(stock)||price<0||discount<0||discount>100||stock<0||!Number.isInteger(stock)){
+    alert('Please enter valid values. Discount must be 0-100% and Stock must be a whole number 0 or greater.');
     return;
   }
   if(price>999999999999||discount>999999999999||stock>2147483647){
@@ -220,6 +222,16 @@ async function saveProduct(){
     const btn=$('saveProductBtn');
     if(btn){btn.disabled=false;btn.textContent='Save Product'}
   }
+}
+async function toggleProductActive(i){
+  const p=productsCache[i];if(!p)return;
+  const next=p.active===false;
+  try{
+    const {error}=await sb.from('products').update({active:next}).eq('id',p.id);
+    if(error)throw error;
+    await refreshProducts();
+    render();
+  }catch(e){showError(e)}
 }
 async function deleteProduct(i){
   const p=productsCache[i];if(!p)return;
@@ -461,85 +473,9 @@ async function saveDeliverySettings(){
    PAYMENTS / STORE SETTINGS
 ========================================================= */
 
-let paymentSettingsFull={
-  cod_enabled:true,
-  bkash_enabled:false,
-  bkash_number:'',
-  nagad_enabled:false,
-  nagad_number:''
-};
-
-async function loadPaymentSettingsFull(){
-  const {data,error}=await sb.from('payment_settings').select('*').limit(1).maybeSingle();
-  if(error)throw error;
-  if(data){
-    paymentSettingsFull={
-      cod_enabled:data.cod_enabled!==false,
-      bkash_enabled:data.bkash_enabled===true,
-      bkash_number:data.bkash_number||'',
-      nagad_enabled:data.nagad_enabled===true,
-      nagad_number:data.nagad_number||''
-    };
-  }
-}
-
 function payments(){
-  const p=paymentSettingsFull;
-  return `<div class="section-head">
-    <div><h3>Payment Settings</h3><p>Manage COD, bKash and Nagad</p></div>
-    <button class="btn muted" onclick="loadPaymentSettingsFull().then(render).catch(showError)">↻ Refresh</button>
-  </div>
-  <div class="card">
-    <div class="form-grid">
-      <label class="full"><input id="codEnabled" type="checkbox" ${p.cod_enabled?'checked':''}> <b>Enable Cash on Delivery (COD)</b></label>
-      <label class="full"><input id="bkashEnabled" type="checkbox" ${p.bkash_enabled?'checked':''}> <b>Enable bKash</b></label>
-      <label>bKash Number<input id="bkashNumber" type="tel" value="${esc(p.bkash_number)}" placeholder="01XXXXXXXXX"></label>
-      <label class="full"><input id="nagadEnabled" type="checkbox" ${p.nagad_enabled?'checked':''}> <b>Enable Nagad</b></label>
-      <label>Nagad Number<input id="nagadNumber" type="tel" value="${esc(p.nagad_number)}" placeholder="01XXXXXXXXX"></label>
-    </div>
-    <div class="btn-row">
-      <button class="btn primary" id="savePaymentBtn" onclick="savePaymentSettingsFull()">Save Payment Settings</button>
-    </div>
-  </div>`;
-}
-
-async function savePaymentSettingsFull(){
-  const cod=!!$('codEnabled')?.checked;
-  const bkash=!!$('bkashEnabled')?.checked;
-  const nagad=!!$('nagadEnabled')?.checked;
-  const bn=($('bkashNumber')?.value||'').trim();
-  const nn=($('nagadNumber')?.value||'').trim();
-
-  if(bkash&&!bn){alert('Please enter bKash number.');return;}
-  if(nagad&&!nn){alert('Please enter Nagad number.');return;}
-
-  const btn=$('savePaymentBtn');
-  try{
-    if(btn){btn.disabled=true;btn.textContent='Saving...';}
-    const {data:row,error:rerr}=await sb.from('payment_settings').select('id').limit(1).maybeSingle();
-    if(rerr)throw rerr;
-
-    const payload={
-      cod_enabled:cod,
-      bkash_enabled:bkash,
-      bkash_number:bn,
-      nagad_enabled:nagad,
-      nagad_number:nn
-    };
-
-    const res=row?.id
-      ? await sb.from('payment_settings').update(payload).eq('id',row.id)
-      : await sb.from('payment_settings').insert(payload);
-
-    if(res.error)throw res.error;
-
-    paymentSettingsFull={...payload};
-    alert('Payment settings saved successfully.');
-    render();
-  }catch(e){
-    showError(e);
-    if(btn){btn.disabled=false;btn.textContent='Save Payment Settings';}
-  }
+  return `<div class="section-head"><div><h3>Payment Settings</h3><p>Payment methods</p></div></div>
+  <div class="card"><p>Payment settings will be configured later.</p><p>Current checkout continues to support Cash on Delivery and the existing payment options.</p></div>`
 }
 
 function settings(){
@@ -557,12 +493,8 @@ function toggleCatalog(){
   if($('catalogArrow'))$('catalogArrow').textContent=catalogOpen?'⌄':'›'
 }
 function setNavActive(section){
-  document.querySelectorAll('.nav[data-page],.nav[data-section]').forEach(x=>{
-    x.classList.toggle('active',(x.dataset.page||x.dataset.section)===section)
-  });
-  document.querySelectorAll('.subnav-item').forEach(x=>{
-    x.classList.toggle('active-sub',(x.dataset.page||x.dataset.section)===section)
-  });
+  document.querySelectorAll('.nav[data-page]').forEach(x=>x.classList.toggle('active',x.dataset.page===section));
+  document.querySelectorAll('.subnav-item').forEach(x=>x.classList.toggle('active-sub',x.dataset.page===section));
 
   if(section==='products'||section==='categories'){
     catalogOpen=true;
@@ -617,8 +549,7 @@ async function refreshDashboard(){
 ========================================================= */
 
 async function login(){
-  const email=($('loginEmail')?.value||$('loginUser')?.value||'').trim(),
-        password=$('loginPassword')?.value??$('loginPass')?.value;
+  const email=$('loginUser')?.value.trim(),password=$('loginPass')?.value;
   if(!email||!password){alert('Please enter admin email and password.');return}
 
   try{
@@ -633,7 +564,6 @@ async function login(){
 
     showApp();
     await loadCloud();
-    await loadPaymentSettingsFull();
     render()
   }catch(e){
     alert('Login failed.\n\n'+(e?.message||'Invalid email or password.'))
@@ -654,8 +584,7 @@ function exportData(){
     products:productsCache,
     orders:ordersCache,
     categories:categoriesCache,
-    delivery_settings:deliverySettingsCache,
-    payment_settings:paymentSettingsFull
+    delivery_settings:deliverySettingsCache
   };
 
   const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
@@ -667,15 +596,8 @@ function exportData(){
 }
 
 async function importData(e){
-  let file=e?.target?.files?.[0];
-  if(!file){
-    const picker=document.createElement('input');
-    picker.type='file';
-    picker.accept='application/json,.json';
-    picker.onchange=ev=>importData(ev);
-    picker.click();
-    return;
-  }
+  const file=e.target.files?.[0];
+  if(!file)return;
 
   try{
     const data=JSON.parse(await file.text());
@@ -702,14 +624,11 @@ async function importData(e){
 ========================================================= */
 
 document.addEventListener('DOMContentLoaded',()=>{
-  document.querySelectorAll('.nav[data-page],.nav[data-section],.subnav-item').forEach(btn=>{
-    btn.addEventListener('click',()=>go(btn.dataset.page||btn.dataset.section))
+  document.querySelectorAll('.nav[data-page],.subnav-item').forEach(btn=>{
+    btn.addEventListener('click',()=>go(btn.dataset.page))
   });
 
   $('importFile')?.addEventListener('change',importData);
-  $('loginPassword')?.addEventListener('keydown',e=>{
-    if(e.key==='Enter')login()
-  });
   $('loginPass')?.addEventListener('keydown',e=>{
     if(e.key==='Enter')login()
   });
@@ -727,7 +646,6 @@ async function init(){
 
     showApp();
     await loadCloud();
-    await loadPaymentSettingsFull();
     render()
   }catch(e){
     showError(e)
@@ -749,6 +667,7 @@ window.openModal=openModal;
 
 window.addProduct=addProduct;
 window.editProduct=editProduct;
+window.toggleProductActive=toggleProductActive;
 window.saveProduct=saveProduct;
 window.deleteProduct=deleteProduct;
 
@@ -770,7 +689,3 @@ window.toggleSidebar=toggleSidebar;
 window.toggleSide=toggleSidebar;
 window.toggleCatalog=toggleCatalog;
 window.exportData=exportData;
-
-window.payments=payments;
-window.loadPaymentSettingsFull=loadPaymentSettingsFull;
-window.savePaymentSettingsFull=savePaymentSettingsFull;
