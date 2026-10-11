@@ -21,8 +21,6 @@ let catalogOpen=true;
 function $(id){return document.getElementById(id)}
 function esc(v){return String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;')}
 function money(v){return '৳'+Number(v||0).toLocaleString('en-BD')}
-function stockState(p){const n=Number(p?.stock??0);return n>0?`In Stock (${n})`:'Out of Stock'}
-function productStatus(p){return p?.active!==false?'Active':'Inactive'}
 function showError(e){console.error(e);alert('Something went wrong.\n\n'+(e?.message||e||'Unknown error'))}
 function closeModal(){$('modal')?.classList.add('hidden')}
 function openModal(title,body){
@@ -149,7 +147,7 @@ function products(){
 }
 function productRows(list){
   if(!list.length)return `<tr><td colspan="7" class="empty">No products found</td></tr>`;
-  return list.map(p=>`<tr><td>${p.image?`<img class="thumb" src="${esc(p.image)}" alt="${esc(p.name)}">`:'—'}</td><td><b>${esc(p.name)}</b></td><td>${esc(p.category||'—')}</td><td>${money(p.price)}${Number(p.discount||0)>0?`<br><small>${Number(p.discount)}% off</small>`:''}</td><td><span class="pill ${Number(p.stock||0)>0?'green':'red'}">${esc(stockState(p))}</span></td><td><span class="pill ${p.active!==false?'green':'red'}">${productStatus(p)}</span></td><td class="actions"><button class="btn muted" onclick="editProduct(${productsCache.indexOf(p)})">Edit</button><button class="btn ${p.active!==false?'danger':'primary'}" onclick="toggleProductActive(${productsCache.indexOf(p)})">${p.active!==false?'Disable':'Enable'}</button><button class="btn danger" onclick="deleteProduct(${productsCache.indexOf(p)})">Delete</button></td></tr>`).join('')
+  return list.map(p=>`<tr><td>${p.image?`<img class="thumb" src="${esc(p.image)}" alt="">`:'—'}</td><td><b>${esc(p.name)}</b></td><td>${esc(p.category||'—')}</td><td>${money(p.price)}</td><td>${Number(p.stock||0)}</td><td><span class="pill ${p.active!==false?'green':'red'}">${p.active!==false?'Active':'Inactive'}</span></td><td class="actions"><button class="btn muted" onclick="editProduct(${productsCache.indexOf(p)})">Edit</button><button class="btn danger" onclick="deleteProduct(${productsCache.indexOf(p)})">Delete</button></td></tr>`).join('')
 }
 function filterProducts(){
   const q=($('productSearch')?.value||'').toLowerCase().trim();
@@ -169,10 +167,10 @@ function productForm(p={}){
   const opts=categoriesCache.map(c=>`<option value="${esc(c.name)}" ${p.category===c.name?'selected':''}>${esc(c.name)}</option>`).join('');
   return `<div class="form-grid">
     <label>Product Name<input id="productName" value="${esc(p.name||'')}" placeholder="e.g. TWS AirBuds Pro"></label>
-    <label>Category<select id="productCategory"><option value="">Select category</option>${opts}</select></label>
+    <label>Category<input id="productCategory" list="categoryList" value="${esc(p.category||'')}" placeholder="Audio"><datalist id="categoryList">${opts}</datalist></label>
     <label>Price<input id="productPrice" type="number" min="0" value="${Number(p.price||0)}"></label>
-    <label>Discount (%)<input id="productDiscount" type="number" min="0" max="100" step="0.1" value="${Number(p.discount||0)}"><small>0-100% discount.</small></label>
-    <label>Stock<input id="productStock" type="number" min="0" step="1" value="${Number(p.stock||0)}"><small>0 = Out of Stock; 1+ = Available.</small></label>
+    <label>Discount<input id="productDiscount" type="number" min="0" value="${Number(p.discount||0)}"></label>
+    <label>Stock<input id="productStock" type="number" min="0" value="${Number(p.stock||0)}"></label>
     <label>Status<select id="productActive"><option value="true" ${p.active!==false?'selected':''}>Active</option><option value="false" ${p.active===false?'selected':''}>Inactive</option></select></label>
     <label class="full">Product Image<input id="productImage" type="file" accept="image/*"></label>
     ${p.image?`<label class="full">Current Image<img class="product-preview" src="${esc(p.image)}" alt=""></label>`:''}
@@ -185,8 +183,8 @@ async function saveProduct(){
   const stockRaw=$('productStock')?.value ?? '0';
   const price=Number(priceRaw), discount=Number(discountRaw), stock=Number(stockRaw);
 
-  if(!Number.isFinite(price)||!Number.isFinite(discount)||!Number.isFinite(stock)||price<0||discount<0||discount>100||stock<0||!Number.isInteger(stock)){
-    alert('Please enter valid values. Discount must be 0-100% and Stock must be a whole number 0 or greater.');
+  if(!Number.isFinite(price)||!Number.isFinite(discount)||!Number.isFinite(stock)||price<0||discount<0||stock<0){
+    alert('Please enter valid non-negative numbers for Price, Discount and Stock.');
     return;
   }
   if(price>999999999999||discount>999999999999||stock>2147483647){
@@ -223,16 +221,6 @@ async function saveProduct(){
     if(btn){btn.disabled=false;btn.textContent='Save Product'}
   }
 }
-async function toggleProductActive(i){
-  const p=productsCache[i];if(!p)return;
-  const next=p.active===false;
-  try{
-    const {error}=await sb.from('products').update({active:next}).eq('id',p.id);
-    if(error)throw error;
-    await refreshProducts();
-    render();
-  }catch(e){showError(e)}
-}
 async function deleteProduct(i){
   const p=productsCache[i];if(!p)return;
   if(!confirm(`Delete "${p.name}"?`))return;
@@ -248,43 +236,95 @@ async function deleteProduct(i){
    ORDERS
 ========================================================= */
 
-function orders(){
-  const rows=ordersCache.map((o,i)=>{
-    const s=o.status||'Pending',id=o.order_number||o.order_id||o.id||'#'+(i+1),total=o.total??(Number(o.subtotal||0)+Number(o.delivery_charge||0));
+function orderMatches(o,q,status,payment){
+  const id=String(o.order_number||o.order_id||o.id||'');
+  const name=String(o.customer_name||o.customer?.name||o.name||'');
+  const phone=String(o.phone||o.customer_phone||o.customer?.phone||'');
+  const address=[o.district,o.upazila,o.address].filter(Boolean).join(' ');
+  const haystack=`${id} ${name} ${phone} ${address}`.toLowerCase();
+  const s=o.status||'Pending';
+  const pm=o.payment_method||o.paymentMethod||'COD';
+  return haystack.includes(q)&&(!status||s===status)&&(!payment||pm.toLowerCase()===payment.toLowerCase());
+}
+function getFilteredOrders(){
+  const q=String($('orderSearch')?.value||'').trim().toLowerCase();
+  const status=$('orderStatusFilter')?.value||'';
+  const payment=$('orderPaymentFilter')?.value||'';
+  return ordersCache.map((o,i)=>({o,i})).filter(x=>orderMatches(x.o,q,status,payment));
+}
+function orderRows(list){
+  if(!list.length)return `<tr><td colspan="8" class="empty">No matching orders found</td></tr>`;
+  return list.map(({o,i})=>{
+    const s=o.status||'Pending';
+    const id=o.order_number||o.order_id||o.id||'#'+(i+1);
+    const total=o.total??(Number(o.subtotal||0)+Number(o.delivery_charge??o.delivery_fee??0));
+    const name=o.customer_name||o.customer?.name||o.name||'—';
+    const phone=o.phone||o.customer_phone||o.customer?.phone||'—';
+    const created=o.created_at?new Date(o.created_at).toLocaleString('en-BD'):'—';
     let next='';
     if(s==='Pending')next=actionBtn(i,'Confirmed','Confirm','primary');
     else if(s==='Confirmed')next=actionBtn(i,'Processing','Processing','primary');
     else if(s==='Processing')next=actionBtn(i,'Shipped','Shipped','primary');
     else if(s==='Shipped')next=actionBtn(i,'Delivered','Delivered','primary');
     const cancel=(s!=='Delivered'&&s!=='Cancelled')?actionBtn(i,'Cancelled','Cancel','danger'):'';
-    return `<tr><td>${esc(id)}</td><td>${esc(o.customer_name||o.customer?.name||o.name||'—')}</td><td>${esc(o.phone||o.customer_phone||o.customer?.phone||'—')}</td><td>${money(total)}</td><td>${esc(o.payment_method||o.paymentMethod||'COD')}</td><td><span class="pill ${statusClass(s)}">${esc(s)}</span></td><td class="actions"><button class="btn muted" onclick="viewOrder(${i})">View</button>${next}${cancel}</td></tr>`
+    return `<tr><td><b>${esc(id)}</b><br><small>${esc(created)}</small></td><td>${esc(name)}</td><td>${esc(phone)}</td><td>${money(total)}</td><td>${esc(o.payment_method||o.paymentMethod||'COD')}${o.transaction_id?`<br><small>TXN: ${esc(o.transaction_id)}</small>`:''}</td><td><span class="pill ${statusClass(s)}">${esc(s)}</span></td><td class="actions"><button class="btn muted" onclick="viewOrder(${i})">View</button>${next}${cancel}</td></tr>`
   }).join('');
-
-  return `<div class="section-head"><div><h3>Orders</h3><p>Manage customer orders</p></div><button class="btn muted" onclick="refreshOrders().then(render).catch(showError)">↻ Refresh</button></div>
-  <div class="table-wrap"><table class="table"><thead><tr><th>Order ID</th><th>Customer</th><th>Phone</th><th>Total</th><th>Payment</th><th>Status</th><th>Action</th></tr></thead><tbody>${rows||`<tr><td colspan="7" class="empty">No orders yet</td></tr>`}</tbody></table></div>`
+}
+function orders(){
+  const filtered=getFilteredOrders();
+  return `<div class="section-head"><div><h3>Orders</h3><p>Manage, search and update customer orders</p></div><div class="toolbar"><button class="btn muted" onclick="refreshOrders().then(()=>render()).catch(showError)">↻ Refresh</button><button class="btn primary" onclick="exportOrdersCSV()">Export CSV</button></div></div>
+  <div class="filters"><div class="search-wrap"><input class="input" id="orderSearch" value="${esc($('orderSearch')?.value||'')}" placeholder="Search order ID, customer, phone, address..." oninput="filterOrders()"></div><select class="select" id="orderStatusFilter" onchange="filterOrders()"><option value="">All Statuses</option>${['Pending','Confirmed','Processing','Shipped','Delivered','Cancelled'].map(s=>`<option value="${s}" ${$('orderStatusFilter')?.value===s?'selected':''}>${s}</option>`).join('')}</select><select class="select" id="orderPaymentFilter" onchange="filterOrders()"><option value="">All Payments</option>${['COD','bKash','Nagad'].map(s=>`<option value="${s}" ${$('orderPaymentFilter')?.value===s?'selected':''}>${s}</option>`).join('')}</select></div>
+  <p class="orders-count"><small>Showing ${filtered.length} of ${ordersCache.length} orders.</small></p>
+  <div class="table-wrap"><table class="table"><thead><tr><th>Order ID / Date</th><th>Customer</th><th>Phone</th><th>Total</th><th>Payment</th><th>Status</th><th>Actions</th></tr></thead><tbody id="orderRows">${orderRows(filtered)}</tbody></table></div>`
+}
+function filterOrders(){
+  const rows=$('orderRows');
+  if(rows)rows.innerHTML=orderRows(getFilteredOrders());
+  const count=document.querySelector('#content .orders-count');
+  if(count)count.textContent=`Showing ${getFilteredOrders().length} of ${ordersCache.length} orders.`;
 }
 function actionBtn(i,status,label,cls){return `<button class="btn ${cls}" onclick="updateOrderStatus(${i},'${status}')">${label}</button>`}
-
+function exportOrdersCSV(){
+  const list=getFilteredOrders().map(({o})=>({
+    order_id:o.order_number||o.order_id||o.id||'',
+    date:o.created_at||'',customer:o.customer_name||o.customer?.name||o.name||'',
+    phone:o.phone||o.customer_phone||o.customer?.phone||'',district:o.district||'',upazila:o.upazila||'',address:o.address||'',
+    items:formatOrderItems(o.items),subtotal:Number(o.subtotal||0),delivery:Number(o.delivery_charge??o.delivery_fee??0),
+    total:Number(o.total??(Number(o.subtotal||0)+Number(o.delivery_charge??o.delivery_fee??0))),
+    payment:o.payment_method||o.paymentMethod||'COD',transaction_id:o.transaction_id||'',status:o.status||'Pending',note:o.note||''
+  }));
+  if(!list.length){alert('No orders to export.');return}
+  const keys=Object.keys(list[0]);
+  const csv=[keys.join(','),...list.map(row=>keys.map(k=>'"'+String(row[k]??'').replace(/"/g,'""')+'"').join(','))].join('\r\n');
+  const blob=new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8;'});
+  const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='gadget-bazar-orders.csv';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);
+}
+function formatOrderItems(items){
+  if(typeof items==='string'){try{items=JSON.parse(items)}catch{return items}}
+  if(!Array.isArray(items))return '';
+  return items.map(x=>`${x.name||x.title||'Product'} x${x.qty||x.quantity||1}`).join('; ');
+}
 function viewOrder(i){
   const o=ordersCache[i];if(!o)return;
   const id=o.order_number||o.order_id||o.id||'',name=o.customer_name||o.customer?.name||o.name||'',phone=o.phone||o.customer_phone||o.customer?.phone||'';
   const district=o.district||o.customer?.district||'',upazila=o.upazila||o.customer?.upazila||'',address=o.address||o.customer?.address||'';
-  const payment=o.payment_method||o.paymentMethod||'COD',s=o.status||'Pending',total=o.total??(Number(o.subtotal||0)+Number(o.delivery_charge||0));
-  let items=o.items;
-  let itemHtml='';
-  if(typeof items==='string'){try{items=JSON.parse(items)}catch{}}
-  if(Array.isArray(items))itemHtml=items.map(x=>`<div class="order-item"><span>${esc(x.name||x.title||'Product')} × ${esc(x.qty||x.quantity||1)}</span><b>${money(Number(x.price||0)*Number(x.qty||x.quantity||1))}</b></div>`).join('');
-
-  return openModal('Order '+id,`<div class="card"><b>Customer</b><p>${esc(name)} · ${esc(phone)}</p><p>${esc([district,upazila].filter(Boolean).join(', '))}</p><p>${esc(address||'—')}</p><hr><p><b>Payment:</b> ${esc(payment)}${o.transaction_id?' · TXN: '+esc(o.transaction_id):''}</p><p><b>Status:</b> <span class="pill ${statusClass(s)}">${esc(s)}</span></p><p><b>Subtotal:</b> ${money(o.subtotal)}</p><p><b>Delivery:</b> ${money(o.delivery_charge)}</p><p><b>Total:</b> ${money(total)}</p><p><b>Note:</b> ${esc(o.note||'—')}</p>${itemHtml?`<hr><b>Items</b><div class="order-items">${itemHtml}</div>`:''}</div>
-  <div class="btn-row">${s==='Pending'?actionBtn(i,'Confirmed','Confirm Order','primary'):''}${s==='Confirmed'?actionBtn(i,'Processing','Processing','primary'):''}${s==='Processing'?actionBtn(i,'Shipped','Shipped','primary'):''}${s==='Shipped'?actionBtn(i,'Delivered','Delivered','primary'):''}${s!=='Delivered'&&s!=='Cancelled'?actionBtn(i,'Cancelled','Cancel','danger'):''}</div>`)
+  const payment=o.payment_method||o.paymentMethod||'COD',s=o.status||'Pending',delivery=Number(o.delivery_charge??o.delivery_fee??0),total=o.total??(Number(o.subtotal||0)+delivery);
+  let items=o.items;let itemHtml='';
+  if(typeof items==='string'){try{items=JSON.parse(items)}catch{items=[]}}
+  if(Array.isArray(items))itemHtml=items.map(x=>{const qty=Number(x.qty||x.quantity||1);const price=Number(x.price||x.unit_price||0);return `<div class="order-item"><span>${esc(x.name||x.title||'Product')} × ${qty}</span><b>${money(price*qty)}</b></div>`}).join('');
+  const created=o.created_at?new Date(o.created_at).toLocaleString('en-BD'):'—';
+  openModal('Order '+id,`<div class="card"><b>Order Information</b><p><b>Order ID:</b> ${esc(id)}</p><p><b>Placed:</b> ${esc(created)}</p><p><b>Status:</b> <span class="pill ${statusClass(s)}">${esc(s)}</span></p><hr><b>Customer</b><p>${esc(name)} · ${esc(phone)}</p><p>${esc([district,upazila].filter(Boolean).join(', '))}</p><p>${esc(address||'—')}</p><hr><p><b>Payment:</b> ${esc(payment)}</p><p><b>Transaction ID:</b> ${esc(o.transaction_id||'—')}</p><p><b>Subtotal:</b> ${money(o.subtotal)}</p><p><b>Delivery:</b> ${money(delivery)}</p><p><b>Total:</b> <b>${money(total)}</b></p><p><b>Customer note:</b> ${esc(o.note||'—')}</p>${itemHtml?`<hr><b>Items</b><div class="order-items">${itemHtml}</div>`:'<hr><p>No item details saved with this order.</p>'}</div><div class="btn-row">${s==='Pending'?actionBtn(i,'Confirmed','Confirm Order','primary'):''}${s==='Confirmed'?actionBtn(i,'Processing','Start Processing','primary'):''}${s==='Processing'?actionBtn(i,'Shipped','Mark Shipped','primary'):''}${s==='Shipped'?actionBtn(i,'Delivered','Mark Delivered','primary'):''}${s!=='Delivered'&&s!=='Cancelled'?actionBtn(i,'Cancelled','Cancel Order','danger'):''}</div>`);
 }
 async function updateOrderStatus(i,newStatus){
   const order=ordersCache[i];if(!order)return;
+  const allowed=['Confirmed','Processing','Shipped','Delivered','Cancelled'];
+  if(!allowed.includes(newStatus)){alert('Invalid order status.');return}
   const old=order.status||'Pending';if(old===newStatus)return;
   const id=order.order_number||order.order_id||order.id||'';
-  if(!confirm(`Order ${id}\n\nChange status to "${newStatus}"?`))return;
+  if(newStatus==='Cancelled'&&old==='Delivered'){alert('A delivered order cannot be cancelled here.');return}
+  if(!confirm(`Order ${id}\n\nChange status from "${old}" to "${newStatus}"?`))return;
   try{
-    const {error}=await sb.from('orders').update({status:newStatus}).eq('id',order.id);
+    const {error}=await sb.from('orders').update({status:newStatus,updated_at:new Date().toISOString()}).eq('id',order.id);
     if(error)throw error;
     await refreshOrders();
     closeModal();
@@ -473,9 +513,85 @@ async function saveDeliverySettings(){
    PAYMENTS / STORE SETTINGS
 ========================================================= */
 
+let paymentSettingsFull={
+  cod_enabled:true,
+  bkash_enabled:false,
+  bkash_number:'',
+  nagad_enabled:false,
+  nagad_number:''
+};
+
+async function loadPaymentSettingsFull(){
+  const {data,error}=await sb.from('payment_settings').select('*').limit(1).maybeSingle();
+  if(error)throw error;
+  if(data){
+    paymentSettingsFull={
+      cod_enabled:data.cod_enabled!==false,
+      bkash_enabled:data.bkash_enabled===true,
+      bkash_number:data.bkash_number||'',
+      nagad_enabled:data.nagad_enabled===true,
+      nagad_number:data.nagad_number||''
+    };
+  }
+}
+
 function payments(){
-  return `<div class="section-head"><div><h3>Payment Settings</h3><p>Payment methods</p></div></div>
-  <div class="card"><p>Payment settings will be configured later.</p><p>Current checkout continues to support Cash on Delivery and the existing payment options.</p></div>`
+  const p=paymentSettingsFull;
+  return `<div class="section-head">
+    <div><h3>Payment Settings</h3><p>Manage COD, bKash and Nagad</p></div>
+    <button class="btn muted" onclick="loadPaymentSettingsFull().then(render).catch(showError)">↻ Refresh</button>
+  </div>
+  <div class="card">
+    <div class="form-grid">
+      <label class="full"><input id="codEnabled" type="checkbox" ${p.cod_enabled?'checked':''}> <b>Enable Cash on Delivery (COD)</b></label>
+      <label class="full"><input id="bkashEnabled" type="checkbox" ${p.bkash_enabled?'checked':''}> <b>Enable bKash</b></label>
+      <label>bKash Number<input id="bkashNumber" type="tel" value="${esc(p.bkash_number)}" placeholder="01XXXXXXXXX"></label>
+      <label class="full"><input id="nagadEnabled" type="checkbox" ${p.nagad_enabled?'checked':''}> <b>Enable Nagad</b></label>
+      <label>Nagad Number<input id="nagadNumber" type="tel" value="${esc(p.nagad_number)}" placeholder="01XXXXXXXXX"></label>
+    </div>
+    <div class="btn-row">
+      <button class="btn primary" id="savePaymentBtn" onclick="savePaymentSettingsFull()">Save Payment Settings</button>
+    </div>
+  </div>`;
+}
+
+async function savePaymentSettingsFull(){
+  const cod=!!$('codEnabled')?.checked;
+  const bkash=!!$('bkashEnabled')?.checked;
+  const nagad=!!$('nagadEnabled')?.checked;
+  const bn=($('bkashNumber')?.value||'').trim();
+  const nn=($('nagadNumber')?.value||'').trim();
+
+  if(bkash&&!bn){alert('Please enter bKash number.');return;}
+  if(nagad&&!nn){alert('Please enter Nagad number.');return;}
+
+  const btn=$('savePaymentBtn');
+  try{
+    if(btn){btn.disabled=true;btn.textContent='Saving...';}
+    const {data:row,error:rerr}=await sb.from('payment_settings').select('id').limit(1).maybeSingle();
+    if(rerr)throw rerr;
+
+    const payload={
+      cod_enabled:cod,
+      bkash_enabled:bkash,
+      bkash_number:bn,
+      nagad_enabled:nagad,
+      nagad_number:nn
+    };
+
+    const res=row?.id
+      ? await sb.from('payment_settings').update(payload).eq('id',row.id)
+      : await sb.from('payment_settings').insert(payload);
+
+    if(res.error)throw res.error;
+
+    paymentSettingsFull={...payload};
+    alert('Payment settings saved successfully.');
+    render();
+  }catch(e){
+    showError(e);
+    if(btn){btn.disabled=false;btn.textContent='Save Payment Settings';}
+  }
 }
 
 function settings(){
@@ -493,8 +609,12 @@ function toggleCatalog(){
   if($('catalogArrow'))$('catalogArrow').textContent=catalogOpen?'⌄':'›'
 }
 function setNavActive(section){
-  document.querySelectorAll('.nav[data-page]').forEach(x=>x.classList.toggle('active',x.dataset.page===section));
-  document.querySelectorAll('.subnav-item').forEach(x=>x.classList.toggle('active-sub',x.dataset.page===section));
+  document.querySelectorAll('.nav[data-page],.nav[data-section]').forEach(x=>{
+    x.classList.toggle('active',(x.dataset.page||x.dataset.section)===section)
+  });
+  document.querySelectorAll('.subnav-item').forEach(x=>{
+    x.classList.toggle('active-sub',(x.dataset.page||x.dataset.section)===section)
+  });
 
   if(section==='products'||section==='categories'){
     catalogOpen=true;
@@ -549,7 +669,8 @@ async function refreshDashboard(){
 ========================================================= */
 
 async function login(){
-  const email=$('loginUser')?.value.trim(),password=$('loginPass')?.value;
+  const email=($('loginEmail')?.value||$('loginUser')?.value||'').trim(),
+        password=$('loginPassword')?.value??$('loginPass')?.value;
   if(!email||!password){alert('Please enter admin email and password.');return}
 
   try{
@@ -564,6 +685,7 @@ async function login(){
 
     showApp();
     await loadCloud();
+    await loadPaymentSettingsFull();
     render()
   }catch(e){
     alert('Login failed.\n\n'+(e?.message||'Invalid email or password.'))
@@ -584,7 +706,8 @@ function exportData(){
     products:productsCache,
     orders:ordersCache,
     categories:categoriesCache,
-    delivery_settings:deliverySettingsCache
+    delivery_settings:deliverySettingsCache,
+    payment_settings:paymentSettingsFull
   };
 
   const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
@@ -596,8 +719,15 @@ function exportData(){
 }
 
 async function importData(e){
-  const file=e.target.files?.[0];
-  if(!file)return;
+  let file=e?.target?.files?.[0];
+  if(!file){
+    const picker=document.createElement('input');
+    picker.type='file';
+    picker.accept='application/json,.json';
+    picker.onchange=ev=>importData(ev);
+    picker.click();
+    return;
+  }
 
   try{
     const data=JSON.parse(await file.text());
@@ -624,11 +754,14 @@ async function importData(e){
 ========================================================= */
 
 document.addEventListener('DOMContentLoaded',()=>{
-  document.querySelectorAll('.nav[data-page],.subnav-item').forEach(btn=>{
-    btn.addEventListener('click',()=>go(btn.dataset.page))
+  document.querySelectorAll('.nav[data-page],.nav[data-section],.subnav-item').forEach(btn=>{
+    btn.addEventListener('click',()=>go(btn.dataset.page||btn.dataset.section))
   });
 
   $('importFile')?.addEventListener('change',importData);
+  $('loginPassword')?.addEventListener('keydown',e=>{
+    if(e.key==='Enter')login()
+  });
   $('loginPass')?.addEventListener('keydown',e=>{
     if(e.key==='Enter')login()
   });
@@ -646,6 +779,7 @@ async function init(){
 
     showApp();
     await loadCloud();
+    await loadPaymentSettingsFull();
     render()
   }catch(e){
     showError(e)
@@ -667,12 +801,13 @@ window.openModal=openModal;
 
 window.addProduct=addProduct;
 window.editProduct=editProduct;
-window.toggleProductActive=toggleProductActive;
 window.saveProduct=saveProduct;
 window.deleteProduct=deleteProduct;
 
 window.viewOrder=viewOrder;
 window.updateOrderStatus=updateOrderStatus;
+window.filterOrders=filterOrders;
+window.exportOrdersCSV=exportOrdersCSV;
 
 window.addCategory=addCategory;
 window.saveCategory=saveCategory;
@@ -689,3 +824,7 @@ window.toggleSidebar=toggleSidebar;
 window.toggleSide=toggleSidebar;
 window.toggleCatalog=toggleCatalog;
 window.exportData=exportData;
+
+window.payments=payments;
+window.loadPaymentSettingsFull=loadPaymentSettingsFull;
+window.savePaymentSettingsFull=savePaymentSettingsFull;
