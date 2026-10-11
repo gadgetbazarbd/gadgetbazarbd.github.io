@@ -10,7 +10,7 @@ const DEFAULT_DELIVERY_SETTINGS={dhaka:60,nearby:100,outside:130};
 let DELIVERY_SETTINGS={...DEFAULT_DELIVERY_SETTINGS};
 let NEARBY_DISTRICTS=["Gazipur","Narayanganj","Narsingdi","Munshiganj","Manikganj"];
 let PAYMENT_SETTINGS={cod_enabled:true,bkash_enabled:false,bkash_number:"",nagad_enabled:false,nagad_number:""};
-let products=[],categories=[],cart=JSON.parse(localStorage.getItem("gbbd_cart")||"[]");
+let categories=[],products=[],cart=JSON.parse(localStorage.getItem("gbbd_cart")||"[]");
 let currentCategory="All Products",selectedDistrict="",selectedUpazila="";
 let locationData=[],locationLoaded=false;
 
@@ -23,33 +23,32 @@ function saveCart(){localStorage.setItem("gbbd_cart",JSON.stringify(cart));updat
 function esc(v){return String(v??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]));}
 
 function normalizeProduct(r){return{
- id:r.id,name:r.name||r.product_name||"Unnamed Product",cat:r.category||r.cat||"Other",
+ id:r.id,name:r.name||r.product_name||"Unnamed Product",cat:String(r.category||r.cat||"Other").trim(),
  price:Number(r.price||0),discount:Number(r.discount||0),stock:Number(r.stock??r.stock_quantity??0),
  image:r.image||r.image_url||"",featured:!!r.featured,emoji:r.emoji||"📦"
 };}
 
 
+
 async function loadCategories(){
- const {data,error}=await sb.from("categories").select("*").order("name",{ascending:true});
- if(error)throw error;
- categories=(data||[]).filter(c=>c.active!==false && String(c.name||'').trim());
- renderCategoryMenu();
+  const {data,error}=await sb.from('categories').select('*').order('name',{ascending:true});
+  if(error)throw error;
+  categories=(data||[]).filter(c=>c.active!==false);
+  renderCategoryMenu();
 }
 function renderCategoryMenu(){
- const menu=$("sideMenu");
- if(!menu)return;
- menu.querySelectorAll('[onclick*="filterCategory"]').forEach(el=>el.remove());
- let box=$("dynamicCategories");
- if(!box){
-   box=document.createElement("div");
-   box.id="dynamicCategories";
-   box.style.cssText="padding:8px 0 16px;";
-   menu.appendChild(box);
- }
- const names=[...new Set(categories.map(c=>String(c.name).trim()))];
- box.innerHTML=`<div style="padding:8px 16px;color:#7895af;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em">Categories</div>`
-   + `<button type="button" class="menu-item" onclick="filterCategory('All Products');closeMenu()">All Products</button>`
-   + names.map(n=>`<button type="button" class="menu-item" onclick="filterCategory(${JSON.stringify(n)});closeMenu()">${esc(n)}</button>`).join("");
+  const names=[...new Set(categories.map(c=>String(c.name||'').trim()).filter(Boolean))];
+  const menu=document.querySelector('#sideMenu');
+  if(!menu)return;
+  let box=document.querySelector('#dynamicCategoryMenu');
+  if(!box){
+    box=document.createElement('div');box.id='dynamicCategoryMenu';box.className='dynamic-category-menu';
+    const heading=document.createElement('div');heading.className='menu-section-title';heading.textContent='Categories';
+    box.appendChild(heading);menu.appendChild(box);
+  }
+  box.querySelectorAll('[data-dynamic-category]').forEach(x=>x.remove());
+  const all=document.createElement('button');all.type='button';all.textContent='All Products';all.setAttribute('data-dynamic-category','1');all.onclick=()=>{filterCategory('All Products');closeMenu();};box.appendChild(all);
+  names.forEach(name=>{const b=document.createElement('button');b.type='button';b.textContent=name;b.setAttribute('data-dynamic-category','1');b.onclick=()=>{filterCategory(name);closeMenu();};box.appendChild(b);});
 }
 
 async function loadProducts(){
@@ -80,13 +79,17 @@ async function loadStoreData(){
 }
 
 async function refreshStore(){
- try{await Promise.all([loadProducts(),loadCategories(),loadStoreData()]);renderProducts();updateCart();setTimeout(setupLocationPickers,0);}
+ try{await Promise.all([loadProducts(),loadStoreData(),loadCategories()]);renderProducts();updateCart();setTimeout(setupLocationPickers,0);}
  catch(e){console.error(e);toast("Products could not be loaded");}
 }
 
+function categoryKey(value){
+ return String(value??"").trim().toLocaleLowerCase().replace(/\s+/g," ");
+}
 function filteredProducts(){
  let q=($("searchInput")?.value||"").trim().toLowerCase();
- let a=products.filter(p=>currentCategory==="All Products"||p.cat===currentCategory);
+ const selectedKey=categoryKey(currentCategory);
+ let a=products.filter(p=>selectedKey===categoryKey("All Products")||categoryKey(p.cat)===selectedKey);
  if(q)a=a.filter(p=>(p.name+" "+p.cat).toLowerCase().includes(q));
  let s=$("sortSelect")?.value||"";
  if(s==="low")a.sort((x,y)=>x.price-y.price);
@@ -177,7 +180,12 @@ function openCheckout(){if(!cart.length)return;closeCart();$("checkoutModal")?.c
 function closeCheckout(){$("checkoutModal")?.classList.add("hidden");}
 function closeSuccess(){$("successModal")?.classList.add("hidden");}
 function showAllProducts(){currentCategory="All Products";renderProducts();$("products")?.scrollIntoView({behavior:"smooth"});}
-function filterCategory(c){currentCategory=c;renderProducts();$("products")?.scrollIntoView({behavior:"smooth"});}
+function filterCategory(c){
+ const key=categoryKey(c);
+ currentCategory=key===categoryKey("All Products")?"All Products":(categories.find(x=>categoryKey(x.name)===key)?.name||String(c??"").trim());
+ renderProducts();
+ $("products")?.scrollIntoView({behavior:"smooth"});
+}
 
 async function loadLocations(){
  if(locationLoaded)return;
