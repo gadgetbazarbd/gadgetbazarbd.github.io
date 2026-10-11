@@ -33,7 +33,7 @@ function normalizeProduct(r){return{
 async function loadCategories(){
   const {data,error}=await sb.from('categories').select('*').order('name',{ascending:true});
   if(error)throw error;
-  categories=(data||[]).filter(c=>c.active!==false);
+  categories=data||[]; // Show all saved categories, including rows where active is unset/false.
   renderCategoryMenu();
 }
 function renderCategoryMenu(){

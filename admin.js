@@ -167,7 +167,7 @@ function productForm(p={}){
   const opts=categoriesCache.map(c=>`<option value="${esc(c.name)}" ${p.category===c.name?'selected':''}>${esc(c.name)}</option>`).join('');
   return `<div class="form-grid">
     <label>Product Name<input id="productName" value="${esc(p.name||'')}" placeholder="e.g. TWS AirBuds Pro"></label>
-    <label>Category<input id="productCategory" list="categoryList" value="${esc(p.category||'')}" placeholder="Audio"><datalist id="categoryList">${opts}</datalist></label>
+    <label>Category<select id="productCategory" required><option value="">Select a category</option>${categoriesCache.map(c=>`<option value="${esc(c.name)}" ${p.category===c.name?'selected':''}>${esc(c.name)}</option>`).join('')}</select></label>
     <label>Price<input id="productPrice" type="number" min="0" value="${Number(p.price||0)}"></label>
     <label>Discount<input id="productDiscount" type="number" min="0" value="${Number(p.discount||0)}"></label>
     <label>Stock<input id="productStock" type="number" min="0" value="${Number(p.stock||0)}"></label>
@@ -194,6 +194,7 @@ async function saveProduct(){
 
   const active=$('productActive')?.value==='true',file=$('productImage')?.files?.[0];
   if(!name){alert('Product name is required.');return}
+  if(!category){alert('Please select a category.');return}
 
   try{
     const isEdit=!!editingProductId;
