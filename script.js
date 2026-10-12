@@ -40,15 +40,36 @@ function renderCategoryMenu(){
   const names=[...new Set(categories.map(c=>String(c.name||'').trim()).filter(Boolean))];
   const menu=document.querySelector('#sideMenu');
   if(!menu)return;
-  let box=document.querySelector('#dynamicCategoryMenu');
-  if(!box){
-    box=document.createElement('div');box.id='dynamicCategoryMenu';box.className='dynamic-category-menu';
-    const heading=document.createElement('div');heading.className='menu-section-title';heading.textContent='Categories';
-    box.appendChild(heading);menu.appendChild(box);
+
+  // Reuse the existing "Shop by category" label from index.html.
+  // Do not create a second Categories heading/list.
+  let label=menu.querySelector('.menu-label');
+  if(!label){
+    label=document.createElement('div');
+    label.className='menu-label';
+    label.textContent='Shop by category';
+    const allButton=menu.querySelector('.menu-item');
+    if(allButton)allButton.insertAdjacentElement('afterend',label);
+    else menu.appendChild(label);
   }
-  box.querySelectorAll('[data-dynamic-category]').forEach(x=>x.remove());
-  const all=document.createElement('button');all.type='button';all.textContent='All Products';all.setAttribute('data-dynamic-category','1');all.onclick=()=>{filterCategory('All Products');closeMenu();};box.appendChild(all);
-  names.forEach(name=>{const b=document.createElement('button');b.type='button';b.textContent=name;b.setAttribute('data-dynamic-category','1');b.onclick=()=>{filterCategory(name);closeMenu();};box.appendChild(b);});
+
+  // Remove buttons generated on previous refreshes.
+  menu.querySelectorAll('[data-dynamic-category="1"]').forEach(x=>x.remove());
+
+  // Remove the old hard-coded category buttons, but keep the All Products button.
+  const menuItems=[...menu.querySelectorAll('.menu-item')];
+  menuItems.slice(1).forEach(x=>x.remove());
+
+  // Build the category buttons directly below the existing label.
+  names.forEach(name=>{
+    const b=document.createElement('button');
+    b.type='button';
+    b.className='menu-item';
+    b.textContent=name;
+    b.setAttribute('data-dynamic-category','1');
+    b.onclick=()=>{filterCategory(name);closeMenu();};
+    label.insertAdjacentElement('afterend',b);
+  });
 }
 
 async function loadProducts(){
