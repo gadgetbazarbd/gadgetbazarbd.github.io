@@ -10,7 +10,8 @@ const DEFAULT_DELIVERY_SETTINGS={dhaka:60,nearby:100,outside:130};
 let DELIVERY_SETTINGS={...DEFAULT_DELIVERY_SETTINGS};
 let NEARBY_DISTRICTS=["Gazipur","Narayanganj","Narsingdi","Munshiganj","Manikganj"];
 let PAYMENT_SETTINGS={cod_enabled:true,bkash_enabled:false,bkash_number:"",nagad_enabled:false,nagad_number:""};
-let categories=[],products=[],cart=JSON.parse(localStorage.getItem("gbbd_cart")||"[]");
+let categories=[],products=[],cart=[];
+try { const savedCart=JSON.parse(localStorage.getItem("gbbd_cart")||"[]"); cart=Array.isArray(savedCart)?savedCart.filter(x=>x&&x.id!=null&&Number(x.qty)>0).map(x=>({id:x.id,qty:Math.max(1,Math.floor(Number(x.qty)||1))})):[]; } catch(e) { cart=[]; }
 let currentCategory="All Products",selectedDistrict="",selectedUpazila="";
 let locationData=[],locationLoaded=false;
 
@@ -19,7 +20,7 @@ function toast(msg){
  t.textContent=msg;t.classList.add("show");clearTimeout(window.__gbToastTimer);
  window.__gbToastTimer=setTimeout(()=>t.classList.remove("show"),1600);
 }
-function saveCart(){localStorage.setItem("gbbd_cart",JSON.stringify(cart));updateCart();}
+function saveCart(){try{localStorage.setItem("gbbd_cart",JSON.stringify(cart));}catch(e){console.warn("Cart could not be saved locally",e);}updateCart();}
 function esc(v){return String(v??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]));}
 
 function normalizeProduct(r){return{
@@ -53,14 +54,11 @@ function renderCategoryMenu(){
     else menu.appendChild(label);
   }
 
-  // Remove buttons generated on previous refreshes.
+  // Remove previously generated and legacy hard-coded category buttons.
   menu.querySelectorAll('[data-dynamic-category="1"]').forEach(x=>x.remove());
+  [...menu.querySelectorAll('.menu-item')].slice(1).forEach(x=>x.remove());
 
-  // Remove the old hard-coded category buttons, but keep the All Products button.
-  const menuItems=[...menu.querySelectorAll('.menu-item')];
-  menuItems.slice(1).forEach(x=>x.remove());
-
-  // Build the category buttons directly below the existing label.
+  // Append categories in the same order as Supabase returns them.
   names.forEach(name=>{
     const b=document.createElement('button');
     b.type='button';
@@ -68,7 +66,7 @@ function renderCategoryMenu(){
     b.textContent=name;
     b.setAttribute('data-dynamic-category','1');
     b.onclick=()=>{filterCategory(name);closeMenu();};
-    label.insertAdjacentElement('afterend',b);
+    menu.appendChild(b);
   });
 }
 
@@ -125,7 +123,7 @@ function renderProducts(){
  g.innerHTML=a.map(p=>{
   let sold=p.stock<=0,disc=p.discount>0,price=disc?Math.max(0,p.price-p.price*p.discount/100):p.price;
   let id=String(p.id).replace(/'/g,"\\'");
-  return `<article class="product-card"><div class="product-img">${p.image?`<img src="${p.image}" alt="${esc(p.name)}" loading="lazy" style="width:100%;height:100%;object-fit:contain;border-radius:14px">`:p.emoji}</div><div class="category">${esc(p.cat)}</div><h3>${esc(p.name)}</h3><div class="price">${money(price)} ${disc?`<del style="font-size:12px;color:#7895af">${money(p.price)}</del>`:""}</div><div class="product-actions"><button class="add-btn" ${sold?"disabled":""} onclick="addToCart('${id}')">${sold?"Out of Stock":"Add to Cart"}</button><button class="buy-btn" ${sold?"disabled":""} onclick="buyNow('${id}')">${sold?"Out of Stock":"Buy Now"}</button></div></article>`;
+  return `<article class="product-card"><div class="product-img">${p.image?`<img src="${esc(p.image)}" alt="${esc(p.name)}" loading="lazy" style="width:100%;height:100%;object-fit:contain;border-radius:14px" onerror="this.remove()">`:p.emoji}</div><div class="category">${esc(p.cat)}</div><h3>${esc(p.name)}</h3><div class="price">${money(price)} ${disc?`<del style="font-size:12px;color:#7895af">${money(p.price)}</del>`:""}</div><div class="product-actions"><button class="add-btn" ${sold?"disabled":""} onclick="addToCart('${id}')">${sold?"Out of Stock":"Add to Cart"}</button><button class="buy-btn" ${sold?"disabled":""} onclick="buyNow('${id}')">${sold?"Out of Stock":"Buy Now"}</button></div></article>`;
  }).join("")||`<div class="empty" style="grid-column:1/-1">No products found.</div>`;
 }
 function getProduct(id){return products.find(p=>String(p.id)===String(id));}
