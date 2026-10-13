@@ -14,6 +14,7 @@ let productsCache=[];
 let ordersCache=[];
 let categoriesCache=[];
 let deliverySettingsCache=null;
+let storeSettingsCache={store_name:'Gadget Bazar BD',phone:'',email:'',address:'',support_hours:''};
 let currentSection='dashboard';
 let editingProductId=null;
 let catalogOpen=true;
@@ -167,7 +168,7 @@ function productForm(p={}){
   const opts=categoriesCache.map(c=>`<option value="${esc(c.name)}" ${p.category===c.name?'selected':''}>${esc(c.name)}</option>`).join('');
   return `<div class="form-grid">
     <label>Product Name<input id="productName" value="${esc(p.name||'')}" placeholder="e.g. TWS AirBuds Pro"></label>
-    <label>Category<select id="productCategory" required><option value="">Select a category</option>${categoriesCache.map(c=>`<option value="${esc(c.name)}" ${p.category===c.name?'selected':''}>${esc(c.name)}</option>`).join('')}</select></label>
+    <label>Category<input id="productCategory" list="categoryList" value="${esc(p.category||'')}" placeholder="Audio"><datalist id="categoryList">${opts}</datalist></label>
     <label>Price<input id="productPrice" type="number" min="0" value="${Number(p.price||0)}"></label>
     <label>Discount<input id="productDiscount" type="number" min="0" value="${Number(p.discount||0)}"></label>
     <label>Stock<input id="productStock" type="number" min="0" value="${Number(p.stock||0)}"></label>
@@ -194,7 +195,6 @@ async function saveProduct(){
 
   const active=$('productActive')?.value==='true',file=$('productImage')?.files?.[0];
   if(!name){alert('Product name is required.');return}
-  if(!category){alert('Please select a category.');return}
 
   try{
     const isEdit=!!editingProductId;
@@ -595,9 +595,51 @@ async function savePaymentSettingsFull(){
   }
 }
 
+async function loadStoreSettings(){
+  const {data,error}=await sb.from('store_settings').select('*').eq('id',1).maybeSingle();
+  if(error)throw error;
+  storeSettingsCache={
+    store_name:data?.store_name||'Gadget Bazar BD',
+    phone:data?.phone||'',
+    email:data?.email||'',
+    address:data?.address||'',
+    support_hours:data?.support_hours||'',
+    updated_at:data?.updated_at||null
+  };
+  return storeSettingsCache;
+}
+
 function settings(){
-  return `<div class="section-head"><div><h3>Store Settings</h3><p>Gadget Bazar BD</p></div></div>
-  <div class="card"><p>Store settings are connected to Supabase.</p><p>Admin account and product storage are active.</p></div>`
+  const s=storeSettingsCache||{};
+  return `<div class="section-head"><div><h3>Store Settings</h3><p>Manage your store contact information</p></div><button class="btn muted" onclick="loadStoreSettings().then(render).catch(showError)">↻ Refresh</button></div>
+  <div class="card"><div class="form-grid">
+    <label class="full">Store Name<input id="storeName" maxlength="120" value="${esc(s.store_name||'Gadget Bazar BD')}" placeholder="Gadget Bazar BD"></label>
+    <label>Contact Phone<input id="storePhone" type="tel" maxlength="30" value="${esc(s.phone||'')}" placeholder="01XXXXXXXXX"></label>
+    <label>Contact Email<input id="storeEmail" type="email" maxlength="160" value="${esc(s.email||'')}" placeholder="support@example.com"></label>
+    <label class="full">Store Address<textarea id="storeAddress" rows="3" maxlength="500" placeholder="Store address">${esc(s.address||'')}</textarea></label>
+    <label class="full">Support Hours<input id="storeHours" maxlength="160" value="${esc(s.support_hours||'')}" placeholder="Every day, 10 AM–8 PM"></label>
+  </div><div class="btn-row"><button class="btn primary" id="saveStoreSettingsBtn" onclick="saveStoreSettings()">Save Store Settings</button></div>
+  ${s.updated_at?`<p><small>Last updated: ${esc(new Date(s.updated_at).toLocaleString('en-BD'))}</small></p>`:''}</div>`
+}
+
+async function saveStoreSettings(){
+  const store_name=($('storeName')?.value||'').trim();
+  const phone=($('storePhone')?.value||'').trim();
+  const email=($('storeEmail')?.value||'').trim();
+  const address=($('storeAddress')?.value||'').trim();
+  const support_hours=($('storeHours')?.value||'').trim();
+  if(!store_name){alert('Store name is required.');return;}
+  if(email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){alert('Please enter a valid email address.');return;}
+  const btn=$('saveStoreSettingsBtn');
+  try{
+    if(btn){btn.disabled=true;btn.textContent='Saving...';}
+    const payload={id:1,store_name,phone,email,address,support_hours,updated_at:new Date().toISOString()};
+    const {data,error}=await sb.from('store_settings').upsert(payload,{onConflict:'id'}).select().single();
+    if(error)throw error;
+    storeSettingsCache={...payload,...(data||{})};
+    alert('Store settings saved successfully.');
+    render();
+  }catch(e){showError(e);if(btn){btn.disabled=false;btn.textContent='Save Store Settings';}}
 }
 
 /* =========================================================
@@ -687,6 +729,7 @@ async function login(){
     showApp();
     await loadCloud();
     await loadPaymentSettingsFull();
+    await loadStoreSettings();
     render()
   }catch(e){
     alert('Login failed.\n\n'+(e?.message||'Invalid email or password.'))
@@ -708,7 +751,8 @@ function exportData(){
     orders:ordersCache,
     categories:categoriesCache,
     delivery_settings:deliverySettingsCache,
-    payment_settings:paymentSettingsFull
+    payment_settings:paymentSettingsFull,
+    store_settings:storeSettingsCache
   };
 
   const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
@@ -781,6 +825,7 @@ async function init(){
     showApp();
     await loadCloud();
     await loadPaymentSettingsFull();
+    await loadStoreSettings();
     render()
   }catch(e){
     showError(e)
@@ -829,3 +874,5 @@ window.exportData=exportData;
 window.payments=payments;
 window.loadPaymentSettingsFull=loadPaymentSettingsFull;
 window.savePaymentSettingsFull=savePaymentSettingsFull;
+window.loadStoreSettings=loadStoreSettings;
+window.saveStoreSettings=saveStoreSettings;
