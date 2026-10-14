@@ -21,6 +21,7 @@ let currentSection='dashboard';
 let editingProductId=null;
 let catalogOpen=true;
 let productCropper=null;
+let productCropRatio=1;
 let croppedProductFile=null;
 let productCropObjectUrl=null;
 
@@ -211,6 +212,7 @@ function handleProductImageSelected(event){
   if(!file.type.startsWith('image/')){alert('Please choose an image file.');event.target.value='';return}
   if(file.size>12*1024*1024){alert('Image is too large. Please choose an image under 12 MB.');event.target.value='';return}
   if(productCropper){productCropper.destroy();productCropper=null}
+  productCropRatio=1;
   if(productCropObjectUrl)URL.revokeObjectURL(productCropObjectUrl);
   productCropObjectUrl=URL.createObjectURL(file);
   croppedProductFile=null;
@@ -224,11 +226,16 @@ function handleProductImageSelected(event){
     productCropper=new Cropper(img,{viewMode:1,dragMode:'crop',aspectRatio:1,autoCropArea:.9,background:false,responsive:true,restore:false,checkOrientation:true,zoomable:true,scalable:false,rotatable:true,guides:true,center:true,highlight:true,ready(){if(editor)editor.scrollIntoView({block:'nearest',behavior:'smooth'});}});
   };img.src=productCropObjectUrl}
 }
-function setProductCropRatio(ratio){if(productCropper){productCropper.setAspectRatio(ratio);const status=$('productCropStatus');if(status)status.textContent=`Crop ratio updated. Adjust the frame, then press “Use this crop”.`;}}
+function setProductCropRatio(ratio){
+  productCropRatio=Number(ratio)||1;
+  if(productCropper) productCropper.setAspectRatio(productCropRatio);
+  const status=$('productCropStatus');
+  if(status) status.textContent='Crop ratio updated. Adjust the frame, then press “Use this crop”.';
+}
 function makeCroppedProductFile(){
   return new Promise((resolve,reject)=>{
     if(!productCropper){resolve(croppedProductFile);return}
-    const ratio=productCropper.getAspectRatio()||1; const width=ratio>=1?1200:Math.max(600,Math.round(1200*ratio)); const height=ratio>=1?Math.max(600,Math.round(1200/ratio)):1200; const canvas=productCropper.getCroppedCanvas({width,height,imageSmoothingEnabled:true,imageSmoothingQuality:'high',fillColor:'#ffffff'});
+    const ratio=productCropRatio||1; const width=ratio>=1?1200:Math.max(600,Math.round(1200*ratio)); const height=ratio>=1?Math.max(600,Math.round(1200/ratio)):1200; const canvas=productCropper.getCroppedCanvas({width,height,imageSmoothingEnabled:true,imageSmoothingQuality:'high',fillColor:'#ffffff'});
     if(!canvas){reject(new Error('Could not crop this image. Please select it again.'));return}
     canvas.toBlob(blob=>{if(!blob){reject(new Error('Could not prepare cropped image.'));return}croppedProductFile=new File([blob],`product-crop-${Date.now()}.jpg`,{type:'image/jpeg'});resolve(croppedProductFile)},'image/jpeg',.92);
   });
