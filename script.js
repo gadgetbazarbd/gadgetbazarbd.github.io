@@ -69,9 +69,23 @@ function renderOffers(){
   const img=o.cover_image||o.image_url||"";
   const productsInOffer=(Array.isArray(o.product_ids)?o.product_ids:[]);
   const matched=products.filter(p=>productsInOffer.some(id=>String(id)===String(p.id)));
-  return `<article class="offer-card">${img?`<div class="offer-cover"><img src="${esc(img)}" alt="${esc(o.title||"Offer")}" loading="lazy"></div>`:""}<span class="offer-type">${type}</span><h3>${esc(o.title||"Special offer")}</h3><p>${esc(o.description||"Limited-time offer from Gadget Bazar BD.")}</p>${matched.length?`<div class="offer-products">${matched.map(p=>`<div class="offer-mini-product">${p.image?`<img src="${esc(p.image)}" alt="">`:""}<span>${esc(p.name)}</span></div>`).join("")}</div>`:""}<div class="offer-value">${pct>0?`${pct}% OFF`:o.combo_price?`Combo ${money(o.combo_price)}`:"Special Deal"}</div>${o.combo_price?`<strong class="offer-combo-price">${money(o.combo_price)}</strong>`:""}${o.ends_at?`<small>Ends: ${new Date(o.ends_at).toLocaleString("en-BD",{dateStyle:"medium",timeStyle:"short"})}</small>`:""}</article>`;
+  return `<article class="offer-card">${img?`<div class="offer-cover"><img src="${esc(img)}" alt="${esc(o.title||"Offer")}" loading="lazy"></div>`:""}<span class="offer-type">${type}</span><h3>${esc(o.title||"Special offer")}</h3><p>${esc(o.description||"Limited-time offer from Gadget Bazar BD.")}</p>${matched.length?`<div class="offer-products">${matched.map(p=>`<div class="offer-mini-product">${p.image?`<img src="${esc(p.image)}" alt="">`:""}<span>${esc(p.name)}</span></div>`).join("")}</div>`:""}<div class="offer-value">${pct>0?`${pct}% OFF`:o.combo_price?`Combo ${money(o.combo_price)}`:"Special Deal"}</div>${o.combo_price?`<strong class="offer-combo-price">${money(o.combo_price)}</strong>`:""}${o.ends_at?`<small>Ends: ${new Date(o.ends_at).toLocaleString("en-BD",{dateStyle:"medium",timeStyle:"short"})}</small>`:""}${matched.length?`<div class="offer-card-actions"><button type="button" class="add-btn" onclick="viewOfferProducts('${esc(o.id)}')">View Products</button></div>`:""}</article>`;
  }).join(""):`<div class="offer-placeholder">${activeDealType?`No active ${esc(activeDealType)} right now.`:"No active offers right now. New deals will appear here."}</div>`;
  grids.forEach(g=>g.innerHTML=cards);
+}
+
+function viewOfferProducts(offerId){
+ const offer=storeOffers.find(o=>String(o.id)===String(offerId));
+ if(!offer)return;
+ closeDealsPage();
+ const ids=Array.isArray(offer.product_ids)?offer.product_ids:[];
+ const matched=products.filter(p=>ids.some(id=>String(id)===String(p.id)));
+ if(matched.length===1){document.getElementById('products')?.scrollIntoView({behavior:'smooth'});return;}
+ const grid=$('productsGrid');
+ if(grid&&matched.length){grid.innerHTML=matched.map(p=>{const sold=p.stock<=0,disc=p.discount>0,price=disc?Math.max(0,p.price-p.price*p.discount/100):p.price;const id=String(p.id).replace(/'/g,"\\'");return `<article class="product-card"><div class="product-img">${p.image?`<img src="${esc(p.image)}" alt="${esc(p.name)}" loading="lazy">`:p.emoji}</div><div class="category">${esc(p.cat)}</div><h3>${esc(p.name)}</h3><div class="price">${money(price)} ${disc?`<del>${money(p.price)}</del>`:""}</div><div class="product-actions"><button class="add-btn" ${sold?"disabled":""} onclick="addToCart('${id}')">${sold?"Out of Stock":"Add to Cart"}</button><button class="buy-btn" ${sold?"disabled":""} onclick="buyNow('${id}')">${sold?"Out of Stock":"Buy Now"}</button></div></article>`}).join('');
+ if($('sectionTitle'))$('sectionTitle').textContent=offer.title||'Offer Products';if($('productCount'))$('productCount').textContent=`${matched.length} products`;
+ document.getElementById('products')?.scrollIntoView({behavior:'smooth'});
+ }
 }
 
 async function loadCategories(){
@@ -305,6 +319,7 @@ async function trackOrdersByPhone(){
 
 async function startCustomerSite(){initCustomerUI();renderProducts();updateCart();await refreshStore();setupLocationPickers();}
 window.showDealType=showDealType;
+window.viewOfferProducts=viewOfferProducts;
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",startCustomerSite);else startCustomerSite();
 setInterval(refreshStore,60000);
 document.addEventListener("DOMContentLoaded",()=>{$("trackOrderBtn")?.addEventListener("click",trackOrdersByPhone);});

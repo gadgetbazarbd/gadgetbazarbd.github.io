@@ -220,15 +220,15 @@ function handleProductImageSelected(event){
   if(status)status.textContent='ছবির যে অংশ রাখতে চাও, crop box টেনে ঠিক করো।';
   if(img){img.onload=()=>{
     if(productCropper){productCropper.destroy();productCropper=null}
-    if(typeof Cropper==='undefined'){if(status)status.textContent='Crop tool load হয়নি। ইন্টারনেট সংযোগ পরীক্ষা করে আবার চেষ্টা করো।';return}
-    productCropper=new Cropper(img,{viewMode:1,dragMode:'crop',aspectRatio:1,autoCropArea:.9,background:false,responsive:true,restore:false,checkOrientation:true,zoomable:true,scalable:false,rotatable:true, guides:true,center:true,highlight:true});
+    if(typeof Cropper==='undefined'){if(status)status.textContent='Crop tool load হয়নি। নেট চালু করে পেজ refresh করো; তারপর ছবিটি আবার নির্বাচন করো।';alert('Crop tool load হয়নি। ইন্টারনেট চালু আছে কি না দেখে Admin Panel refresh করে আবার চেষ্টা করো।');return}
+    productCropper=new Cropper(img,{viewMode:1,dragMode:'crop',aspectRatio:1,autoCropArea:.9,background:false,responsive:true,restore:false,checkOrientation:true,zoomable:true,scalable:false,rotatable:true,guides:true,center:true,highlight:true,ready(){if(editor)editor.scrollIntoView({block:'nearest',behavior:'smooth'});}});
   };img.src=productCropObjectUrl}
 }
-function setProductCropRatio(ratio){if(productCropper)productCropper.setAspectRatio(ratio)}
+function setProductCropRatio(ratio){if(productCropper){productCropper.setAspectRatio(ratio);const status=$('productCropStatus');if(status)status.textContent=`Crop ratio updated. Adjust the frame, then press “Use this crop”.`;}}
 function makeCroppedProductFile(){
   return new Promise((resolve,reject)=>{
     if(!productCropper){resolve(croppedProductFile);return}
-    const canvas=productCropper.getCroppedCanvas({width:1000,height:1000,imageSmoothingEnabled:true,imageSmoothingQuality:'high',fillColor:'#ffffff'});
+    const ratio=productCropper.getAspectRatio()||1; const width=ratio>=1?1200:Math.max(600,Math.round(1200*ratio)); const height=ratio>=1?Math.max(600,Math.round(1200/ratio)):1200; const canvas=productCropper.getCroppedCanvas({width,height,imageSmoothingEnabled:true,imageSmoothingQuality:'high',fillColor:'#ffffff'});
     if(!canvas){reject(new Error('Could not crop this image. Please select it again.'));return}
     canvas.toBlob(blob=>{if(!blob){reject(new Error('Could not prepare cropped image.'));return}croppedProductFile=new File([blob],`product-crop-${Date.now()}.jpg`,{type:'image/jpeg'});resolve(croppedProductFile)},'image/jpeg',.92);
   });
