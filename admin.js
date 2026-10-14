@@ -20,16 +20,25 @@ let storeSettingsCache={store_name:'Gadget Bazar BD',phone:'',email:'',address:'
 let currentSection='dashboard';
 let editingProductId=null;
 let catalogOpen=true;
+let productCropper=null;
+let croppedProductFile=null;
+let productCropObjectUrl=null;
 
 function $(id){return document.getElementById(id)}
 function esc(v){return String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;')}
 function money(v){return '৳'+Number(v||0).toLocaleString('en-BD')}
 function showError(e){console.error(e);alert('Something went wrong.\n\n'+(e?.message||e||'Unknown error'))}
-function closeModal(){$('modal')?.classList.add('hidden')}
+function closeModal(){
+  $('modal')?.classList.add('hidden');
+  if(productCropper){productCropper.destroy();productCropper=null}
+  if(productCropObjectUrl){URL.revokeObjectURL(productCropObjectUrl);productCropObjectUrl=null}
+}
 function openModal(title,body){
   if($('modalTitle'))$('modalTitle').textContent=title;
   if($('modalBody'))$('modalBody').innerHTML=body;
   $('modal')?.classList.remove('hidden');
+  const productInput=$('productImage');
+  if(productInput) productInput.addEventListener('change',handleProductImageSelected);
   const coverInput=$('offerCoverImage');
   if(coverInput)coverInput.addEventListener('change',()=>{
     const file=coverInput.files?.[0],preview=$('offerCoverPreview');
@@ -186,10 +195,56 @@ function productForm(p={}){
     <label>Discount<input id="productDiscount" type="number" min="0" value="${Number(p.discount||0)}"></label>
     <label>Stock<input id="productStock" type="number" min="0" value="${Number(p.stock||0)}"></label>
     <label>Status<select id="productActive"><option value="true" ${p.active!==false?'selected':''}>Active</option><option value="false" ${p.active===false?'selected':''}>Inactive</option></select></label>
-    <label class="full">Product Image<input id="productImage" type="file" accept="image/*"></label>
-    ${p.image?`<label class="full">Current Image<img class="product-preview" src="${esc(p.image)}" alt=""></label>`:''}
+    <label class="full">Product Image<input id="productImage" type="file" accept="image/*"><small>ছবি দেওয়ার পর crop box-এ যতটুকু রাখবে, ঠিক ততটুকুই প্রোডাক্টে দেখাবে।</small></label>
+    <div class="full crop-editor" id="productCropEditor" hidden>
+      <div class="crop-editor-head"><b>ছবি Crop করো</b><span>বক্স টেনে পছন্দের অংশ বেছে নাও</span></div>
+      <div class="crop-stage"><img id="productCropImage" alt="Crop product image"></div>
+      <div class="crop-controls"><button type="button" class="btn muted" onclick="setProductCropRatio(1)">Square</button><button type="button" class="btn muted" onclick="setProductCropRatio(4/3)">4:3</button><button type="button" class="btn muted" onclick="setProductCropRatio(3/4)">Portrait</button><button type="button" class="btn primary" onclick="applyProductCrop()">✓ Use this crop</button></div>
+      <div class="crop-status" id="productCropStatus">Crop area ঠিক করে “Use this crop” চাপো।</div>
+    </div>
+    <div class="full crop-result-wrap" id="productCropResultWrap" ${p.image?'':'hidden'}><b>Final image preview</b><img id="productCropResult" class="product-preview" src="${esc(p.image||'')}" alt="Cropped product preview"></div>
   </div><div class="btn-row"><button class="btn muted" onclick="closeModal()">Cancel</button><button class="btn primary" id="saveProductBtn" onclick="saveProduct()">Save Product</button></div>`
 }
+function handleProductImageSelected(event){
+  const file=event.target.files?.[0];
+  if(!file)return;
+  if(!file.type.startsWith('image/')){alert('Please choose an image file.');event.target.value='';return}
+  if(file.size>12*1024*1024){alert('Image is too large. Please choose an image under 12 MB.');event.target.value='';return}
+  if(productCropper){productCropper.destroy();productCropper=null}
+  if(productCropObjectUrl)URL.revokeObjectURL(productCropObjectUrl);
+  productCropObjectUrl=URL.createObjectURL(file);
+  croppedProductFile=null;
+  const editor=$('productCropEditor'),img=$('productCropImage'),result=$('productCropResultWrap'),status=$('productCropStatus');
+  if(editor)editor.hidden=false;
+  if(result)result.hidden=true;
+  if(status)status.textContent='ছবির যে অংশ রাখতে চাও, crop box টেনে ঠিক করো।';
+  if(img){img.onload=()=>{
+    if(productCropper){productCropper.destroy();productCropper=null}
+    if(typeof Cropper==='undefined'){if(status)status.textContent='Crop tool load হয়নি। ইন্টারনেট সংযোগ পরীক্ষা করে আবার চেষ্টা করো।';return}
+    productCropper=new Cropper(img,{viewMode:1,dragMode:'crop',aspectRatio:1,autoCropArea:.9,background:false,responsive:true,restore:false,checkOrientation:true,zoomable:true,scalable:false,rotatable:true, guides:true,center:true,highlight:true});
+  };img.src=productCropObjectUrl}
+}
+function setProductCropRatio(ratio){if(productCropper)productCropper.setAspectRatio(ratio)}
+function makeCroppedProductFile(){
+  return new Promise((resolve,reject)=>{
+    if(!productCropper){resolve(croppedProductFile);return}
+    const canvas=productCropper.getCroppedCanvas({width:1000,height:1000,imageSmoothingEnabled:true,imageSmoothingQuality:'high',fillColor:'#ffffff'});
+    if(!canvas){reject(new Error('Could not crop this image. Please select it again.'));return}
+    canvas.toBlob(blob=>{if(!blob){reject(new Error('Could not prepare cropped image.'));return}croppedProductFile=new File([blob],`product-crop-${Date.now()}.jpg`,{type:'image/jpeg'});resolve(croppedProductFile)},'image/jpeg',.92);
+  });
+}
+async function applyProductCrop(){
+  try{
+    const file=await makeCroppedProductFile();
+    if(!file){alert('আগে একটি ছবি নির্বাচন করো।');return}
+    const url=URL.createObjectURL(file),preview=$('productCropResult'),wrap=$('productCropResultWrap');
+    if(preview){preview.src=url;preview.style.objectFit='contain';preview.style.background='#f4f7fb'}
+    if(wrap)wrap.hidden=false;
+    const status=$('productCropStatus');if(status)status.textContent='Crop প্রস্তুত! Save Product চাপলে এই অংশটাই আপলোড হবে।';
+    if(productCropper){productCropper.destroy();productCropper=null}
+  }catch(e){showError(e)}
+}
+
 async function saveProduct(){
   const name=$('productName')?.value.trim(),category=$('productCategory')?.value.trim();
   const priceRaw=$('productPrice')?.value ?? '0';
@@ -206,8 +261,10 @@ async function saveProduct(){
     return;
   }
 
-  const active=$('productActive')?.value==='true',file=$('productImage')?.files?.[0];
+  const active=$('productActive')?.value==='true';
+  let file=croppedProductFile||$('productImage')?.files?.[0];
   if(!name){alert('Product name is required.');return}
+  if($('productImage')?.files?.length && !croppedProductFile && !productCropper){alert('ছবি crop tool প্রস্তুত হয়নি। ইন্টারনেট সংযোগ পরীক্ষা করে ছবিটি আবার নির্বাচন করো।');return}
 
   try{
     const isEdit=!!editingProductId;
@@ -217,7 +274,11 @@ async function saveProduct(){
     const btn=$('saveProductBtn');
     if(btn){btn.disabled=true;btn.textContent='Saving...'}
 
-    if(file)image=await uploadImage(file,id);
+    if(file){
+      if(productCropper)file=await makeCroppedProductFile();
+      if(!file)throw new Error('Please select and crop the product image first.');
+      image=await uploadImage(file,id);
+    }
 
     const {error}=await sb.from('products').upsert(
       {id,name,category,price,discount,stock,active,image},
