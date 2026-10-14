@@ -11,7 +11,10 @@ let DELIVERY_SETTINGS={...DEFAULT_DELIVERY_SETTINGS};
 let NEARBY_DISTRICTS=["Gazipur","Narayanganj","Narsingdi","Munshiganj","Manikganj"];
 let PAYMENT_SETTINGS={cod_enabled:true,bkash_enabled:false,bkash_number:"",nagad_enabled:false,nagad_number:""};
 let categories=[],products=[],cart=[],storeOffers=[],activeDealType="";
-try { const savedCart=JSON.parse(localStorage.getItem("gbbd_cart")||"[]"); cart=Array.isArray(savedCart)?savedCart.filter(x=>x&&x.id!=null&&Number(x.qty)>0).map(x=>({id:x.id,qty:Math.max(1,Math.floor(Number(x.qty)||1))})):[]; } catch(e) { cart=[]; }
+try {
+ const savedCart=JSON.parse(localStorage.getItem("gbbd_cart")||"[]");
+ cart=Array.isArray(savedCart)?savedCart.filter(x=>x&&Number(x.qty)>0&&(x.type==="combo"?x.offerId!=null:x.id!=null)).map(x=>x.type==="combo"?({type:"combo",offerId:String(x.offerId),qty:Math.max(1,Math.floor(Number(x.qty)||1))}):({id:x.id,qty:Math.max(1,Math.floor(Number(x.qty)||1))})):[];
+} catch(e) { cart=[]; }
 let currentCategory="All Products",selectedDistrict="",selectedUpazila="";
 let locationData=[],locationLoaded=false;
 
@@ -61,28 +64,80 @@ function showDealType(type){
  const page=$("dealsPage");
  if(page){page.classList.remove("hidden");document.body.classList.add("deals-open");}
 }
+function offerProductIds(offer){
+ let ids=offer?.product_ids;
+ if(typeof ids==="string"){
+  try{ids=JSON.parse(ids)}catch(e){ids=ids.split(",").map(x=>x.trim()).filter(Boolean)}
+ }
+ return Array.isArray(ids)?[...new Set(ids.map(String))]:[];
+}
+function getOffer(offerId){return storeOffers.find(o=>String(o.id)===String(offerId));}
+function offerProducts(offer){
+ const ids=offerProductIds(offer);
+ return products.filter(p=>ids.includes(String(p.id)));
+}
+function offerUnitPrice(offer){
+ const matched=offerProducts(offer);
+ const sum=matched.reduce((total,p)=>total+finalPrice(p),0);
+ const comboPrice=Number(offer?.combo_price);
+ if(Number.isFinite(comboPrice)&&comboPrice>0)return comboPrice;
+ const pct=Math.min(100,Math.max(0,Number(offer?.discount_percent)||0));
+ return Math.max(0,Math.round(sum*(1-pct/100)));
+}
+function offerStockLimit(offer){
+ const matched=offerProducts(offer);
+ if(!matched.length)return 0;
+ return Math.min(...matched.map(p=>Math.max(0,Math.floor(Number(p.stock)||0))));
+}
 function renderOffers(){
  const grids=[$("offersGrid"),$("dealsPageGrid")].filter(Boolean);
  const list=activeDealType?storeOffers.filter(o=>String(o.offer_type||"")===activeDealType):storeOffers;
  const cards=list.length?list.map(o=>{
   const pct=Number(o.discount_percent||0),type=esc(o.offer_type||"Special Offers");
   const img=o.cover_image||o.image_url||"";
-  const productsInOffer=(Array.isArray(o.product_ids)?o.product_ids:[]);
-  const matched=products.filter(p=>productsInOffer.some(id=>String(id)===String(p.id)));
-  return `<article class="offer-card">${img?`<div class="offer-cover"><img src="${esc(img)}" alt="${esc(o.title||"Offer")}" loading="lazy"></div>`:""}<span class="offer-type">${type}</span><h3>${esc(o.title||"Special offer")}</h3><p>${esc(o.description||"Limited-time offer from Gadget Bazar BD.")}</p>${matched.length?`<div class="offer-products">${matched.map(p=>`<div class="offer-mini-product">${p.image?`<img src="${esc(p.image)}" alt="">`:""}<span>${esc(p.name)}</span></div>`).join("")}</div>`:""}<div class="offer-value">${pct>0?`${pct}% OFF`:o.combo_price?`Combo ${money(o.combo_price)}`:"Special Deal"}</div>${o.combo_price?`<strong class="offer-combo-price">${money(o.combo_price)}</strong>`:""}${o.ends_at?`<small>Ends: ${new Date(o.ends_at).toLocaleString("en-BD",{dateStyle:"medium",timeStyle:"short"})}</small>`:""}${matched.length?`<div class="offer-card-actions"><button type="button" class="add-btn" onclick="viewOfferProducts('${esc(o.id)}')">View Products</button></div>`:""}</article>`;
+  const matched=offerProducts(o),isCombo=String(o.offer_type||"").toLowerCase().includes("combo");
+  const sold=!matched.length||offerStockLimit(o)<=0;
+  const unitPrice=offerUnitPrice(o);
+  const offerId=esc(o.id);
+  const priceLabel=Number(o.combo_price)>0?(isCombo?"Combo Deal":"Special Deal"):pct>0?`${pct}% OFF`:"Special Deal";
+  return `<article class="offer-card">${img?`<div class="offer-cover"><img src="${esc(img)}" alt="${esc(o.title||"Offer")}" loading="lazy"></div>`:""}<span class="offer-type">${type}</span><h3>${esc(o.title||"Special offer")}</h3><p>${esc(o.description||"Limited-time offer from Gadget Bazar BD.")}</p>${matched.length?`<div class="offer-products">${matched.map(p=>`<div class="offer-mini-product">${p.image?`<img src="${esc(p.image)}" alt="" loading="lazy">`:""}<span>${esc(p.name)}</span></div>`).join("")}</div>`:""}<div class="offer-value">${esc(priceLabel)}</div>${unitPrice>0?`<strong class="offer-combo-price">${money(unitPrice)}${isCombo?" per combo":" total"}</strong>`:""}${o.ends_at?`<small>Ends: ${new Date(o.ends_at).toLocaleString("en-BD",{dateStyle:"medium",timeStyle:"short"})}</small>`:""}${matched.length?`<div class="offer-card-actions"><button type="button" class="add-btn" ${sold?"disabled":""} onclick="addOfferToCart('${offerId}')">${sold?"Out of Stock":isCombo?"Add Combo to Cart":"Add to Cart"}</button><button type="button" class="buy-btn" ${sold?"disabled":""} onclick="buyOfferNow('${offerId}')">${sold?"Out of Stock":isCombo?"Buy Combo Now":"Buy Now"}</button></div>`:`<small>Products for this offer are not available right now.</small>`}</article>`;
  }).join(""):`<div class="offer-placeholder">${activeDealType?`No active ${esc(activeDealType)} right now.`:"No active offers right now. New deals will appear here."}</div>`;
  grids.forEach(g=>g.innerHTML=cards);
 }
+function addOfferToCart(offerId){
+ const offer=getOffer(offerId),matched=offerProducts(offer);
+ if(!offer||!matched.length)return toast("Offer products are unavailable");
+ if(matched.some(p=>p.stock<=0))return toast("A product in this combo is out of stock");
+ const limit=offerStockLimit(offer),existing=cart.find(x=>x.type==="combo"&&String(x.offerId)===String(offer.id));
+ if(existing){if(existing.qty>=limit)return toast("Stock limit reached for this combo");existing.qty++;}
+ else cart.push({type:"combo",offerId:String(offer.id),qty:1});
+ saveCart();toast("Combo added to cart");
+}
+function buyOfferNow(offerId){
+ const offer=getOffer(offerId),matched=offerProducts(offer);
+ if(!offer||!matched.length)return toast("Offer products are unavailable");
+ if(matched.some(p=>p.stock<=0))return toast("A product in this combo is out of stock");
+ cart=[{type:"combo",offerId:String(offer.id),qty:1}];saveCart();closeDealsPage();openCheckout();
+}
+function changeComboQty(offerId,delta){
+ const item=cart.find(x=>x.type==="combo"&&String(x.offerId)===String(offerId)),offer=getOffer(offerId);
+ if(!item||!offer)return;
+ const next=item.qty+delta,limit=offerStockLimit(offer);
+ if(next>limit)return toast("Stock limit reached for this combo");
+ if(next<=0)cart=cart.filter(x=>!(x.type==="combo"&&String(x.offerId)===String(offerId)));
+ else item.qty=next;
+ saveCart();
+}
+function removeComboFromCart(offerId){cart=cart.filter(x=>!(x.type==="combo"&&String(x.offerId)===String(offerId)));saveCart();}
 
 function viewOfferProducts(offerId){
- const offer=storeOffers.find(o=>String(o.id)===String(offerId));
+ const offer=getOffer(offerId);
  if(!offer)return;
  closeDealsPage();
- const ids=Array.isArray(offer.product_ids)?offer.product_ids:[];
- const matched=products.filter(p=>ids.some(id=>String(id)===String(p.id)));
+ const matched=offerProducts(offer);
  if(matched.length===1){document.getElementById('products')?.scrollIntoView({behavior:'smooth'});return;}
  const grid=$('productsGrid');
- if(grid&&matched.length){grid.innerHTML=matched.map(p=>{const sold=p.stock<=0,disc=p.discount>0,price=disc?Math.max(0,p.price-p.price*p.discount/100):p.price;const id=String(p.id).replace(/'/g,"\\'");return `<article class="product-card"><div class="product-img">${p.image?`<img src="${esc(p.image)}" alt="${esc(p.name)}" loading="lazy">`:p.emoji}</div><div class="category">${esc(p.cat)}</div><h3>${esc(p.name)}</h3><div class="price">${money(price)} ${disc?`<del>${money(p.price)}</del>`:""}</div><div class="product-actions"><button class="add-btn" ${sold?"disabled":""} onclick="addToCart('${id}')">${sold?"Out of Stock":"Add to Cart"}</button><button class="buy-btn" ${sold?"disabled":""} onclick="buyNow('${id}')">${sold?"Out of Stock":"Buy Now"}</button></div></article>`}).join('');
+ if(grid&&matched.length){grid.innerHTML=matched.map(p=>{const sold=p.stock<=0,disc=p.discount>0,price=finalPrice(p);const id=String(p.id).replace(/'/g,"\\'");return `<article class="product-card"><div class="product-img">${p.image?`<img src="${esc(p.image)}" alt="${esc(p.name)}" loading="lazy">`:p.emoji}</div><div class="category">${esc(p.cat)}</div><h3>${esc(p.name)}</h3><div class="price">${money(price)} ${disc?`<del>${money(p.price)}</del>`:""}</div><div class="product-actions"><button class="add-btn" ${sold?"disabled":""} onclick="addToCart('${id}')">${sold?"Out of Stock":"Add to Cart"}</button><button class="buy-btn" ${sold?"disabled":""} onclick="buyNow('${id}')">${sold?"Out of Stock":"Buy Now"}</button></div></article>`}).join('');
  if($('sectionTitle'))$('sectionTitle').textContent=offer.title||'Offer Products';if($('productCount'))$('productCount').textContent=`${matched.length} products`;
  document.getElementById('products')?.scrollIntoView({behavior:'smooth'});
  }
@@ -130,7 +185,7 @@ function renderCategoryMenu(){
 async function loadProducts(){
  const {data,error}=await sb.from("products").select("*").eq("active",true).order("created_at",{ascending:false});
  if(error)throw error; products=(data||[]).map(normalizeProduct);
- cart=cart.filter(x=>products.some(p=>String(p.id)===String(x.id)));saveCart();
+ cart=cart.filter(x=>x.type==="combo"||products.some(p=>String(p.id)===String(x.id)));saveCart();
 }
 
 async function loadStoreData(){
@@ -155,7 +210,9 @@ async function loadStoreData(){
 }
 
 async function refreshStore(){
- try{await Promise.all([loadProducts(),loadStoreData(),loadCategories(),loadOffers()]);renderProducts();updateCart();setTimeout(setupLocationPickers,0);}
+ try{await Promise.all([loadProducts(),loadStoreData(),loadCategories(),loadOffers()]);
+  cart=cart.filter(x=>x.type!=="combo"||(getOffer(x.offerId)&&offerProducts(getOffer(x.offerId)).length>0));
+  saveCart();renderProducts();updateCart();renderOffers();setTimeout(setupLocationPickers,0);}
  catch(e){console.error(e);toast("Products could not be loaded");}
 }
 
@@ -185,10 +242,11 @@ function renderProducts(){
 }
 function getProduct(id){return products.find(p=>String(p.id)===String(id));}
 function finalPrice(p){return p.discount>0?Math.max(0,p.price-p.price*p.discount/100):p.price;}
-function addToCart(id){let p=getProduct(id);if(!p||p.stock<=0)return toast("Out of stock");let x=cart.find(i=>String(i.id)===String(id));if(x){if(x.qty>=p.stock)return toast("Stock limit reached");x.qty++;}else cart.push({id:p.id,qty:1});saveCart();toast("Added to cart");}
+function cartUnitPrice(item){if(item?.type==="combo"){const offer=getOffer(item.offerId);return offer?offerUnitPrice(offer):0;}const p=getProduct(item?.id);return p?finalPrice(p):0;}
+function addToCart(id){let p=getProduct(id);if(!p||p.stock<=0)return toast("Out of stock");let x=cart.find(i=>i.type!=="combo"&&String(i.id)===String(id));if(x){if(x.qty>=p.stock)return toast("Stock limit reached");x.qty++;}else cart.push({id:p.id,qty:1});saveCart();toast("Added to cart");}
 function buyNow(id){let p=getProduct(id);if(!p||p.stock<=0)return toast("Out of stock");cart=[{id:p.id,qty:1}];saveCart();openCheckout();}
-function changeQty(id,d){let x=cart.find(i=>String(i.id)===String(id)),p=getProduct(id);if(!x||!p)return;x.qty+=d;if(x.qty>p.stock)x.qty=p.stock;if(x.qty<=0)cart=cart.filter(i=>String(i.id)!==String(id));saveCart();}
-function removeItem(id){cart=cart.filter(i=>String(i.id)!==String(id));saveCart();}
+function changeQty(id,d){let x=cart.find(i=>i.type!=="combo"&&String(i.id)===String(id)),p=getProduct(id);if(!x||!p)return;x.qty+=d;if(x.qty>p.stock)x.qty=p.stock;if(x.qty<=0)cart=cart.filter(i=>!(i.type!=="combo"&&String(i.id)===String(id)));saveCart();}
+function removeItem(id){cart=cart.filter(i=>!(i.type!=="combo"&&String(i.id)===String(id)));saveCart();}
 
 function getDeliveryFee(){
  if(!cart.length||!selectedDistrict)return 0;
@@ -197,7 +255,7 @@ function getDeliveryFee(){
  return DELIVERY_SETTINGS.outside;
 }
 function totals(){
- let subtotal=cart.reduce((s,x)=>{let p=getProduct(x.id);return s+(p?finalPrice(p)*x.qty:0)},0);
+ let subtotal=cart.reduce((sum,item)=>sum+cartUnitPrice(item)*item.qty,0);
  let delivery=subtotal?getDeliveryFee():0;return{subtotal,delivery,total:subtotal+delivery};
 }
 function updateDeliveryInfo(){
@@ -207,11 +265,20 @@ function updateDeliveryInfo(){
  updateCart();
 }
 function updateCart(){
- let c=$("cartCount");if(c)c.textContent=cart.reduce((s,x)=>s+x.qty,0);
+ let c=$("cartCount");if(c)c.textContent=cart.reduce((sum,item)=>sum+item.qty,0);
  let t=totals();["cartSubtotal","cartDelivery","cartTotal","checkoutTotal"].forEach((id,i)=>{let e=$(id);if(e)e.textContent=money([t.subtotal,t.delivery,t.total,t.total][i]);});
  let cb=$("checkoutBtn");if(cb)cb.disabled=!cart.length||!enabledPaymentTypes().length;
  let box=$("cartItems");if(!box)return;
- box.innerHTML=cart.length?cart.map(x=>{let p=getProduct(x.id);if(!p)return"";let id=String(p.id).replace(/'/g,"\\'");return `<div class="cart-row"><div class="mini-img">${p.image?`<img src="${p.image}" alt="" style="width:100%;height:100%;object-fit:contain;border-radius:10px">`:p.emoji}</div><div><h4>${esc(p.name)}</h4><small>${money(finalPrice(p))} each</small><div class="qty"><button onclick="changeQty('${id}',-1)">−</button><b>${x.qty}</b><button onclick="changeQty('${id}',1)">+</button><button class="remove" onclick="removeItem('${id}')">Remove</button></div></div><strong>${money(finalPrice(p)*x.qty)}</strong></div>`}).join(""):`<div class="empty">Your cart is empty.</div>`;
+ box.innerHTML=cart.length?cart.map(item=>{
+  if(item.type==="combo"){
+   const offer=getOffer(item.offerId);if(!offer)return"";
+   const matched=offerProducts(offer),price=offerUnitPrice(offer),offerId=esc(offer.id);
+   const names=matched.map(p=>p.name).join(" + ");
+   return `<div class="cart-row combo-cart-row"><div class="mini-img">🎁</div><div><h4>${esc(offer.title||"Combo Deal")}</h4><small class="combo-cart-products">${esc(names)}</small><small>${money(price)} per combo</small><div class="qty"><button onclick="changeComboQty('${offerId}',-1)" aria-label="Decrease combo quantity">−</button><b>${item.qty}</b><button onclick="changeComboQty('${offerId}',1)" aria-label="Increase combo quantity">+</button><button class="remove" onclick="removeComboFromCart('${offerId}')">Remove</button></div></div><strong>${money(price*item.qty)}</strong></div>`;
+  }
+  const p=getProduct(item.id);if(!p)return"";const id=String(p.id).replace(/'/g,"\\'");
+  return `<div class="cart-row"><div class="mini-img">${p.image?`<img src="${esc(p.image)}" alt="" style="width:100%;height:100%;object-fit:contain;border-radius:10px">`:p.emoji}</div><div><h4>${esc(p.name)}</h4><small>${money(finalPrice(p))} each</small><div class="qty"><button onclick="changeQty('${id}',-1)">−</button><b>${item.qty}</b><button onclick="changeQty('${id}',1)">+</button><button class="remove" onclick="removeItem('${id}')">Remove</button></div></div><strong>${money(finalPrice(p)*item.qty)}</strong></div>`;
+ }).join(""):`<div class="empty">Your cart is empty.</div>`;
 }
 
 function ptype(r){
@@ -302,7 +369,13 @@ function initCustomerUI(){
   if(!isPaymentMethodEnabled(payment))return alert("The selected payment method is currently unavailable.");
   if((type==="bkash"||type==="nagad")&&!tid)return alert("Please enter the transaction ID for the selected payment method.");
   if(!selectedDistrict||!selectedUpazila)return alert("Please select a district and upazila from the suggestions.");
-  let t=totals(),o={orderId:makeOrderId(),createdAt:new Date().toISOString(),customer:{name:String(f.get("name")||"").trim(),phone:String(f.get("phone")||"").trim(),district:selectedDistrict,area:selectedUpazila,address:String(f.get("address")||"").trim()},paymentMethod:payment,transactionId:type==="cod"?"":tid,note:String(f.get("note")||"").trim(),items:cart.map(x=>{let p=getProduct(x.id);return{id:p.id,name:p.name,price:finalPrice(p),qty:x.qty}}),subtotal:t.subtotal,delivery:t.delivery,total:t.total};
+  let t=totals(),o={orderId:makeOrderId(),createdAt:new Date().toISOString(),customer:{name:String(f.get("name")||"").trim(),phone:String(f.get("phone")||"").trim(),district:selectedDistrict,area:selectedUpazila,address:String(f.get("address")||"").trim()},paymentMethod:payment,transactionId:type==="cod"?"":tid,note:String(f.get("note")||"").trim(),items:cart.map(item=>{
+   if(item.type==="combo"){
+    const offer=getOffer(item.offerId);if(!offer)return null;
+    return{id:`combo:${offer.id}`,name:offer.title||"Combo Deal",price:offerUnitPrice(offer),qty:item.qty,is_combo:true,products:offerProducts(offer).map(p=>({id:p.id,name:p.name,price:finalPrice(p),qty:item.qty}))};
+   }
+   const p=getProduct(item.id);return p?{id:p.id,name:p.name,price:finalPrice(p),qty:item.qty}:null;
+  }).filter(Boolean),subtotal:t.subtotal,delivery:t.delivery,total:t.total};
   try{await submitOrderToSupabase(o);}catch(err){console.error(err);return alert("ORDER ERROR\n\nMessage: "+(err.message||"Unknown")+"\nCode: "+(err.code||"N/A"));}
   localStorage.setItem("gbbd_last_order",JSON.stringify(o));let orders=JSON.parse(localStorage.getItem("gbbd_orders")||"[]");orders.unshift(o);localStorage.setItem("gbbd_orders",JSON.stringify(orders));
   cart=[];saveCart();e.target.reset();selectedDistrict="";selectedUpazila="";if($("districtInput"))$("districtInput").value="";if($("upazilaInput")){$("upazilaInput").value="";$("upazilaInput").disabled=true;$("upazilaInput").placeholder="Select district first...";}$("transactionBox")?.classList.add("hidden");updateDeliveryInfo();closeCheckout();if($("successOrderId"))$("successOrderId").textContent=o.orderId;$("successModal")?.classList.remove("hidden");
@@ -320,6 +393,10 @@ async function trackOrdersByPhone(){
 async function startCustomerSite(){initCustomerUI();renderProducts();updateCart();await refreshStore();setupLocationPickers();}
 window.showDealType=showDealType;
 window.viewOfferProducts=viewOfferProducts;
+window.addOfferToCart=addOfferToCart;
+window.buyOfferNow=buyOfferNow;
+window.changeComboQty=changeComboQty;
+window.removeComboFromCart=removeComboFromCart;
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",startCustomerSite);else startCustomerSite();
 setInterval(refreshStore,60000);
 document.addEventListener("DOMContentLoaded",()=>{$("trackOrderBtn")?.addEventListener("click",trackOrdersByPhone);});

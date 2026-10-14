@@ -24,17 +24,35 @@ let productCropper=null;
 let productCropRatio=1;
 let croppedProductFile=null;
 let productCropObjectUrl=null;
+let productCropResultObjectUrl=null;
 
 function $(id){return document.getElementById(id)}
 function esc(v){return String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;')}
 function money(v){return '৳'+Number(v||0).toLocaleString('en-BD')}
 function showError(e){console.error(e);alert('Something went wrong.\n\n'+(e?.message||e||'Unknown error'))}
+function destroyProductCropper(){
+  const instance=productCropper;
+  productCropper=null;
+  if(instance&&typeof instance.destroy==='function'){
+    try{instance.destroy()}catch(err){console.warn('Cropper cleanup warning',err)}
+  }
+}
+function releaseProductCropUrls(){
+  if(productCropObjectUrl){URL.revokeObjectURL(productCropObjectUrl);productCropObjectUrl=null}
+  if(productCropResultObjectUrl){URL.revokeObjectURL(productCropResultObjectUrl);productCropResultObjectUrl=null}
+}
 function closeModal(){
   $('modal')?.classList.add('hidden');
-  if(productCropper){productCropper.destroy();productCropper=null}
-  if(productCropObjectUrl){URL.revokeObjectURL(productCropObjectUrl);productCropObjectUrl=null}
+  destroyProductCropper();
+  releaseProductCropUrls();
+  croppedProductFile=null;
+  productCropRatio=1;
 }
 function openModal(title,body){
+  destroyProductCropper();
+  releaseProductCropUrls();
+  croppedProductFile=null;
+  productCropRatio=1;
   if($('modalTitle'))$('modalTitle').textContent=title;
   if($('modalBody'))$('modalBody').innerHTML=body;
   $('modal')?.classList.remove('hidden');
@@ -211,44 +229,91 @@ function handleProductImageSelected(event){
   if(!file)return;
   if(!file.type.startsWith('image/')){alert('Please choose an image file.');event.target.value='';return}
   if(file.size>12*1024*1024){alert('Image is too large. Please choose an image under 12 MB.');event.target.value='';return}
-  if(productCropper){productCropper.destroy();productCropper=null}
+
+  destroyProductCropper();
+  releaseProductCropUrls();
   productCropRatio=1;
-  if(productCropObjectUrl)URL.revokeObjectURL(productCropObjectUrl);
-  productCropObjectUrl=URL.createObjectURL(file);
   croppedProductFile=null;
+  productCropObjectUrl=URL.createObjectURL(file);
   const editor=$('productCropEditor'),img=$('productCropImage'),result=$('productCropResultWrap'),status=$('productCropStatus');
   if(editor)editor.hidden=false;
   if(result)result.hidden=true;
   if(status)status.textContent='ছবির যে অংশ রাখতে চাও, crop box টেনে ঠিক করো।';
-  if(img){img.onload=()=>{
-    if(productCropper){productCropper.destroy();productCropper=null}
-    if(typeof Cropper==='undefined'){if(status)status.textContent='Crop tool load হয়নি। নেট চালু করে পেজ refresh করো; তারপর ছবিটি আবার নির্বাচন করো।';alert('Crop tool load হয়নি। ইন্টারনেট চালু আছে কি না দেখে Admin Panel refresh করে আবার চেষ্টা করো।');return}
-    productCropper=new Cropper(img,{viewMode:1,dragMode:'crop',aspectRatio:1,autoCropArea:.9,background:false,responsive:true,restore:false,checkOrientation:true,zoomable:true,scalable:false,rotatable:true,guides:true,center:true,highlight:true,ready(){if(editor)editor.scrollIntoView({block:'nearest',behavior:'smooth'});}});
-  };img.src=productCropObjectUrl}
+  if(!img){if(status)status.textContent='Crop editor পাওয়া যায়নি। Admin page refresh করে আবার চেষ্টা করো।';return}
+  img.onload=()=>{
+    destroyProductCropper();
+    if(typeof Cropper!=='function'){
+      if(status)status.textContent='Crop tool load হয়নি। ইন্টারনেট চালু করে Admin Panel refresh করো; তারপর ছবিটি আবার নির্বাচন করো।';
+      alert('Crop tool load হয়নি। ইন্টারনেট সংযোগ দেখে Admin Panel refresh করে আবার চেষ্টা করো।');
+      return;
+    }
+    try{
+      productCropper=new Cropper(img,{
+        viewMode:1,dragMode:'crop',aspectRatio:productCropRatio,autoCropArea:.9,
+        background:false,responsive:true,restore:false,checkOrientation:true,
+        zoomable:true,scalable:false,rotatable:true,guides:true,center:true,highlight:true,
+        ready(){if(editor)editor.scrollIntoView({block:'nearest',behavior:'smooth'});}
+      });
+    }catch(err){
+      destroyProductCropper();
+      if(status)status.textContent='Crop tool চালু হয়নি। পেজ refresh করে আবার ছবি নির্বাচন করো।';
+      console.error('Product cropper initialization failed',err);
+      alert('Crop tool চালু করা যায়নি। Admin Panel refresh করে আবার চেষ্টা করো।');
+    }
+  };
+  img.onerror=()=>{if(status)status.textContent='ছবিটি খোলা যায়নি। অন্য ছবি নির্বাচন করো।'};
+  img.src=productCropObjectUrl;
 }
 function setProductCropRatio(ratio){
-  productCropRatio=Number(ratio)||1;
-  if(productCropper) productCropper.setAspectRatio(productCropRatio);
+  const next=Number(ratio);
+  if(!Number.isFinite(next)||next<=0)return;
+  productCropRatio=next;
+  if(productCropper){
+    if(typeof productCropper.setAspectRatio==='function')productCropper.setAspectRatio(productCropRatio);
+    else{
+      const status=$('productCropStatus');
+      if(status)status.textContent='Crop tool version mismatch. Admin page refresh করে ছবিটি আবার নির্বাচন করো।';
+      return;
+    }
+  }
   const status=$('productCropStatus');
-  if(status) status.textContent='Crop ratio updated. Adjust the frame, then press “Use this crop”.';
+  if(status)status.textContent='Crop ratio updated. Adjust the frame, then press “Use this crop”.';
 }
 function makeCroppedProductFile(){
   return new Promise((resolve,reject)=>{
-    if(!productCropper){resolve(croppedProductFile);return}
-    const ratio=productCropRatio||1; const width=ratio>=1?1200:Math.max(600,Math.round(1200*ratio)); const height=ratio>=1?Math.max(600,Math.round(1200/ratio)):1200; const canvas=productCropper.getCroppedCanvas({width,height,imageSmoothingEnabled:true,imageSmoothingQuality:'high',fillColor:'#ffffff'});
+    const instance=productCropper;
+    if(!instance){resolve(croppedProductFile);return}
+    if(typeof instance.getCroppedCanvas!=='function'){
+      reject(new Error('Crop tool version mismatch. Refresh Admin Panel, choose the image again, then retry.'));
+      return;
+    }
+    const ratio=Number(productCropRatio)||1;
+    const width=ratio>=1?1200:Math.max(600,Math.round(1200*ratio));
+    const height=ratio>=1?Math.max(600,Math.round(1200/ratio)):1200;
+    let canvas;
+    try{canvas=instance.getCroppedCanvas({width,height,imageSmoothingEnabled:true,imageSmoothingQuality:'high',fillColor:'#ffffff'});}
+    catch(err){reject(err);return}
     if(!canvas){reject(new Error('Could not crop this image. Please select it again.'));return}
-    canvas.toBlob(blob=>{if(!blob){reject(new Error('Could not prepare cropped image.'));return}croppedProductFile=new File([blob],`product-crop-${Date.now()}.jpg`,{type:'image/jpeg'});resolve(croppedProductFile)},'image/jpeg',.92);
+    canvas.toBlob(blob=>{
+      if(!blob){reject(new Error('Could not prepare cropped image.'));return}
+      try{
+        croppedProductFile=new File([blob],`product-crop-${Date.now()}.jpg`,{type:'image/jpeg'});
+        resolve(croppedProductFile);
+      }catch(err){reject(err)}
+    },'image/jpeg',.92);
   });
 }
 async function applyProductCrop(){
   try{
     const file=await makeCroppedProductFile();
     if(!file){alert('আগে একটি ছবি নির্বাচন করো।');return}
-    const url=URL.createObjectURL(file),preview=$('productCropResult'),wrap=$('productCropResultWrap');
-    if(preview){preview.src=url;preview.style.objectFit='contain';preview.style.background='#f4f7fb'}
+    if(productCropResultObjectUrl)URL.revokeObjectURL(productCropResultObjectUrl);
+    productCropResultObjectUrl=URL.createObjectURL(file);
+    const preview=$('productCropResult'),wrap=$('productCropResultWrap');
+    if(preview){preview.src=productCropResultObjectUrl;preview.style.objectFit='contain';preview.style.background='#f4f7fb'}
     if(wrap)wrap.hidden=false;
     const status=$('productCropStatus');if(status)status.textContent='Crop প্রস্তুত! Save Product চাপলে এই অংশটাই আপলোড হবে।';
-    if(productCropper){productCropper.destroy();productCropper=null}
+    destroyProductCropper();
   }catch(e){showError(e)}
 }
 

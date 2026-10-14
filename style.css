@@ -280,3 +280,13 @@ body.deals-open{overflow:hidden}
 .product-img img{object-fit:contain!important;background:#f7f9fc}
 .crop-editor[hidden],.crop-result-wrap[hidden]{display:none!important}
 
+
+
+/* Combo/offer card direct purchase actions */
+.offer-card-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:14px}
+.offer-card-actions button{min-width:0;min-height:40px;padding:9px 7px;font-size:12px;line-height:1.25;white-space:normal}
+.offer-card-actions .buy-btn{width:100%}
+.offer-card-actions button:disabled{opacity:.45;cursor:not-allowed}
+.combo-cart-products{display:block;line-height:1.45;margin:3px 0 5px;color:#b7cde0}
+.combo-cart-row .mini-img{font-size:27px}
+@media(max-width:360px){.offer-card-actions{grid-template-columns:1fr}.offer-card-actions button{font-size:13px}}
