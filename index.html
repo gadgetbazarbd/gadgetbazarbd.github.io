@@ -16,7 +16,7 @@
     rel="stylesheet"
   >
 
-  <link rel="stylesheet" href="style.css?v=gbbd-20261013">
+  <link rel="stylesheet" href="style.css?v=gbbd-deals-20261014">
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
@@ -249,7 +249,7 @@
 
       <div class="hero-actions">
         <button class="primary" type="button" onclick="document.getElementById('products').scrollIntoView({behavior:'smooth'})">View More</button>
-        <button class="discount-cta" type="button" onclick="document.getElementById('dealZone').scrollIntoView({behavior:'smooth'})">🏷️ Up to 70% OFF Deals</button>
+        <button class="discount-cta" type="button" onclick="openDealsPage()">🏷️ Up to 70% OFF Deals</button>
       </div>
 
     </div>
@@ -305,6 +305,26 @@
 
   </section>
 
+
+  <section id="dealsPage" class="deals-page hidden" aria-label="All discount deals" aria-modal="true" role="dialog">
+    <div class="deals-page-inner">
+      <div class="deals-page-top">
+        <div><p class="eyebrow">LIMITED-TIME SAVINGS</p><h2>Up to 70% OFF Deals</h2><p>Choose an offer category below.</p></div>
+        <button class="deals-close" type="button" onclick="closeDealsPage()" aria-label="Close deals">✕</button>
+      </div>
+      <div class="deal-categories deals-page-categories">
+        <button type="button" onclick="showDealType('Combo Deals')">🎁 Combo Deals</button>
+        <button type="button" onclick="showDealType('Flash Sale')">⚡ Flash Sale</button>
+        <button type="button" onclick="showDealType('Big Discount')">🔥 Big Discount</button>
+        <button type="button" onclick="showDealType('Special Offers')">✨ Special Offers</button>
+        <button type="button" onclick="showDealType('Limited-Time Deals')">⏳ Limited-Time Deals</button>
+        <button type="button" onclick="showDealType('Best Deals')">⭐ Best Deals</button>
+        <button type="button" onclick="showDealType('Clearance Sale')">🛍️ Clearance Sale</button>
+        <button type="button" onclick="showDealType('')">View All Deals</button>
+      </div>
+      <div id="dealsPageGrid" class="offers-grid"><div class="offer-placeholder">Loading available offers…</div></div>
+    </div>
+  </section>
 
   <section class="deal-zone" id="dealZone" aria-labelledby="dealZoneTitle">
     <div class="deal-zone-head"><div><p class="eyebrow">LIMITED-TIME SAVINGS</p><h2 id="dealZoneTitle">Deal Zone</h2><p>Combo Deals · Flash Sale · Big Discount · Special Offers</p></div><span class="deal-zone-tag">HOT DEALS</span></div>
@@ -784,7 +804,7 @@
 </footer>
 
 
-<script src="script.js?v=gbbd-20261013"></script>
+<script src="script.js?v=gbbd-deals-20261014"></script>
 
 </body>
 </html>

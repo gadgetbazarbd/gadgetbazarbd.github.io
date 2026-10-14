@@ -107,3 +107,17 @@ header{
   .section-head{align-items:flex-start;flex-wrap:wrap}.search-wrap input{min-width:0;width:100%}
 }
 @media(max-width:420px){.stats-grid{grid-template-columns:1fr 1fr}.stat-value{font-size:20px}.header-left h2{font-size:18px}.header-add{font-size:11px}}
+
+
+/* Offers & Deals editor: visible product selection and cover image */
+.combo-product-picker{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin-top:10px;max-height:330px;overflow:auto;padding:2px}
+.combo-product-choice{display:flex!important;align-items:center;gap:9px;padding:9px;border:1px solid #d9e4ef;border-radius:12px;background:#fff;cursor:pointer;min-width:0}
+.combo-product-choice input{width:18px;height:18px;flex:0 0 auto}
+.combo-product-choice img{width:54px;height:54px;object-fit:contain;background:#f1f5f9;border-radius:8px;flex:0 0 auto}
+.combo-product-choice span{display:flex;flex-direction:column;gap:3px;min-width:0}
+.combo-product-choice b{font-size:12px;overflow-wrap:anywhere}
+.combo-product-choice small{font-size:11px;color:#64748b}
+.offer-cover-preview{min-height:55px;display:flex;align-items:center;justify-content:center;margin-top:8px;border:1px dashed #b7c8d9;border-radius:10px;padding:8px;color:#64748b;font-size:12px}
+.offer-cover-preview img{max-width:100%;max-height:150px;object-fit:contain;border-radius:8px}
+#offerProductSearch{margin:8px 0}
+@media(max-width:620px){.combo-product-picker{grid-template-columns:1fr}.combo-product-choice img{width:48px;height:48px}}

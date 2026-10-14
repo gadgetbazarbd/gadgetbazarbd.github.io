@@ -46,11 +46,32 @@ async function loadOffers(){
   console.info("Optional offers table is not available yet. Run offers_setup.sql to enable Deal Zone.",e.message||e);
  }
 }
-function showDealType(type){activeDealType=activeDealType===type?"":type;renderOffers();$("dealZone")?.scrollIntoView({behavior:"smooth",block:"start"});}
+function openDealsPage(type=""){
+ activeDealType=type||"";
+ const page=$("dealsPage");
+ if(page){page.classList.remove("hidden");document.body.classList.add("deals-open");renderOffers();page.scrollTop=0;}
+}
+function closeDealsPage(){
+ $("dealsPage")?.classList.add("hidden");
+ document.body.classList.remove("deals-open");
+}
+function showDealType(type){
+ activeDealType=type||"";
+ renderOffers();
+ const page=$("dealsPage");
+ if(page){page.classList.remove("hidden");document.body.classList.add("deals-open");}
+}
 function renderOffers(){
- const grid=$("offersGrid");if(!grid)return;
+ const grids=[$("offersGrid"),$("dealsPageGrid")].filter(Boolean);
  const list=activeDealType?storeOffers.filter(o=>String(o.offer_type||"")===activeDealType):storeOffers;
- grid.innerHTML=list.length?list.map(o=>{const pct=Number(o.discount_percent||0);const type=esc(o.offer_type||"Special Offers");return `<article class="offer-card"><span class="offer-type">${type}</span><h3>${esc(o.title||"Special offer")}</h3><p>${esc(o.description||"Limited-time offer from Gadget Bazar BD.")}</p><div class="offer-value">${pct>0?`${pct}% OFF`:o.combo_price?`Combo ${money(o.combo_price)}`:"Special Deal"}</div>${o.ends_at?`<small>Ends: ${new Date(o.ends_at).toLocaleString("en-BD",{dateStyle:"medium",timeStyle:"short"})}</small>`:""}</article>`}).join(""):`<div class="offer-placeholder">${activeDealType?`No active ${esc(activeDealType)} right now.`:"No active offers right now. New deals will appear here."}</div>`;
+ const cards=list.length?list.map(o=>{
+  const pct=Number(o.discount_percent||0),type=esc(o.offer_type||"Special Offers");
+  const img=o.cover_image||o.image_url||"";
+  const productsInOffer=(Array.isArray(o.product_ids)?o.product_ids:[]);
+  const matched=products.filter(p=>productsInOffer.some(id=>String(id)===String(p.id)));
+  return `<article class="offer-card">${img?`<div class="offer-cover"><img src="${esc(img)}" alt="${esc(o.title||"Offer")}" loading="lazy"></div>`:""}<span class="offer-type">${type}</span><h3>${esc(o.title||"Special offer")}</h3><p>${esc(o.description||"Limited-time offer from Gadget Bazar BD.")}</p>${matched.length?`<div class="offer-products">${matched.map(p=>`<div class="offer-mini-product">${p.image?`<img src="${esc(p.image)}" alt="">`:""}<span>${esc(p.name)}</span></div>`).join("")}</div>`:""}<div class="offer-value">${pct>0?`${pct}% OFF`:o.combo_price?`Combo ${money(o.combo_price)}`:"Special Deal"}</div>${o.combo_price?`<strong class="offer-combo-price">${money(o.combo_price)}</strong>`:""}${o.ends_at?`<small>Ends: ${new Date(o.ends_at).toLocaleString("en-BD",{dateStyle:"medium",timeStyle:"short"})}</small>`:""}</article>`;
+ }).join(""):`<div class="offer-placeholder">${activeDealType?`No active ${esc(activeDealType)} right now.`:"No active offers right now. New deals will appear here."}</div>`;
+ grids.forEach(g=>g.innerHTML=cards);
 }
 
 async function loadCategories(){

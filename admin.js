@@ -29,7 +29,14 @@ function closeModal(){$('modal')?.classList.add('hidden')}
 function openModal(title,body){
   if($('modalTitle'))$('modalTitle').textContent=title;
   if($('modalBody'))$('modalBody').innerHTML=body;
-  $('modal')?.classList.remove('hidden')
+  $('modal')?.classList.remove('hidden');
+  const coverInput=$('offerCoverImage');
+  if(coverInput)coverInput.addEventListener('change',()=>{
+    const file=coverInput.files?.[0],preview=$('offerCoverPreview');
+    if(!file||!preview)return;
+    const url=URL.createObjectURL(file);
+    preview.innerHTML=`<img src="${url}" alt="Offer cover preview">`;
+  });
 }
 
 async function checkAdmin(){
@@ -83,13 +90,14 @@ async function loadCloud(){
   if(o.error)throw o.error;
   if(c.error)throw c.error;
   if(d.error)throw d.error;
-  if(of.error)throw of.error;
 
   productsCache=p.data||[];
   ordersCache=o.data||[];
   categoriesCache=c.data||[];
   deliverySettingsCache=d.data?.[0]||null;
-  offersCache=of.data||[];
+  // Offers are optional: a missing table/policy must not block admin login/dashboard.
+  if(of.error){offersCache=[];console.warn('Offers table permission/schema issue:',of.error.message);if($('connectionStatus'))$('connectionStatus').textContent='● Connected (offers need setup)';}
+  else offersCache=of.data||[];
 
   if($('connectionStatus')){
     $('connectionStatus').textContent='● Connected';
@@ -808,16 +816,49 @@ function offers(){
  <div class="table-wrap"><table class="table"><thead><tr><th>Offer</th><th>Type</th><th>Discount / Combo</th><th>Combo products</th><th>Schedule</th><th>Status</th><th>Actions</th></tr></thead><tbody>${offersCache.length?offersCache.map((o,i)=>`<tr><td><b>${esc(o.title)}</b><br><small>${esc(o.description||'')}</small></td><td>${esc(o.offer_type)}</td><td>${Number(o.discount_percent||0)>0?Number(o.discount_percent)+'% off':o.combo_price?money(o.combo_price):'Special deal'}</td><td>${(Array.isArray(o.product_ids)?o.product_ids:[]).map(id=>productsCache.find(p=>String(p.id)===String(id))?.name).filter(Boolean).map(esc).join(', ')||'—'}</td><td>${o.starts_at?new Date(o.starts_at).toLocaleString():'Now'}<br>→ ${o.ends_at?new Date(o.ends_at).toLocaleString():'No end'}</td><td><span class="pill ${o.active?'green':'red'}">${o.active?'Active':'Inactive'}</span></td><td class="actions"><button class="btn muted" onclick="editOffer(${i})">Edit</button><button class="btn danger" onclick="deleteOffer(${i})">Delete</button></td></tr>`).join(''):`<tr><td colspan="7" class="empty">No offers yet. Create your first offer.</td></tr>`}</tbody></table></div>
  <p class="muted" style="margin-top:12px">Note: this version displays scheduled offers in Deal Zone. Percentage offers affect checkout only when the relevant product's own discount is also set in Products. Combo offers now save the selected products and combo price. The customer checkout still needs secure server-side price validation before a combo price can be charged automatically.</p>`;
 }
-function offerForm(o={}){const chosen=(Array.isArray(o.product_ids)?o.product_ids:[]).map(String);return `<div class="form-grid"><label>Offer title<input id="offerTitle" value="${esc(o.title||'')}" placeholder="Weekend Flash Sale" required></label><label>Offer type<select id="offerType"><option ${o.offer_type==='Combo Deals'?'selected':''}>Combo Deals</option><option ${o.offer_type==='Flash Sale'?'selected':''}>Flash Sale</option><option ${o.offer_type==='Big Discount'?'selected':''}>Big Discount</option><option ${(!o.offer_type||o.offer_type==='Special Offers')?'selected':''}>Special Offers</option></select></label><label>Discount percent<input id="offerDiscount" type="number" min="0" max="100" value="${Number(o.discount_percent||0)}"></label><label>Combo price (৳)<input id="offerComboPrice" type="number" min="0" step="1" value="${o.combo_price??''}"></label><label class="full">Select combo products (hold Ctrl / select multiple)<select id="offerProducts" multiple size="6">${productsCache.map(p=>`<option value="${esc(p.id)}" ${chosen.includes(String(p.id))?'selected':''}>${esc(p.name)} — ${money(p.price)}</option>`).join('')}</select><small>Select the products included in this combo. Product selection is saved with the offer.</small></label><label>Starts at (optional)<input id="offerStarts" type="datetime-local" value="${o.starts_at?new Date(new Date(o.starts_at).getTime()-new Date(o.starts_at).getTimezoneOffset()*60000).toISOString().slice(0,16):''}"></label><label>Ends at (optional)<input id="offerEnds" type="datetime-local" value="${o.ends_at?new Date(new Date(o.ends_at).getTime()-new Date(o.ends_at).getTimezoneOffset()*60000).toISOString().slice(0,16):''}"></label><label class="full">Description<textarea id="offerDescription" rows="3">${esc(o.description||'')}</textarea></label><label class="check-label"><input id="offerActive" type="checkbox" ${o.active!==false?'checked':''}> Offer is active</label></div><div class="modal-actions"><button class="btn muted" onclick="closeModal()">Cancel</button><button class="btn primary" onclick="saveOffer()">Save Offer</button></div>`}
+function offerForm(o={}){
+ const chosen=(Array.isArray(o.product_ids)?o.product_ids:[]).map(String);
+ const productPicker=productsCache.map(p=>`<label class="combo-product-choice"><input class="offer-product-check" type="checkbox" value="${esc(p.id)}" ${chosen.includes(String(p.id))?'checked':''}><img src="${esc(p.image||'')}" alt="" onerror="this.style.visibility='hidden'"><span><b>${esc(p.name)}</b><small>${money(p.price)} · Stock ${Number(p.stock||0)}</small></span></label>`).join('');
+ return `<div class="form-grid">
+ <label>Offer title<input id="offerTitle" value="${esc(o.title||'')}" placeholder="Weekend Combo Deal" required></label>
+ <label>Offer type<select id="offerType">${['Combo Deals','Flash Sale','Big Discount','Special Offers','Limited-Time Deals','Best Deals','Clearance Sale'].map(t=>`<option ${o.offer_type===t?'selected':''}>${t}</option>`).join('')}</select></label>
+ <label>Discount percent<input id="offerDiscount" type="number" min="0" max="100" value="${Number(o.discount_percent||0)}"></label>
+ <label>Combo price (৳)<input id="offerComboPrice" type="number" min="0" step="1" value="${o.combo_price??''}"></label>
+ <div class="full"><label for="offerCoverImage">Combo/offer cover image</label><input id="offerCoverImage" type="file" accept="image/*"><small>Choose a clear image for the offer card. ${o.cover_image?'An existing cover image is saved.':''}</small><div id="offerCoverPreview" class="offer-cover-preview">${o.cover_image?`<img src="${esc(o.cover_image)}" alt="Current offer cover">`:'No cover selected yet.'}</div></div>
+ <div class="full"><label>Choose products included in this offer</label><input id="offerProductSearch" type="search" placeholder="Search products by name..." oninput="filterOfferProducts(this.value)"><div class="combo-product-picker" id="comboProductPicker">${productPicker||'<p>No products found. Add products first.</p>'}</div><small>For Combo Deals, select at least two products. Selected products and their images will be shown on the customer Deal page.</small></div>
+ <label>Starts at (optional)<input id="offerStarts" type="datetime-local" value="${o.starts_at?new Date(new Date(o.starts_at).getTime()-new Date(o.starts_at).getTimezoneOffset()*60000).toISOString().slice(0,16):''}"></label>
+ <label>Ends at (optional)<input id="offerEnds" type="datetime-local" value="${o.ends_at?new Date(new Date(o.ends_at).getTime()-new Date(o.ends_at).getTimezoneOffset()*60000).toISOString().slice(0,16):''}"></label>
+ <label class="full">Description<textarea id="offerDescription" rows="3">${esc(o.description||'')}</textarea></label>
+ <label class="check-label"><input id="offerActive" type="checkbox" ${o.active!==false?'checked':''}> Offer is active</label>
+ </div><div class="modal-actions"><button class="btn muted" onclick="closeModal()">Cancel</button><button class="btn primary" onclick="saveOffer()">Save Offer</button></div>`;
+}
+function filterOfferProducts(query){
+ const q=String(query||'').toLowerCase();
+ document.querySelectorAll('.combo-product-choice').forEach(el=>{el.style.display=el.textContent.toLowerCase().includes(q)?'flex':'none';});
+}
+
 function addOffer(){editingOfferId=null;openModal('Create Offer',offerForm())}
 function editOffer(i){const o=offersCache[i];if(!o)return;editingOfferId=o.id;openModal('Edit Offer',offerForm(o))}
 async function saveOffer(){
  const title=$('offerTitle')?.value.trim();if(!title)return alert('Offer title is required.');
  const starts=$('offerStarts')?.value,ends=$('offerEnds')?.value;if(starts&&ends&&new Date(ends)<=new Date(starts))return alert('End time must be after start time.');
  const pct=Number($('offerDiscount')?.value||0);if(pct<0||pct>100)return alert('Discount must be between 0 and 100.');
- const productIds=[...($('offerProducts')?.selectedOptions||[])].map(x=>x.value);if($('offerType').value==='Combo Deals'&&productIds.length<2)return alert('Select at least two products for a Combo Deal.');const payload={title,offer_type:$('offerType').value,description:$('offerDescription').value.trim(),discount_percent:pct,combo_price:$('offerComboPrice').value?Number($('offerComboPrice').value):null,product_ids:productIds,starts_at:starts?new Date(starts).toISOString():null,ends_at:ends?new Date(ends).toISOString():null,active:$('offerActive').checked};
- try{const q=editingOfferId?sb.from('offers').update(payload).eq('id',editingOfferId):sb.from('offers').insert(payload);const {error}=await q;if(error)throw error;const {data,error:e}=await sb.from('offers').select('*').order('created_at',{ascending:false});if(e)throw e;offersCache=data||[];closeModal();render();alert('Offer saved.');}catch(e){showError(e)}
+ const productIds=[...document.querySelectorAll('.offer-product-check:checked')].map(x=>x.value);
+ if($('offerType').value==='Combo Deals'&&productIds.length<2)return alert('Select at least two products for a Combo Deal.');
+ const comboPrice=$('offerComboPrice').value?Number($('offerComboPrice').value):null;
+ if($('offerType').value==='Combo Deals'&&(!comboPrice||comboPrice<=0))return alert('Enter a valid combo price.');
+ const payload={title,offer_type:$('offerType').value,description:$('offerDescription').value.trim(),discount_percent:pct,combo_price:comboPrice,product_ids:productIds,starts_at:starts?new Date(starts).toISOString():null,ends_at:ends?new Date(ends).toISOString():null,active:$('offerActive').checked};
+ try{
+  const file=$('offerCoverImage')?.files?.[0];
+  if(file){const path=`offers/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g,'_')}`;const {error:upErr}=await sb.storage.from(BUCKET).upload(path,file,{upsert:true,contentType:file.type});if(upErr)throw upErr;payload.cover_image=sb.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;}
+  if(editingOfferId){const existing=offersCache.find(x=>String(x.id)===String(editingOfferId));if(!payload.cover_image&&existing?.cover_image)payload.cover_image=existing.cover_image;}
+  const q=editingOfferId?sb.from('offers').update(payload).eq('id',editingOfferId):sb.from('offers').insert(payload);
+  const {error}=await q;if(error)throw error;
+  const {data,error:e}=await sb.from('offers').select('*').order('created_at',{ascending:false});if(e)throw e;
+  offersCache=data||[];closeModal();render();alert('Offer saved.');
+ }catch(e){showError(e)}
 }
+
 async function deleteOffer(i){const o=offersCache[i];if(!o||!confirm(`Delete offer “${o.title}”?`))return;try{const {error}=await sb.from('offers').delete().eq('id',o.id);if(error)throw error;offersCache=offersCache.filter(x=>x.id!==o.id);render()}catch(e){showError(e)}}
 
 /* =========================================================
