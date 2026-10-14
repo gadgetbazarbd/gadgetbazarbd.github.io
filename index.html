@@ -247,19 +247,19 @@
         Electronics, mobile accessories, RGB lighting & home gadgets.
       </p>
 
-      <button
-        class="primary"
-        type="button"
-        onclick="
-          document.getElementById('products')
-          .scrollIntoView({behavior:'smooth'})
-        "
-      >
-        Shop Now
-      </button>
+      <div class="hero-actions">
+        <button class="primary" type="button" onclick="document.getElementById('products').scrollIntoView({behavior:'smooth'})">Shop Now</button>
+        <button class="discount-cta" type="button" onclick="document.getElementById('dealZone').scrollIntoView({behavior:'smooth'})">🏷️ Discount</button>
+      </div>
 
     </div>
 
+  </section>
+
+  <section class="deal-zone" id="dealZone" aria-labelledby="dealZoneTitle">
+    <div class="deal-zone-head"><div><p class="eyebrow">LIMITED-TIME SAVINGS</p><h2 id="dealZoneTitle">Deal Zone</h2><p>Combo Deals · Flash Sale · Big Discount · Special Offers</p></div><span class="deal-zone-tag">HOT DEALS</span></div>
+    <div class="deal-categories"><button type="button" onclick="showDealType('Combo Deals')">🎁 Combo Deals</button><button type="button" onclick="showDealType('Flash Sale')">⚡ Flash Sale</button><button type="button" onclick="showDealType('Big Discount')">🔥 Big Discount</button><button type="button" onclick="showDealType('Special Offers')">✨ Special Offers</button></div>
+    <div id="offersGrid" class="offers-grid"><div class="offer-placeholder">Loading available offers…</div></div>
   </section>
 
   <section class="benefit-strip" aria-label="Shopping benefits">

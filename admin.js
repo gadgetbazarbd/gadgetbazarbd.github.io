@@ -13,6 +13,8 @@ const ADMIN_UID='9aa2e054-a19a-4f86-aaf7-25f13e720722';
 let productsCache=[];
 let ordersCache=[];
 let categoriesCache=[];
+let offersCache=[];
+let editingOfferId=null;
 let deliverySettingsCache=null;
 let storeSettingsCache={store_name:'Gadget Bazar BD',phone:'',email:'',address:'',support_hours:''};
 let currentSection='dashboard';
@@ -69,22 +71,25 @@ async function loadDeliverySettings(){
 }
 
 async function loadCloud(){
-  const [p,o,c,d]=await Promise.all([
+  const [p,o,c,d,of]=await Promise.all([
     sb.from('products').select('*').order('created_at',{ascending:false}),
     sb.from('orders').select('*').order('created_at',{ascending:false}),
     sb.from('categories').select('*').order('name',{ascending:true}),
-    sb.from('delivery_settings').select('*').order('id',{ascending:true}).limit(1)
+    sb.from('delivery_settings').select('*').order('id',{ascending:true}).limit(1),
+    sb.from('offers').select('*').order('created_at',{ascending:false})
   ]);
 
   if(p.error)throw p.error;
   if(o.error)throw o.error;
   if(c.error)throw c.error;
   if(d.error)throw d.error;
+  if(of.error)throw of.error;
 
   productsCache=p.data||[];
   ordersCache=o.data||[];
   categoriesCache=c.data||[];
   deliverySettingsCache=d.data?.[0]||null;
+  offersCache=of.data||[];
 
   if($('connectionStatus')){
     $('connectionStatus').textContent='● Connected';
@@ -672,6 +677,7 @@ function go(section){
   const titles={
     dashboard:['Dashboard','Store overview'],
     products:['Products','Manage products'],
+    offers:['Offers & Deals','Manage promotions and schedules'],
     orders:['Orders','Manage customer orders'],
     customers:['Customers','Customer list'],
     categories:['Categories','Manage categories'],
@@ -690,7 +696,7 @@ function go(section){
 }
 function render(){
   const c=$('content');if(!c)return;
-  const map={dashboard,products,orders,customers,categories,delivery,payments,settings};
+  const map={dashboard,products,offers,orders,customers,categories,delivery,payments,settings};
   c.innerHTML=(map[currentSection]||dashboard)();
 }
 function toggleSidebar(force){
@@ -795,6 +801,26 @@ async function importData(e){
 }
 
 /* =========================================================
+   OFFERS & DEALS — requires offers_setup.sql
+========================================================= */
+function offers(){
+ return `<div class="section-head"><div><h3>Offers & Deals</h3><p>Create and schedule Deal Zone promotions shown on the customer website.</p></div><button class="btn primary" onclick="addOffer()">＋ Create Offer</button></div>
+ <div class="table-wrap"><table class="table"><thead><tr><th>Offer</th><th>Type</th><th>Discount / Combo</th><th>Schedule</th><th>Status</th><th>Actions</th></tr></thead><tbody>${offersCache.length?offersCache.map((o,i)=>`<tr><td><b>${esc(o.title)}</b><br><small>${esc(o.description||'')}</small></td><td>${esc(o.offer_type)}</td><td>${Number(o.discount_percent||0)>0?Number(o.discount_percent)+'% off':o.combo_price?money(o.combo_price):'Special deal'}</td><td>${o.starts_at?new Date(o.starts_at).toLocaleString():'Now'}<br>→ ${o.ends_at?new Date(o.ends_at).toLocaleString():'No end'}</td><td><span class="pill ${o.active?'green':'red'}">${o.active?'Active':'Inactive'}</span></td><td class="actions"><button class="btn muted" onclick="editOffer(${i})">Edit</button><button class="btn danger" onclick="deleteOffer(${i})">Delete</button></td></tr>`).join(''):`<tr><td colspan="6" class="empty">No offers yet. Create your first offer.</td></tr>`}</tbody></table></div>
+ <p class="muted" style="margin-top:12px">Note: this version displays scheduled offers in Deal Zone. Percentage offers affect checkout only when the relevant product's own discount is also set in Products. Fixed-price combo checkout is not activated until server-side price validation is configured.</p>`;
+}
+function offerForm(o={}){return `<div class="form-grid"><label>Offer title<input id="offerTitle" value="${esc(o.title||'')}" placeholder="Weekend Flash Sale" required></label><label>Offer type<select id="offerType"><option ${o.offer_type==='Combo Deals'?'selected':''}>Combo Deals</option><option ${o.offer_type==='Flash Sale'?'selected':''}>Flash Sale</option><option ${o.offer_type==='Big Discount'?'selected':''}>Big Discount</option><option ${(!o.offer_type||o.offer_type==='Special Offers')?'selected':''}>Special Offers</option></select></label><label>Discount percent<input id="offerDiscount" type="number" min="0" max="100" value="${Number(o.discount_percent||0)}"></label><label>Combo price (display only)<input id="offerComboPrice" type="number" min="0" step="1" value="${o.combo_price??''}"></label><label>Starts at (optional)<input id="offerStarts" type="datetime-local" value="${o.starts_at?new Date(new Date(o.starts_at).getTime()-new Date(o.starts_at).getTimezoneOffset()*60000).toISOString().slice(0,16):''}"></label><label>Ends at (optional)<input id="offerEnds" type="datetime-local" value="${o.ends_at?new Date(new Date(o.ends_at).getTime()-new Date(o.ends_at).getTimezoneOffset()*60000).toISOString().slice(0,16):''}"></label><label class="full">Description<textarea id="offerDescription" rows="3">${esc(o.description||'')}</textarea></label><label class="check-label"><input id="offerActive" type="checkbox" ${o.active!==false?'checked':''}> Offer is active</label></div><div class="modal-actions"><button class="btn muted" onclick="closeModal()">Cancel</button><button class="btn primary" onclick="saveOffer()">Save Offer</button></div>`}
+function addOffer(){editingOfferId=null;openModal('Create Offer',offerForm())}
+function editOffer(i){const o=offersCache[i];if(!o)return;editingOfferId=o.id;openModal('Edit Offer',offerForm(o))}
+async function saveOffer(){
+ const title=$('offerTitle')?.value.trim();if(!title)return alert('Offer title is required.');
+ const starts=$('offerStarts')?.value,ends=$('offerEnds')?.value;if(starts&&ends&&new Date(ends)<=new Date(starts))return alert('End time must be after start time.');
+ const pct=Number($('offerDiscount')?.value||0);if(pct<0||pct>100)return alert('Discount must be between 0 and 100.');
+ const payload={title,offer_type:$('offerType').value,description:$('offerDescription').value.trim(),discount_percent:pct,combo_price:$('offerComboPrice').value?Number($('offerComboPrice').value):null,starts_at:starts?new Date(starts).toISOString():null,ends_at:ends?new Date(ends).toISOString():null,active:$('offerActive').checked};
+ try{const q=editingOfferId?sb.from('offers').update(payload).eq('id',editingOfferId):sb.from('offers').insert(payload);const {error}=await q;if(error)throw error;const {data,error:e}=await sb.from('offers').select('*').order('created_at',{ascending:false});if(e)throw e;offersCache=data||[];closeModal();render();alert('Offer saved.');}catch(e){showError(e)}
+}
+async function deleteOffer(i){const o=offersCache[i];if(!o||!confirm(`Delete offer “${o.title}”?`))return;try{const {error}=await sb.from('offers').delete().eq('id',o.id);if(error)throw error;offersCache=offersCache.filter(x=>x.id!==o.id);render()}catch(e){showError(e)}}
+
+/* =========================================================
    START
 ========================================================= */
 
@@ -840,6 +866,7 @@ window.$=$;
 window.login=login;
 window.logout=logout;
 window.go=go;
+window.addOffer=addOffer;window.editOffer=editOffer;window.saveOffer=saveOffer;window.deleteOffer=deleteOffer;
 window.render=render;
 
 window.closeModal=closeModal;

@@ -10,7 +10,7 @@ const DEFAULT_DELIVERY_SETTINGS={dhaka:60,nearby:100,outside:130};
 let DELIVERY_SETTINGS={...DEFAULT_DELIVERY_SETTINGS};
 let NEARBY_DISTRICTS=["Gazipur","Narayanganj","Narsingdi","Munshiganj","Manikganj"];
 let PAYMENT_SETTINGS={cod_enabled:true,bkash_enabled:false,bkash_number:"",nagad_enabled:false,nagad_number:""};
-let categories=[],products=[],cart=[];
+let categories=[],products=[],cart=[],storeOffers=[],activeDealType="";
 try { const savedCart=JSON.parse(localStorage.getItem("gbbd_cart")||"[]"); cart=Array.isArray(savedCart)?savedCart.filter(x=>x&&x.id!=null&&Number(x.qty)>0).map(x=>({id:x.id,qty:Math.max(1,Math.floor(Number(x.qty)||1))})):[]; } catch(e) { cart=[]; }
 let currentCategory="All Products",selectedDistrict="",selectedUpazila="";
 let locationData=[],locationLoaded=false;
@@ -30,6 +30,28 @@ function normalizeProduct(r){return{
 };}
 
 
+
+
+async function loadOffers(){
+ const grid=$("offersGrid");
+ try{
+  const {data,error}=await sb.from("offers").select("*").eq("active",true).order("created_at",{ascending:false});
+  if(error)throw error;
+  const now=Date.now();
+  storeOffers=(data||[]).filter(o=>(!o.starts_at||new Date(o.starts_at).getTime()<=now)&&(!o.ends_at||new Date(o.ends_at).getTime()>=now));
+  renderOffers();
+ }catch(e){
+  // Keep the site working if the optional offers table has not been created yet.
+  if(grid)grid.innerHTML='<div class="offer-placeholder">Offers are being prepared. Please check back soon.</div>';
+  console.info("Optional offers table is not available yet. Run offers_setup.sql to enable Deal Zone.",e.message||e);
+ }
+}
+function showDealType(type){activeDealType=activeDealType===type?"":type;renderOffers();$("dealZone")?.scrollIntoView({behavior:"smooth",block:"start"});}
+function renderOffers(){
+ const grid=$("offersGrid");if(!grid)return;
+ const list=activeDealType?storeOffers.filter(o=>String(o.offer_type||"")===activeDealType):storeOffers;
+ grid.innerHTML=list.length?list.map(o=>{const pct=Number(o.discount_percent||0);const type=esc(o.offer_type||"Special Offers");return `<article class="offer-card"><span class="offer-type">${type}</span><h3>${esc(o.title||"Special offer")}</h3><p>${esc(o.description||"Limited-time offer from Gadget Bazar BD.")}</p><div class="offer-value">${pct>0?`${pct}% OFF`:o.combo_price?`Combo ${money(o.combo_price)}`:"Special Deal"}</div>${o.ends_at?`<small>Ends: ${new Date(o.ends_at).toLocaleString("en-BD",{dateStyle:"medium",timeStyle:"short"})}</small>`:""}</article>`}).join(""):`<div class="offer-placeholder">${activeDealType?`No active ${esc(activeDealType)} right now.`:"No active offers right now. New deals will appear here."}</div>`;
+}
 
 async function loadCategories(){
   const {data,error}=await sb.from('categories').select('*').order('name',{ascending:true});
@@ -98,7 +120,7 @@ async function loadStoreData(){
 }
 
 async function refreshStore(){
- try{await Promise.all([loadProducts(),loadStoreData(),loadCategories()]);renderProducts();updateCart();setTimeout(setupLocationPickers,0);}
+ try{await Promise.all([loadProducts(),loadStoreData(),loadCategories(),loadOffers()]);renderProducts();updateCart();setTimeout(setupLocationPickers,0);}
  catch(e){console.error(e);toast("Products could not be loaded");}
 }
 
@@ -261,6 +283,7 @@ async function trackOrdersByPhone(){
 }
 
 async function startCustomerSite(){initCustomerUI();renderProducts();updateCart();await refreshStore();setupLocationPickers();}
+window.showDealType=showDealType;
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",startCustomerSite);else startCustomerSite();
 setInterval(refreshStore,60000);
 document.addEventListener("DOMContentLoaded",()=>{$("trackOrderBtn")?.addEventListener("click",trackOrdersByPhone);});
