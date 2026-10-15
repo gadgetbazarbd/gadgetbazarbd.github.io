@@ -13,58 +13,21 @@ const ADMIN_UID='9aa2e054-a19a-4f86-aaf7-25f13e720722';
 let productsCache=[];
 let ordersCache=[];
 let categoriesCache=[];
-let offersCache=[];
-let editingOfferId=null;
 let deliverySettingsCache=null;
 let storeSettingsCache={store_name:'Gadget Bazar BD',phone:'',email:'',address:'',support_hours:''};
 let currentSection='dashboard';
 let editingProductId=null;
 let catalogOpen=true;
-let productCropper=null;
-let productCropRatio=1;
-let croppedProductFile=null;
-let productCropObjectUrl=null;
-let productCropResultObjectUrl=null;
 
 function $(id){return document.getElementById(id)}
 function esc(v){return String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;')}
 function money(v){return '৳'+Number(v||0).toLocaleString('en-BD')}
 function showError(e){console.error(e);alert('Something went wrong.\n\n'+(e?.message||e||'Unknown error'))}
-function destroyProductCropper(){
-  const instance=productCropper;
-  productCropper=null;
-  if(instance&&typeof instance.destroy==='function'){
-    try{instance.destroy()}catch(err){console.warn('Cropper cleanup warning',err)}
-  }
-}
-function releaseProductCropUrls(){
-  if(productCropObjectUrl){URL.revokeObjectURL(productCropObjectUrl);productCropObjectUrl=null}
-  if(productCropResultObjectUrl){URL.revokeObjectURL(productCropResultObjectUrl);productCropResultObjectUrl=null}
-}
-function closeModal(){
-  $('modal')?.classList.add('hidden');
-  destroyProductCropper();
-  releaseProductCropUrls();
-  croppedProductFile=null;
-  productCropRatio=1;
-}
+function closeModal(){$('modal')?.classList.add('hidden')}
 function openModal(title,body){
-  destroyProductCropper();
-  releaseProductCropUrls();
-  croppedProductFile=null;
-  productCropRatio=1;
   if($('modalTitle'))$('modalTitle').textContent=title;
   if($('modalBody'))$('modalBody').innerHTML=body;
-  $('modal')?.classList.remove('hidden');
-  const productInput=$('productImage');
-  if(productInput) productInput.addEventListener('change',handleProductImageSelected);
-  const coverInput=$('offerCoverImage');
-  if(coverInput)coverInput.addEventListener('change',()=>{
-    const file=coverInput.files?.[0],preview=$('offerCoverPreview');
-    if(!file||!preview)return;
-    const url=URL.createObjectURL(file);
-    preview.innerHTML=`<img src="${url}" alt="Offer cover preview">`;
-  });
+  $('modal')?.classList.remove('hidden')
 }
 
 async function checkAdmin(){
@@ -106,12 +69,11 @@ async function loadDeliverySettings(){
 }
 
 async function loadCloud(){
-  const [p,o,c,d,of]=await Promise.all([
+  const [p,o,c,d]=await Promise.all([
     sb.from('products').select('*').order('created_at',{ascending:false}),
     sb.from('orders').select('*').order('created_at',{ascending:false}),
     sb.from('categories').select('*').order('name',{ascending:true}),
-    sb.from('delivery_settings').select('*').order('id',{ascending:true}).limit(1),
-    sb.from('offers').select('*').order('created_at',{ascending:false})
+    sb.from('delivery_settings').select('*').order('id',{ascending:true}).limit(1)
   ]);
 
   if(p.error)throw p.error;
@@ -123,9 +85,6 @@ async function loadCloud(){
   ordersCache=o.data||[];
   categoriesCache=c.data||[];
   deliverySettingsCache=d.data?.[0]||null;
-  // Offers are optional: a missing table/policy must not block admin login/dashboard.
-  if(of.error){offersCache=[];console.warn('Offers table permission/schema issue:',of.error.message);if($('connectionStatus'))$('connectionStatus').textContent='● Connected (offers need setup)';}
-  else offersCache=of.data||[];
 
   if($('connectionStatus')){
     $('connectionStatus').textContent='● Connected';
@@ -214,109 +173,10 @@ function productForm(p={}){
     <label>Discount<input id="productDiscount" type="number" min="0" value="${Number(p.discount||0)}"></label>
     <label>Stock<input id="productStock" type="number" min="0" value="${Number(p.stock||0)}"></label>
     <label>Status<select id="productActive"><option value="true" ${p.active!==false?'selected':''}>Active</option><option value="false" ${p.active===false?'selected':''}>Inactive</option></select></label>
-    <label class="full">Product Image<input id="productImage" type="file" accept="image/*"><small>ছবি দেওয়ার পর crop box-এ যতটুকু রাখবে, ঠিক ততটুকুই প্রোডাক্টে দেখাবে।</small></label>
-    <div class="full crop-editor" id="productCropEditor" hidden>
-      <div class="crop-editor-head"><b>ছবি Crop করো</b><span>বক্স টেনে পছন্দের অংশ বেছে নাও</span></div>
-      <div class="crop-stage"><img id="productCropImage" alt="Crop product image"></div>
-      <div class="crop-controls"><button type="button" class="btn muted" onclick="setProductCropRatio(1)">Square</button><button type="button" class="btn muted" onclick="setProductCropRatio(4/3)">4:3</button><button type="button" class="btn muted" onclick="setProductCropRatio(3/4)">Portrait</button><button type="button" class="btn primary" onclick="applyProductCrop()">✓ Use this crop</button></div>
-      <div class="crop-status" id="productCropStatus">Crop area ঠিক করে “Use this crop” চাপো।</div>
-    </div>
-    <div class="full crop-result-wrap" id="productCropResultWrap" ${p.image?'':'hidden'}><b>Final image preview</b><img id="productCropResult" class="product-preview" src="${esc(p.image||'')}" alt="Cropped product preview"></div>
+    <label class="full">Product Image<input id="productImage" type="file" accept="image/*"></label>
+    ${p.image?`<label class="full">Current Image<img class="product-preview" src="${esc(p.image)}" alt=""></label>`:''}
   </div><div class="btn-row"><button class="btn muted" onclick="closeModal()">Cancel</button><button class="btn primary" id="saveProductBtn" onclick="saveProduct()">Save Product</button></div>`
 }
-function handleProductImageSelected(event){
-  const file=event.target.files?.[0];
-  if(!file)return;
-  if(!file.type.startsWith('image/')){alert('Please choose an image file.');event.target.value='';return}
-  if(file.size>12*1024*1024){alert('Image is too large. Please choose an image under 12 MB.');event.target.value='';return}
-
-  destroyProductCropper();
-  releaseProductCropUrls();
-  productCropRatio=1;
-  croppedProductFile=null;
-  productCropObjectUrl=URL.createObjectURL(file);
-  const editor=$('productCropEditor'),img=$('productCropImage'),result=$('productCropResultWrap'),status=$('productCropStatus');
-  if(editor)editor.hidden=false;
-  if(result)result.hidden=true;
-  if(status)status.textContent='ছবির যে অংশ রাখতে চাও, crop box টেনে ঠিক করো।';
-  if(!img){if(status)status.textContent='Crop editor পাওয়া যায়নি। Admin page refresh করে আবার চেষ্টা করো।';return}
-  img.onload=()=>{
-    destroyProductCropper();
-    if(typeof Cropper!=='function'){
-      if(status)status.textContent='Crop tool load হয়নি। ইন্টারনেট চালু করে Admin Panel refresh করো; তারপর ছবিটি আবার নির্বাচন করো।';
-      alert('Crop tool load হয়নি। ইন্টারনেট সংযোগ দেখে Admin Panel refresh করে আবার চেষ্টা করো।');
-      return;
-    }
-    try{
-      productCropper=new Cropper(img,{
-        viewMode:1,dragMode:'crop',aspectRatio:productCropRatio,autoCropArea:.9,
-        background:false,responsive:true,restore:false,checkOrientation:true,
-        zoomable:true,scalable:false,rotatable:true,guides:true,center:true,highlight:true,
-        ready(){if(editor)editor.scrollIntoView({block:'nearest',behavior:'smooth'});}
-      });
-    }catch(err){
-      destroyProductCropper();
-      if(status)status.textContent='Crop tool চালু হয়নি। পেজ refresh করে আবার ছবি নির্বাচন করো।';
-      console.error('Product cropper initialization failed',err);
-      alert('Crop tool চালু করা যায়নি। Admin Panel refresh করে আবার চেষ্টা করো।');
-    }
-  };
-  img.onerror=()=>{if(status)status.textContent='ছবিটি খোলা যায়নি। অন্য ছবি নির্বাচন করো।'};
-  img.src=productCropObjectUrl;
-}
-function setProductCropRatio(ratio){
-  const next=Number(ratio);
-  if(!Number.isFinite(next)||next<=0)return;
-  productCropRatio=next;
-  if(productCropper){
-    if(typeof productCropper.setAspectRatio==='function')productCropper.setAspectRatio(productCropRatio);
-    else{
-      const status=$('productCropStatus');
-      if(status)status.textContent='Crop tool version mismatch. Admin page refresh করে ছবিটি আবার নির্বাচন করো।';
-      return;
-    }
-  }
-  const status=$('productCropStatus');
-  if(status)status.textContent='Crop ratio updated. Adjust the frame, then press “Use this crop”.';
-}
-function makeCroppedProductFile(){
-  return new Promise((resolve,reject)=>{
-    const instance=productCropper;
-    if(!instance){resolve(croppedProductFile);return}
-    if(typeof instance.getCroppedCanvas!=='function'){
-      reject(new Error('Crop tool version mismatch. Refresh Admin Panel, choose the image again, then retry.'));
-      return;
-    }
-    const ratio=Number(productCropRatio)||1;
-    const width=ratio>=1?1200:Math.max(600,Math.round(1200*ratio));
-    const height=ratio>=1?Math.max(600,Math.round(1200/ratio)):1200;
-    let canvas;
-    try{canvas=instance.getCroppedCanvas({width,height,imageSmoothingEnabled:true,imageSmoothingQuality:'high',fillColor:'#ffffff'});}
-    catch(err){reject(err);return}
-    if(!canvas){reject(new Error('Could not crop this image. Please select it again.'));return}
-    canvas.toBlob(blob=>{
-      if(!blob){reject(new Error('Could not prepare cropped image.'));return}
-      try{
-        croppedProductFile=new File([blob],`product-crop-${Date.now()}.jpg`,{type:'image/jpeg'});
-        resolve(croppedProductFile);
-      }catch(err){reject(err)}
-    },'image/jpeg',.92);
-  });
-}
-async function applyProductCrop(){
-  try{
-    const file=await makeCroppedProductFile();
-    if(!file){alert('আগে একটি ছবি নির্বাচন করো।');return}
-    if(productCropResultObjectUrl)URL.revokeObjectURL(productCropResultObjectUrl);
-    productCropResultObjectUrl=URL.createObjectURL(file);
-    const preview=$('productCropResult'),wrap=$('productCropResultWrap');
-    if(preview){preview.src=productCropResultObjectUrl;preview.style.objectFit='contain';preview.style.background='#f4f7fb'}
-    if(wrap)wrap.hidden=false;
-    const status=$('productCropStatus');if(status)status.textContent='Crop প্রস্তুত! Save Product চাপলে এই অংশটাই আপলোড হবে।';
-    destroyProductCropper();
-  }catch(e){showError(e)}
-}
-
 async function saveProduct(){
   const name=$('productName')?.value.trim(),category=$('productCategory')?.value.trim();
   const priceRaw=$('productPrice')?.value ?? '0';
@@ -333,10 +193,8 @@ async function saveProduct(){
     return;
   }
 
-  const active=$('productActive')?.value==='true';
-  let file=croppedProductFile||$('productImage')?.files?.[0];
+  const active=$('productActive')?.value==='true',file=$('productImage')?.files?.[0];
   if(!name){alert('Product name is required.');return}
-  if($('productImage')?.files?.length && !croppedProductFile && !productCropper){alert('ছবি crop tool প্রস্তুত হয়নি। ইন্টারনেট সংযোগ পরীক্ষা করে ছবিটি আবার নির্বাচন করো।');return}
 
   try{
     const isEdit=!!editingProductId;
@@ -346,11 +204,7 @@ async function saveProduct(){
     const btn=$('saveProductBtn');
     if(btn){btn.disabled=true;btn.textContent='Saving...'}
 
-    if(file){
-      if(productCropper)file=await makeCroppedProductFile();
-      if(!file)throw new Error('Please select and crop the product image first.');
-      image=await uploadImage(file,id);
-    }
+    if(file)image=await uploadImage(file,id);
 
     const {error}=await sb.from('products').upsert(
       {id,name,category,price,discount,stock,active,image},
@@ -818,7 +672,6 @@ function go(section){
   const titles={
     dashboard:['Dashboard','Store overview'],
     products:['Products','Manage products'],
-    offers:['Offers & Deals','Manage promotions and schedules'],
     orders:['Orders','Manage customer orders'],
     customers:['Customers','Customer list'],
     categories:['Categories','Manage categories'],
@@ -837,7 +690,7 @@ function go(section){
 }
 function render(){
   const c=$('content');if(!c)return;
-  const map={dashboard,products,offers,orders,customers,categories,delivery,payments,settings};
+  const map={dashboard,products,orders,customers,categories,delivery,payments,settings};
   c.innerHTML=(map[currentSection]||dashboard)();
 }
 function toggleSidebar(force){
@@ -942,59 +795,6 @@ async function importData(e){
 }
 
 /* =========================================================
-   OFFERS & DEALS — requires offers_setup.sql
-========================================================= */
-function offers(){
- return `<div class="section-head"><div><h3>Offers & Deals</h3><p>Create and schedule Deal Zone promotions shown on the customer website.</p></div><button class="btn primary" onclick="addOffer()">＋ Create Offer</button></div>
- <div class="table-wrap"><table class="table"><thead><tr><th>Offer</th><th>Type</th><th>Discount / Combo</th><th>Combo products</th><th>Schedule</th><th>Status</th><th>Actions</th></tr></thead><tbody>${offersCache.length?offersCache.map((o,i)=>`<tr><td><b>${esc(o.title)}</b><br><small>${esc(o.description||'')}</small></td><td>${esc(o.offer_type)}</td><td>${Number(o.discount_percent||0)>0?Number(o.discount_percent)+'% off':o.combo_price?money(o.combo_price):'Special deal'}</td><td>${(Array.isArray(o.product_ids)?o.product_ids:[]).map(id=>productsCache.find(p=>String(p.id)===String(id))?.name).filter(Boolean).map(esc).join(', ')||'—'}</td><td>${o.starts_at?new Date(o.starts_at).toLocaleString():'Now'}<br>→ ${o.ends_at?new Date(o.ends_at).toLocaleString():'No end'}</td><td><span class="pill ${o.active?'green':'red'}">${o.active?'Active':'Inactive'}</span></td><td class="actions"><button class="btn muted" onclick="editOffer(${i})">Edit</button><button class="btn danger" onclick="deleteOffer(${i})">Delete</button></td></tr>`).join(''):`<tr><td colspan="7" class="empty">No offers yet. Create your first offer.</td></tr>`}</tbody></table></div>
- <p class="muted" style="margin-top:12px">Note: this version displays scheduled offers in Deal Zone. Percentage offers affect checkout only when the relevant product's own discount is also set in Products. Combo offers now save the selected products and combo price. The customer checkout still needs secure server-side price validation before a combo price can be charged automatically.</p>`;
-}
-function offerForm(o={}){
- const chosen=(Array.isArray(o.product_ids)?o.product_ids:[]).map(String);
- const productPicker=productsCache.map(p=>`<label class="combo-product-choice"><input class="offer-product-check" type="checkbox" value="${esc(p.id)}" ${chosen.includes(String(p.id))?'checked':''}><img src="${esc(p.image||'')}" alt="" onerror="this.style.visibility='hidden'"><span><b>${esc(p.name)}</b><small>${money(p.price)} · Stock ${Number(p.stock||0)}</small></span></label>`).join('');
- return `<div class="form-grid">
- <label>Offer title<input id="offerTitle" value="${esc(o.title||'')}" placeholder="Weekend Combo Deal" required></label>
- <label>Offer type<select id="offerType">${['Combo Deals','Flash Sale','Big Discount','Special Offers','Limited-Time Deals','Best Deals','Clearance Sale'].map(t=>`<option ${o.offer_type===t?'selected':''}>${t}</option>`).join('')}</select></label>
- <label>Discount percent<input id="offerDiscount" type="number" min="0" max="100" value="${Number(o.discount_percent||0)}"></label>
- <label>Combo price (৳)<input id="offerComboPrice" type="number" min="0" step="1" value="${o.combo_price??''}"></label>
- <div class="full"><label for="offerCoverImage">Combo/offer cover image</label><input id="offerCoverImage" type="file" accept="image/*"><small>Choose a clear image for the offer card. ${o.cover_image?'An existing cover image is saved.':''}</small><div id="offerCoverPreview" class="offer-cover-preview">${o.cover_image?`<img src="${esc(o.cover_image)}" alt="Current offer cover">`:'No cover selected yet.'}</div></div>
- <div class="full"><label>Choose products included in this offer</label><input id="offerProductSearch" type="search" placeholder="Search products by name..." oninput="filterOfferProducts(this.value)"><div class="combo-product-picker" id="comboProductPicker">${productPicker||'<p>No products found. Add products first.</p>'}</div><small>For Combo Deals, select at least two products. Selected products and their images will be shown on the customer Deal page.</small></div>
- <label>Starts at (optional)<input id="offerStarts" type="datetime-local" value="${o.starts_at?new Date(new Date(o.starts_at).getTime()-new Date(o.starts_at).getTimezoneOffset()*60000).toISOString().slice(0,16):''}"></label>
- <label>Ends at (optional)<input id="offerEnds" type="datetime-local" value="${o.ends_at?new Date(new Date(o.ends_at).getTime()-new Date(o.ends_at).getTimezoneOffset()*60000).toISOString().slice(0,16):''}"></label>
- <label class="full">Description<textarea id="offerDescription" rows="3">${esc(o.description||'')}</textarea></label>
- <label class="check-label"><input id="offerActive" type="checkbox" ${o.active!==false?'checked':''}> Offer is active</label>
- </div><div class="modal-actions"><button class="btn muted" onclick="closeModal()">Cancel</button><button class="btn primary" onclick="saveOffer()">Save Offer</button></div>`;
-}
-function filterOfferProducts(query){
- const q=String(query||'').toLowerCase();
- document.querySelectorAll('.combo-product-choice').forEach(el=>{el.style.display=el.textContent.toLowerCase().includes(q)?'flex':'none';});
-}
-
-function addOffer(){editingOfferId=null;openModal('Create Offer',offerForm())}
-function editOffer(i){const o=offersCache[i];if(!o)return;editingOfferId=o.id;openModal('Edit Offer',offerForm(o))}
-async function saveOffer(){
- const title=$('offerTitle')?.value.trim();if(!title)return alert('Offer title is required.');
- const starts=$('offerStarts')?.value,ends=$('offerEnds')?.value;if(starts&&ends&&new Date(ends)<=new Date(starts))return alert('End time must be after start time.');
- const pct=Number($('offerDiscount')?.value||0);if(pct<0||pct>100)return alert('Discount must be between 0 and 100.');
- const productIds=[...document.querySelectorAll('.offer-product-check:checked')].map(x=>x.value);
- if($('offerType').value==='Combo Deals'&&productIds.length<2)return alert('Select at least two products for a Combo Deal.');
- const comboPrice=$('offerComboPrice').value?Number($('offerComboPrice').value):null;
- if($('offerType').value==='Combo Deals'&&(!comboPrice||comboPrice<=0))return alert('Enter a valid combo price.');
- const payload={title,offer_type:$('offerType').value,description:$('offerDescription').value.trim(),discount_percent:pct,combo_price:comboPrice,product_ids:productIds,starts_at:starts?new Date(starts).toISOString():null,ends_at:ends?new Date(ends).toISOString():null,active:$('offerActive').checked};
- try{
-  const file=$('offerCoverImage')?.files?.[0];
-  if(file){const path=`offers/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g,'_')}`;const {error:upErr}=await sb.storage.from(BUCKET).upload(path,file,{upsert:true,contentType:file.type});if(upErr)throw upErr;payload.cover_image=sb.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;}
-  if(editingOfferId){const existing=offersCache.find(x=>String(x.id)===String(editingOfferId));if(!payload.cover_image&&existing?.cover_image)payload.cover_image=existing.cover_image;}
-  const q=editingOfferId?sb.from('offers').update(payload).eq('id',editingOfferId):sb.from('offers').insert(payload);
-  const {error}=await q;if(error)throw error;
-  const {data,error:e}=await sb.from('offers').select('*').order('created_at',{ascending:false});if(e)throw e;
-  offersCache=data||[];closeModal();render();alert('Offer saved.');
- }catch(e){showError(e)}
-}
-
-async function deleteOffer(i){const o=offersCache[i];if(!o||!confirm(`Delete offer “${o.title}”?`))return;try{const {error}=await sb.from('offers').delete().eq('id',o.id);if(error)throw error;offersCache=offersCache.filter(x=>x.id!==o.id);render()}catch(e){showError(e)}}
-
-/* =========================================================
    START
 ========================================================= */
 
@@ -1040,7 +840,6 @@ window.$=$;
 window.login=login;
 window.logout=logout;
 window.go=go;
-window.addOffer=addOffer;window.editOffer=editOffer;window.saveOffer=saveOffer;window.deleteOffer=deleteOffer;
 window.render=render;
 
 window.closeModal=closeModal;

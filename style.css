@@ -290,3 +290,6 @@ body.deals-open{overflow:hidden}
 .combo-cart-products{display:block;line-height:1.45;margin:3px 0 5px;color:#b7cde0}
 .combo-cart-row .mini-img{font-size:27px}
 @media(max-width:360px){.offer-card-actions{grid-template-columns:1fr}.offer-card-actions button{font-size:13px}}
+
+/* Feature pack: wishlist, compare, coupons and recommendations */
+.extra-product-actions,.saved-tools{display:flex;gap:8px;margin-top:9px;flex-wrap:wrap}.extra-product-actions button,.saved-tools button{flex:1;min-width:0;border:1px solid #244867;background:#0a2036;color:#bfe8ff;border-radius:10px;padding:9px 7px;font-size:12px}.saved-tools{margin:12px 0 4px}.saved-tools button{flex:0 1 auto;font-size:13px;padding:10px 13px}.coupon-box{padding:13px;background:#0b2037;border:1px solid var(--line);border-radius:13px;margin:14px 0}.coupon-box label{margin-top:0}.coupon-row{display:grid;grid-template-columns:1fr 100px;gap:8px}.coupon-row input{width:100%;min-width:0;background:#07182a;color:var(--text);border:1px solid var(--line);border-radius:10px;padding:11px}.coupon-box small{display:block;color:var(--muted);margin-top:7px}.coupon-discount-row{display:flex;justify-content:space-between;margin-top:9px;color:#72e5c2}.smart-recommendations{padding-top:8px}

@@ -17,6 +17,10 @@ try {
 } catch(e) { cart=[]; }
 let currentCategory="All Products",selectedDistrict="",selectedUpazila="";
 let locationData=[],locationLoaded=false;
+let wishlistIds=new Set(JSON.parse(localStorage.getItem("gbbd_wishlist")||"[]").map(String));
+let compareIds=new Set(JSON.parse(localStorage.getItem("gbbd_compare")||"[]").map(String));
+let appliedCoupon="";
+const COUPONS={WELCOME5:{type:"percent",value:5,min:500},GADGET50:{type:"flat",value:50,min:1000}};
 
 function toast(msg){
  let t=$("gbToast"); if(!t){t=document.createElement("div");t.id="gbToast";t.className="gb-toast";document.body.appendChild(t);}
@@ -230,6 +234,9 @@ function filteredProducts(){
  if(s==="featured")a.sort((x,y)=>Number(y.featured)-Number(x.featured));
  return a;
 }
+function toggleWishlist(id){id=String(id);if(wishlistIds.has(id)){wishlistIds.delete(id);toast("Removed from Wishlist")}else{wishlistIds.add(id);toast("Added to Wishlist")}localStorage.setItem("gbbd_wishlist",JSON.stringify([...wishlistIds]));renderProducts();}
+function toggleCompare(id){id=String(id);if(compareIds.has(id)){compareIds.delete(id);toast("Removed from Compare")}else{if(compareIds.size>=3)return toast("Compare up to 3 products");compareIds.add(id);toast("Added to Compare")}localStorage.setItem("gbbd_compare",JSON.stringify([...compareIds]));renderProducts();}
+function showSavedProducts(kind){const ids=kind==="wishlist"?[...wishlistIds]:[...compareIds];const list=ids.map(getProduct).filter(Boolean);if(!list.length)return toast(kind==="wishlist"?"Your Wishlist is empty":"Choose products to compare first");const details=list.map(p=>`${p.name} — ${money(finalPrice(p))} — ${p.cat} — Stock: ${p.stock}`).join("\n");alert((kind==="wishlist"?"WISHLIST":"PRODUCT COMPARISON")+"\n\n"+details);}
 function renderProducts(){
  let g=$("productsGrid");if(!g)return;let a=filteredProducts();
  if($("sectionTitle"))$("sectionTitle").textContent=currentCategory;
@@ -237,9 +244,10 @@ function renderProducts(){
  g.innerHTML=a.map(p=>{
   let sold=p.stock<=0,disc=p.discount>0,price=disc?Math.max(0,p.price-p.price*p.discount/100):p.price;
   let id=String(p.id).replace(/'/g,"\\'");
-  return `<article class="product-card"><div class="product-img">${p.image?`<img src="${esc(p.image)}" alt="${esc(p.name)}" loading="lazy" style="width:100%;height:100%;object-fit:contain;border-radius:14px" onerror="this.remove()">`:p.emoji}</div><div class="category">${esc(p.cat)}</div><h3>${esc(p.name)}</h3><div class="price">${money(price)} ${disc?`<del style="font-size:12px;color:#7895af">${money(p.price)}</del>`:""}</div><div class="product-actions"><button class="add-btn" ${sold?"disabled":""} onclick="addToCart('${id}')">${sold?"Out of Stock":"Add to Cart"}</button><button class="buy-btn" ${sold?"disabled":""} onclick="buyNow('${id}')">${sold?"Out of Stock":"Buy Now"}</button></div></article>`;
+  return `<article class="product-card"><div class="product-img">${p.image?`<img src="${esc(p.image)}" alt="${esc(p.name)}" loading="lazy" style="width:100%;height:100%;object-fit:contain;border-radius:14px" onerror="this.remove()">`:p.emoji}</div><div class="category">${esc(p.cat)}</div><h3>${esc(p.name)}</h3><div class="price">${money(price)} ${disc?`<del style="font-size:12px;color:#7895af">${money(p.price)}</del>`:""}</div><div class="product-actions"><button class="add-btn" ${sold?"disabled":""} onclick="addToCart('${id}')">${sold?"Out of Stock":"Add to Cart"}</button><button class="buy-btn" ${sold?"disabled":""} onclick="buyNow('${id}')">${sold?"Out of Stock":"Buy Now"}</button></div><div class="extra-product-actions"><button type="button" onclick="toggleWishlist('${id}')">${wishlistIds.has(String(p.id))?"♥ Saved":"♡ Wishlist"}</button><button type="button" onclick="toggleCompare('${id}')">${compareIds.has(String(p.id))?"✓ Comparing":"⇄ Compare"}</button></div></article>`;
  }).join("")||`<div class="empty" style="grid-column:1/-1">No products found.</div>`;
 }
+function renderSmartRecommendations(){let old=$("smartRecommendations");if(old)old.remove();if(!products.length)return;let seed=products.find(p=>p.featured)||products[0];let picks=products.filter(p=>p.cat===seed.cat&&String(p.id)!==String(seed.id)&&p.stock>0).slice(0,3);if(!picks.length)picks=products.filter(p=>String(p.id)!==String(seed.id)&&p.stock>0).slice(0,3);if(!picks.length)return;let section=document.createElement("section");section.id="smartRecommendations";section.className="shop smart-recommendations";section.innerHTML=`<div class="section-head"><h2>✨ Smart Picks For You</h2><span>Based on product category and availability</span></div><div class="products-grid">${picks.map(p=>`<article class="product-card"><div class="product-img">${p.image?`<img src="${esc(p.image)}" alt="${esc(p.name)}" style="width:100%;height:100%;object-fit:contain">`:p.emoji}</div><div class="category">${esc(p.cat)}</div><h3>${esc(p.name)}</h3><div class="price">${money(finalPrice(p))}</div><button class="add-btn" onclick="addToCart('${String(p.id).replace(/'/g,"\'")}')">Add to Cart</button></article>`).join("")}</div>`;$("products")?.insertAdjacentElement("afterend",section);}
 function getProduct(id){return products.find(p=>String(p.id)===String(id));}
 function finalPrice(p){return p.discount>0?Math.max(0,p.price-p.price*p.discount/100):p.price;}
 function cartUnitPrice(item){if(item?.type==="combo"){const offer=getOffer(item.offerId);return offer?offerUnitPrice(offer):0;}const p=getProduct(item?.id);return p?finalPrice(p):0;}
@@ -256,7 +264,7 @@ function getDeliveryFee(){
 }
 function totals(){
  let subtotal=cart.reduce((sum,item)=>sum+cartUnitPrice(item)*item.qty,0);
- let delivery=subtotal?getDeliveryFee():0;return{subtotal,delivery,total:subtotal+delivery};
+ let delivery=subtotal?getDeliveryFee():0;let coupon=COUPONS[appliedCoupon];let discount=coupon&&subtotal>=coupon.min?(coupon.type==="percent"?Math.round(subtotal*coupon.value/100):coupon.value):0;if(coupon&&subtotal<coupon.min)discount=0;return{subtotal,delivery,discount,total:Math.max(0,subtotal+delivery-discount)};
 }
 function updateDeliveryInfo(){
  let b=$("deliveryInfo");if(!b)return;
@@ -266,7 +274,7 @@ function updateDeliveryInfo(){
 }
 function updateCart(){
  let c=$("cartCount");if(c)c.textContent=cart.reduce((sum,item)=>sum+item.qty,0);
- let t=totals();["cartSubtotal","cartDelivery","cartTotal","checkoutTotal"].forEach((id,i)=>{let e=$(id);if(e)e.textContent=money([t.subtotal,t.delivery,t.total,t.total][i]);});
+ let t=totals();["cartSubtotal","cartDelivery","cartTotal","checkoutTotal"].forEach((id,i)=>{let e=$(id);if(e)e.textContent=money([t.subtotal,t.delivery,t.total,t.total][i]);});let dc=$("couponDiscount");if(dc)dc.textContent=money(t.discount);let ca=$("couponStatus");if(ca)ca.textContent=appliedCoupon?(t.discount?`Coupon ${appliedCoupon} applied`:`Coupon ${appliedCoupon}: minimum order ${money(COUPONS[appliedCoupon]?.min||0)}`):"Try WELCOME5 or GADGET50";
  let cb=$("checkoutBtn");if(cb)cb.disabled=!cart.length||!enabledPaymentTypes().length;
  let box=$("cartItems");if(!box)return;
  box.innerHTML=cart.length?cart.map(item=>{
@@ -354,22 +362,23 @@ async function setupLocationPickers(){
 
 function makeOrderId(){return"GBBD-"+Date.now().toString().slice(-8);}
 async function submitOrderToSupabase(o){
- let row={order_number:o.orderId,customer_name:o.customer.name,phone:o.customer.phone,district:o.customer.district,upazila:o.customer.area,address:o.customer.address,note:o.note||null,items:o.items,subtotal:Number(o.subtotal)||0,delivery_charge:Number(o.delivery)||0,total:Number(o.total)||0,payment_method:o.paymentMethod||"Cash on Delivery",transaction_id:o.transactionId||null,status:"Pending"};
+ let row={order_number:o.orderId,customer_name:o.customer.name,phone:o.customer.phone,district:o.customer.district,upazila:o.customer.area,address:o.customer.address,note:[o.note,o.couponCode?`Coupon: ${o.couponCode}`:""].filter(Boolean).join(" | ")||null,items:o.items,subtotal:Number(o.subtotal)||0,delivery_charge:Number(o.delivery)||0,total:Number(o.total)||0,payment_method:o.paymentMethod||"Cash on Delivery",transaction_id:o.transactionId||null,status:"Pending"};
  let {data,error}=await sb.from("orders").insert(row).select();if(error)throw error;console.log("ORDER SAVED",data);
 }
 
+function applyCoupon(){const input=$("couponCode");const code=String(input?.value||"").trim().toUpperCase();if(!code){appliedCoupon="";updateCart();return toast("Enter a coupon code")}if(!COUPONS[code])return toast("Invalid coupon code");appliedCoupon=code;updateCart();toast("Coupon checked");}
 function initCustomerUI(){
  $("menuBtn")&&( $("menuBtn").onclick=openMenu);$("cartBtn")&&($("cartBtn").onclick=openCart);$("overlay")&&($("overlay").onclick=()=>{closeMenu();closeCart();});
  document.querySelectorAll('[data-close="menu"]').forEach(x=>x.onclick=closeMenu);document.querySelectorAll('[data-close="cart"]').forEach(x=>x.onclick=closeCart);document.querySelectorAll('[data-close="checkout"]').forEach(x=>x.onclick=closeCheckout);
  $("searchInput")?.addEventListener("input",renderProducts);$("sortSelect")?.addEventListener("change",renderProducts);
  document.querySelectorAll('input[name="payment"]').forEach(r=>r.addEventListener("change",updateTransactionBox));
- $("checkoutBtn")&&($("checkoutBtn").onclick=openCheckout);
+ $("checkoutBtn")&&($("checkoutBtn").onclick=openCheckout);$("applyCouponBtn")?.addEventListener("click",applyCoupon);
  $("checkoutForm")?.addEventListener("submit",async e=>{
   e.preventDefault();if(!cart.length)return;let f=new FormData(e.target),payment=String(f.get("payment")||""),tid=String(f.get("transactionId")||"").trim(),type=ptype({value:payment});
   if(!isPaymentMethodEnabled(payment))return alert("The selected payment method is currently unavailable.");
   if((type==="bkash"||type==="nagad")&&!tid)return alert("Please enter the transaction ID for the selected payment method.");
   if(!selectedDistrict||!selectedUpazila)return alert("Please select a district and upazila from the suggestions.");
-  let t=totals(),o={orderId:makeOrderId(),createdAt:new Date().toISOString(),customer:{name:String(f.get("name")||"").trim(),phone:String(f.get("phone")||"").trim(),district:selectedDistrict,area:selectedUpazila,address:String(f.get("address")||"").trim()},paymentMethod:payment,transactionId:type==="cod"?"":tid,note:String(f.get("note")||"").trim(),items:cart.map(item=>{
+  let t=totals(),o={orderId:makeOrderId(),createdAt:new Date().toISOString(),customer:{name:String(f.get("name")||"").trim(),phone:String(f.get("phone")||"").trim(),district:selectedDistrict,area:selectedUpazila,address:String(f.get("address")||"").trim()},paymentMethod:payment,transactionId:type==="cod"?"":tid,note:String(f.get("note")||"").trim(),couponCode:appliedCoupon||"",items:cart.map(item=>{
    if(item.type==="combo"){
     const offer=getOffer(item.offerId);if(!offer)return null;
     return{id:`combo:${offer.id}`,name:offer.title||"Combo Deal",price:offerUnitPrice(offer),qty:item.qty,is_combo:true,products:offerProducts(offer).map(p=>({id:p.id,name:p.name,price:finalPrice(p),qty:item.qty}))};
@@ -378,7 +387,7 @@ function initCustomerUI(){
   }).filter(Boolean),subtotal:t.subtotal,delivery:t.delivery,total:t.total};
   try{await submitOrderToSupabase(o);}catch(err){console.error(err);return alert("ORDER ERROR\n\nMessage: "+(err.message||"Unknown")+"\nCode: "+(err.code||"N/A"));}
   localStorage.setItem("gbbd_last_order",JSON.stringify(o));let orders=JSON.parse(localStorage.getItem("gbbd_orders")||"[]");orders.unshift(o);localStorage.setItem("gbbd_orders",JSON.stringify(orders));
-  cart=[];saveCart();e.target.reset();selectedDistrict="";selectedUpazila="";if($("districtInput"))$("districtInput").value="";if($("upazilaInput")){$("upazilaInput").value="";$("upazilaInput").disabled=true;$("upazilaInput").placeholder="Select district first...";}$("transactionBox")?.classList.add("hidden");updateDeliveryInfo();closeCheckout();if($("successOrderId"))$("successOrderId").textContent=o.orderId;$("successModal")?.classList.remove("hidden");
+  cart=[];saveCart();appliedCoupon="";e.target.reset();selectedDistrict="";selectedUpazila="";if($("districtInput"))$("districtInput").value="";if($("upazilaInput")){$("upazilaInput").value="";$("upazilaInput").disabled=true;$("upazilaInput").placeholder="Select district first...";}$("transactionBox")?.classList.add("hidden");updateDeliveryInfo();closeCheckout();if($("successOrderId"))$("successOrderId").textContent=o.orderId;$("successModal")?.classList.remove("hidden");
  });
 }
 
@@ -390,7 +399,8 @@ async function trackOrdersByPhone(){
  }catch(e){console.error(e);box.innerHTML=`<div class="tracking-error"><strong>Something went wrong.</strong><p>Please try again.</p></div>`;}finally{if(btn){btn.disabled=false;btn.textContent="Track Orders";}}
 }
 
-async function startCustomerSite(){initCustomerUI();renderProducts();updateCart();await refreshStore();setupLocationPickers();}
+async function startCustomerSite(){initCustomerUI();renderProducts();updateCart();await refreshStore();setupLocationPickers();renderSmartRecommendations();}
+window.toggleWishlist=toggleWishlist;window.toggleCompare=toggleCompare;window.showSavedProducts=showSavedProducts;window.applyCoupon=applyCoupon;
 window.showDealType=showDealType;
 window.viewOfferProducts=viewOfferProducts;
 window.addOfferToCart=addOfferToCart;

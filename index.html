@@ -16,7 +16,7 @@
     rel="stylesheet"
   >
 
-  <link rel="stylesheet" href="style.css?v=gbbd-combo-cropfix-20261014-v3">
+  <link rel="stylesheet" href="style.css?v=gbbd-featurepack-20261015-v1">
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
@@ -286,6 +286,8 @@
 
     </div>
 
+
+    <div class="saved-tools"><button type="button" onclick="showSavedProducts('wishlist')">♡ My Wishlist</button><button type="button" onclick="showSavedProducts('compare')">⇄ Compare Products</button></div>
 
     <div class="section-head">
 
@@ -627,6 +629,8 @@
       </label>
 
 
+      <div class="coupon-box"><label for="couponCode">Coupon code</label><div class="coupon-row"><input id="couponCode" type="text" maxlength="24" placeholder="WELCOME5 or GADGET50"><button id="applyCouponBtn" type="button" class="add-btn">Apply</button></div><small id="couponStatus">Try WELCOME5 or GADGET50</small><div class="coupon-discount-row"><span>Coupon discount</span><strong id="couponDiscount">৳0</strong></div></div>
+
       <h3>
         Payment Method
       </h3>
@@ -804,7 +808,7 @@
 </footer>
 
 
-<script src="script.js?v=gbbd-combo-cropfix-20261014-v3"></script>
+<script src="script.js?v=gbbd-featurepack-20261015-v1"></script>
 
 </body>
 </html>
