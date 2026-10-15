@@ -293,3 +293,28 @@ body.deals-open{overflow:hidden}
 
 /* Feature pack: wishlist, compare, coupons and recommendations */
 .extra-product-actions,.saved-tools{display:flex;gap:8px;margin-top:9px;flex-wrap:wrap}.extra-product-actions button,.saved-tools button{flex:1;min-width:0;border:1px solid #244867;background:#0a2036;color:#bfe8ff;border-radius:10px;padding:9px 7px;font-size:12px}.saved-tools{margin:12px 0 4px}.saved-tools button{flex:0 1 auto;font-size:13px;padding:10px 13px}.coupon-box{padding:13px;background:#0b2037;border:1px solid var(--line);border-radius:13px;margin:14px 0}.coupon-box label{margin-top:0}.coupon-row{display:grid;grid-template-columns:1fr 100px;gap:8px}.coupon-row input{width:100%;min-width:0;background:#07182a;color:var(--text);border:1px solid var(--line);border-radius:10px;padding:11px}.coupon-box small{display:block;color:var(--muted);margin-top:7px}.coupon-discount-row{display:flex;justify-content:space-between;margin-top:9px;color:#72e5c2}.smart-recommendations{padding-top:8px}
+
+
+/* Saved products: real in-page Wishlist and Compare views */
+.saved-products-panel{max-width:1200px;margin:18px auto 42px;padding:clamp(16px,3vw,28px);border:1px solid rgba(64,174,235,.28);border-radius:20px;background:linear-gradient(145deg,rgba(12,34,57,.98),rgba(6,20,35,.98));scroll-margin-top:90px}
+.saved-panel-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-bottom:18px}
+.saved-panel-head h2{margin:8px 0;font-size:clamp(23px,4vw,32px)}
+.saved-panel-head p:last-child{margin:0;color:var(--muted);font-size:13px}
+.saved-panel-close,.saved-remove-btn{border:1px solid rgba(130,184,226,.25);background:#102740;color:#eaf7ff;border-radius:10px;padding:10px 13px;font-weight:600}
+.saved-empty{text-align:center;padding:32px 14px;color:var(--muted)}
+.saved-empty>div{font-size:42px;color:#63cfff}
+.saved-empty h3{color:#fff;margin:8px 0}
+.saved-empty p{max-width:460px;margin:0 auto 18px;line-height:1.7}
+.saved-stock{font-size:12px;color:var(--muted);margin:0 0 10px}
+.saved-remove-btn{width:100%;margin-top:8px;color:#ffc4c4;border-color:rgba(255,98,98,.28);background:rgba(90,24,34,.28)}
+.compare-table-wrap{width:100%;overflow-x:auto;border:1px solid var(--line);border-radius:14px}
+.compare-table{border-collapse:collapse;width:100%;min-width:540px;background:rgba(5,18,32,.6)}
+.compare-table th,.compare-table td{padding:13px;text-align:left;border-bottom:1px solid var(--line);vertical-align:middle;font-size:13px}
+.compare-table th{color:#9bdfff;background:rgba(16,45,72,.7)}
+.compare-table td{color:#eaf4ff}
+.compare-image{width:76px;height:76px;object-fit:contain;border-radius:10px;background:#10283f}
+.compare-old-price{display:block;color:var(--muted);text-decoration:line-through;font-size:11px}
+.compare-add{margin-bottom:6px}
+.menu-feature-item{color:#bfe8ff!important}
+.menu-deals-item{color:#ffd28a!important;background:rgba(255,157,48,.09)!important;border:1px solid rgba(255,190,72,.24)!important;margin-top:8px!important}
+@media(max-width:650px){.saved-products-panel{margin:14px 10px 30px;padding:14px;border-radius:15px}.saved-panel-head{gap:8px}.saved-panel-close{padding:9px;font-size:12px}.compare-table th,.compare-table td{padding:10px;font-size:12px}}

@@ -172,7 +172,7 @@ function renderCategoryMenu(){
 
   // Remove previously generated and legacy hard-coded category buttons.
   menu.querySelectorAll('[data-dynamic-category="1"]').forEach(x=>x.remove());
-  [...menu.querySelectorAll('.menu-item')].slice(1).forEach(x=>x.remove());
+  [...menu.querySelectorAll('.menu-item')].filter((x,i)=>i>0&&!x.hasAttribute('data-persistent-menu')).forEach(x=>x.remove());
 
   // Append categories in the same order as Supabase returns them.
   names.forEach(name=>{
@@ -236,7 +236,19 @@ function filteredProducts(){
 }
 function toggleWishlist(id){id=String(id);if(wishlistIds.has(id)){wishlistIds.delete(id);toast("Removed from Wishlist")}else{wishlistIds.add(id);toast("Added to Wishlist")}localStorage.setItem("gbbd_wishlist",JSON.stringify([...wishlistIds]));renderProducts();}
 function toggleCompare(id){id=String(id);if(compareIds.has(id)){compareIds.delete(id);toast("Removed from Compare")}else{if(compareIds.size>=3)return toast("Compare up to 3 products");compareIds.add(id);toast("Added to Compare")}localStorage.setItem("gbbd_compare",JSON.stringify([...compareIds]));renderProducts();}
-function showSavedProducts(kind){const ids=kind==="wishlist"?[...wishlistIds]:[...compareIds];const list=ids.map(getProduct).filter(Boolean);if(!list.length)return toast(kind==="wishlist"?"Your Wishlist is empty":"Choose products to compare first");const details=list.map(p=>`${p.name} — ${money(finalPrice(p))} — ${p.cat} — Stock: ${p.stock}`).join("\n");alert((kind==="wishlist"?"WISHLIST":"PRODUCT COMPARISON")+"\n\n"+details);}
+function closeSavedProducts(){const panel=$("savedProductsPanel");panel?.classList.add("hidden");}
+function showSavedProducts(kind){
+ const panel=$("savedProductsPanel"),content=$("savedProductsContent"),title=$("savedProductsTitle"),subtitle=$("savedProductsSubtitle");
+ if(!panel||!content)return;
+ const isWishlist=kind==="wishlist",ids=isWishlist?[...wishlistIds]:[...compareIds],list=ids.map(getProduct).filter(Boolean);
+ if(title)title.textContent=isWishlist?"♡ My Wishlist":"⇄ Compare Products";
+ if(subtitle)subtitle.textContent=isWishlist?"Products you saved for later.":"Compare price, category and stock for up to 3 products.";
+ panel.classList.remove("hidden");
+ if(!list.length){content.innerHTML=`<div class="saved-empty"><div>${isWishlist?"♡":"⇄"}</div><h3>${isWishlist?"Your Wishlist is empty":"No products selected to compare"}</h3><p>${isWishlist?"Tap the Wishlist button on any product to save it here.":"Tap Compare on product cards to add up to 3 products here."}</p><button class="primary" type="button" onclick="closeSavedProducts();document.getElementById('products').scrollIntoView({behavior:'smooth'})">Browse Products</button></div>`;}
+ else if(isWishlist){content.innerHTML=`<div class="products-grid saved-products-grid">${list.map(p=>{const id=String(p.id).replace(/'/g,"\\'");return `<article class="product-card"><div class="product-img">${p.image?`<img src="${esc(p.image)}" alt="${esc(p.name)}" loading="lazy">`:p.emoji}</div><div class="category">${esc(p.cat)}</div><h3>${esc(p.name)}</h3><div class="price">${money(finalPrice(p))} ${p.discount>0?`<del>${money(p.price)}</del>`:""}</div><p class="saved-stock">${p.stock>0?`In stock: ${p.stock}`:"Out of stock"}</p><button class="add-btn" type="button" ${p.stock<=0?"disabled":""} onclick="addToCart('${id}')">Add to Cart</button><button class="saved-remove-btn" type="button" onclick="toggleWishlist('${id}');showSavedProducts('wishlist')">Remove from Wishlist</button></article>`}).join("")}</div>`;}
+ else {content.innerHTML=`<div class="compare-table-wrap"><table class="compare-table"><thead><tr><th>Product</th>${list.map(p=>`<th>${esc(p.name)}</th>`).join("")}</tr></thead><tbody><tr><th>Image</th>${list.map(p=>`<td>${p.image?`<img class="compare-image" src="${esc(p.image)}" alt="${esc(p.name)}">`:`<span>${p.emoji}</span>`}</td>`).join("")}</tr><tr><th>Price</th>${list.map(p=>`<td><strong>${money(finalPrice(p))}</strong>${p.discount>0?`<small class="compare-old-price">${money(p.price)}</small>`:""}</td>`).join("")}</tr><tr><th>Category</th>${list.map(p=>`<td>${esc(p.cat)}</td>`).join("")}</tr><tr><th>Availability</th>${list.map(p=>`<td>${p.stock>0?`In stock (${p.stock})`:"Out of stock"}</td>`).join("")}</tr><tr><th>Action</th>${list.map(p=>{const id=String(p.id).replace(/'/g,"\\'");return `<td><button class="add-btn compare-add" type="button" ${p.stock<=0?"disabled":""} onclick="addToCart('${id}')">Add to Cart</button><button class="saved-remove-btn" type="button" onclick="toggleCompare('${id}');showSavedProducts('compare')">Remove</button></td>`}).join("")}</tr></tbody></table></div>`;}
+ panel.scrollIntoView({behavior:"smooth",block:"start"});
+}
 function renderProducts(){
  let g=$("productsGrid");if(!g)return;let a=filteredProducts();
  if($("sectionTitle"))$("sectionTitle").textContent=currentCategory;
@@ -400,7 +412,7 @@ async function trackOrdersByPhone(){
 }
 
 async function startCustomerSite(){initCustomerUI();renderProducts();updateCart();await refreshStore();setupLocationPickers();renderSmartRecommendations();}
-window.toggleWishlist=toggleWishlist;window.toggleCompare=toggleCompare;window.showSavedProducts=showSavedProducts;window.applyCoupon=applyCoupon;
+window.toggleWishlist=toggleWishlist;window.toggleCompare=toggleCompare;window.showSavedProducts=showSavedProducts;window.closeSavedProducts=closeSavedProducts;window.applyCoupon=applyCoupon;
 window.showDealType=showDealType;
 window.viewOfferProducts=viewOfferProducts;
 window.addOfferToCart=addOfferToCart;
