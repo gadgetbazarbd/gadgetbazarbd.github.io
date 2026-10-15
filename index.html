@@ -16,7 +16,7 @@
     rel="stylesheet"
   >
 
-  <link rel="stylesheet" href="style.css?v=gbbd-featurepack-20261015-v1">
+  <link rel="stylesheet" href="style.css?v=gbbd-wishlist-compare-v2-20261015">
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
@@ -162,9 +162,10 @@
     🏠 All Products
   </button>
 
-  <button class="menu-item menu-feature-item" data-persistent-menu="1" type="button" onclick="showSavedProducts('wishlist');closeMenu()">♡ My Wishlist</button>
-  <button class="menu-item menu-feature-item" data-persistent-menu="1" type="button" onclick="showSavedProducts('compare');closeMenu()">⇄ Compare Products</button>
-  <button class="menu-item menu-deals-item" data-persistent-menu="1" type="button" onclick="closeMenu();openDealsPage()">🏷️ Up to 70% OFF Deals</button>
+  <div class="menu-label">Your shopping</div>
+  <button class="menu-item persistent-menu" data-persistent-menu="1" type="button" onclick="showSavedProducts('wishlist');closeMenu()">♡ My Wishlist <span class="menu-count" id="wishlistMenuCount">0</span></button>
+  <button class="menu-item persistent-menu" data-persistent-menu="1" type="button" onclick="showSavedProducts('compare');closeMenu()">⇄ Compare Products <span class="menu-count" id="compareMenuCount">0</span></button>
+  <button class="menu-item persistent-menu deals-menu-item" data-persistent-menu="1" type="button" onclick="openDealsPage();closeMenu()">🏷️ Up to 70% OFF Deals</button>
 
   <div class="menu-label">
     Shop by category
@@ -291,7 +292,18 @@
     </div>
 
 
-    <div class="saved-tools"><button type="button" onclick="showSavedProducts('wishlist')">♡ My Wishlist</button><button type="button" onclick="showSavedProducts('compare')">⇄ Compare Products</button></div>
+    <div class="saved-tools" aria-label="Saved shopping tools">
+      <button type="button" onclick="showSavedProducts('wishlist')">♡ Wishlist <span id="wishlistToolbarCount">0</span></button>
+      <button type="button" onclick="showSavedProducts('compare')">⇄ Compare <span id="compareToolbarCount">0</span></button>
+    </div>
+    <section id="savedProductsPanel" class="saved-products-panel hidden" aria-live="polite">
+      <div class="saved-panel-head">
+        <div><p class="saved-panel-eyebrow" id="savedPanelEyebrow">YOUR SAVED ITEMS</p><h2 id="savedPanelTitle">My Wishlist</h2><p id="savedPanelSubtitle">Keep products you like in one place.</p></div>
+        <button type="button" class="saved-panel-close" onclick="closeSavedProducts()" aria-label="Close saved products">✕</button>
+      </div>
+      <div id="savedPanelTools" class="saved-panel-tools hidden"><label class="diff-toggle"><input type="checkbox" id="compareDifferencesOnly" onchange="renderSavedPanel()"> Show differences only</label><span id="compareLimitNote">Compare up to 3 products</span></div>
+      <div id="savedPanelContent" class="saved-panel-content"></div>
+    </section>
 
     <div class="section-head">
 
@@ -311,17 +323,6 @@
 
   </section>
 
-  <section id="savedProductsPanel" class="saved-products-panel hidden" aria-live="polite">
-    <div class="saved-panel-head">
-      <div>
-        <p class="eyebrow">YOUR SAVED ITEMS</p>
-        <h2 id="savedProductsTitle">My Wishlist</h2>
-        <p id="savedProductsSubtitle">Your saved products appear here.</p>
-      </div>
-      <button class="saved-panel-close" type="button" onclick="closeSavedProducts()" aria-label="Close saved products">✕ Close</button>
-    </div>
-    <div id="savedProductsContent"></div>
-  </section>
 
   <section id="dealsPage" class="deals-page hidden" aria-label="All discount deals" aria-modal="true" role="dialog">
     <div class="deals-page-inner">
@@ -823,7 +824,7 @@
 </footer>
 
 
-<script src="script.js?v=gbbd-featurepack-20261015-v1"></script>
+<script src="script.js?v=gbbd-wishlist-compare-v2-20261015"></script>
 
 </body>
 </html>

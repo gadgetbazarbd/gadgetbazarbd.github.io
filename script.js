@@ -17,8 +17,9 @@ try {
 } catch(e) { cart=[]; }
 let currentCategory="All Products",selectedDistrict="",selectedUpazila="";
 let locationData=[],locationLoaded=false;
-let wishlistIds=new Set(JSON.parse(localStorage.getItem("gbbd_wishlist")||"[]").map(String));
-let compareIds=new Set(JSON.parse(localStorage.getItem("gbbd_compare")||"[]").map(String));
+function loadSavedIds(key,limit=Infinity){try{const v=JSON.parse(localStorage.getItem(key)||"[]");return new Set((Array.isArray(v)?v:[]).map(String).slice(0,limit));}catch(e){console.warn("Saved product list could not be read",key,e);return new Set();}}
+let wishlistIds=loadSavedIds("gbbd_wishlist");
+let compareIds=loadSavedIds("gbbd_compare",3);
 let appliedCoupon="";
 const COUPONS={WELCOME5:{type:"percent",value:5,min:500},GADGET50:{type:"flat",value:50,min:1000}};
 
@@ -29,11 +30,16 @@ function toast(msg){
 }
 function saveCart(){try{localStorage.setItem("gbbd_cart",JSON.stringify(cart));}catch(e){console.warn("Cart could not be saved locally",e);}updateCart();}
 function esc(v){return String(v??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]));}
+function jsArg(v){return "'"+String(v??'').replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/\r/g,'\\r').replace(/\n/g,'\\n').replace(/</g,'\\x3c')+"'";}
 
 function normalizeProduct(r){return{
  id:r.id,name:r.name||r.product_name||"Unnamed Product",cat:String(r.category||r.cat||"Other").trim(),
  price:Number(r.price||0),discount:Number(r.discount||0),stock:Number(r.stock??r.stock_quantity??0),
- image:r.image||r.image_url||"",featured:!!r.featured,emoji:r.emoji||"📦"
+ image:r.image||r.image_url||"",featured:!!r.featured,emoji:r.emoji||"📦",
+ brand:r.brand||"",model:r.model||"",description:r.description||"",
+ specifications:r.specifications??r.specs??r.features??r.attributes??null,
+ warranty:r.warranty||r.warranty_period||"",color:r.color||"",connectivity:r.connectivity||"",
+ battery_life:r.battery_life||"",compatibility:r.compatibility||""
 };}
 
 
@@ -172,7 +178,7 @@ function renderCategoryMenu(){
 
   // Remove previously generated and legacy hard-coded category buttons.
   menu.querySelectorAll('[data-dynamic-category="1"]').forEach(x=>x.remove());
-  [...menu.querySelectorAll('.menu-item')].filter((x,i)=>i>0&&!x.hasAttribute('data-persistent-menu')).forEach(x=>x.remove());
+  [...menu.querySelectorAll('.menu-item')].slice(1).filter(x=>x.dataset.persistentMenu!=='1').forEach(x=>x.remove());
 
   // Append categories in the same order as Supabase returns them.
   names.forEach(name=>{
@@ -234,20 +240,76 @@ function filteredProducts(){
  if(s==="featured")a.sort((x,y)=>Number(y.featured)-Number(x.featured));
  return a;
 }
-function toggleWishlist(id){id=String(id);if(wishlistIds.has(id)){wishlistIds.delete(id);toast("Removed from Wishlist")}else{wishlistIds.add(id);toast("Added to Wishlist")}localStorage.setItem("gbbd_wishlist",JSON.stringify([...wishlistIds]));renderProducts();}
-function toggleCompare(id){id=String(id);if(compareIds.has(id)){compareIds.delete(id);toast("Removed from Compare")}else{if(compareIds.size>=3)return toast("Compare up to 3 products");compareIds.add(id);toast("Added to Compare")}localStorage.setItem("gbbd_compare",JSON.stringify([...compareIds]));renderProducts();}
-function closeSavedProducts(){const panel=$("savedProductsPanel");panel?.classList.add("hidden");}
+function persistSavedIds(){
+ try{localStorage.setItem("gbbd_wishlist",JSON.stringify([...wishlistIds]));localStorage.setItem("gbbd_compare",JSON.stringify([...compareIds]));}
+ catch(e){console.warn("Saved products could not be stored locally",e);toast("Browser storage is unavailable");}
+ updateSavedCounters();
+}
+function updateSavedCounters(){
+ const wc=wishlistIds.size,cc=compareIds.size;
+ ["wishlistMenuCount","wishlistToolbarCount"].forEach(id=>{const el=$(id);if(el)el.textContent=String(wc)});
+ ["compareMenuCount","compareToolbarCount"].forEach(id=>{const el=$(id);if(el)el.textContent=String(cc)});
+}
+function toggleWishlist(id){
+ id=String(id);
+ if(wishlistIds.has(id)){wishlistIds.delete(id);toast("Removed from Wishlist");}
+ else{wishlistIds.add(id);toast("Added to Wishlist");}
+ persistSavedIds();renderProducts();
+ if(!$('savedProductsPanel')?.classList.contains('hidden')&&$('savedPanelTitle')?.dataset.kind==='wishlist')renderSavedPanel();
+}
+function toggleCompare(id){
+ id=String(id);
+ if(compareIds.has(id)){compareIds.delete(id);toast("Removed from Compare");}
+ else{if(compareIds.size>=3)return toast("Compare up to 3 products — remove one first");compareIds.add(id);toast("Added to Compare");}
+ persistSavedIds();renderProducts();
+ if(!$('savedProductsPanel')?.classList.contains('hidden')&&$('savedPanelTitle')?.dataset.kind==='compare')renderSavedPanel();
+}
+function closeSavedProducts(){$('savedProductsPanel')?.classList.add('hidden');}
 function showSavedProducts(kind){
- const panel=$("savedProductsPanel"),content=$("savedProductsContent"),title=$("savedProductsTitle"),subtitle=$("savedProductsSubtitle");
- if(!panel||!content)return;
- const isWishlist=kind==="wishlist",ids=isWishlist?[...wishlistIds]:[...compareIds],list=ids.map(getProduct).filter(Boolean);
- if(title)title.textContent=isWishlist?"♡ My Wishlist":"⇄ Compare Products";
- if(subtitle)subtitle.textContent=isWishlist?"Products you saved for later.":"Compare price, category and stock for up to 3 products.";
- panel.classList.remove("hidden");
- if(!list.length){content.innerHTML=`<div class="saved-empty"><div>${isWishlist?"♡":"⇄"}</div><h3>${isWishlist?"Your Wishlist is empty":"No products selected to compare"}</h3><p>${isWishlist?"Tap the Wishlist button on any product to save it here.":"Tap Compare on product cards to add up to 3 products here."}</p><button class="primary" type="button" onclick="closeSavedProducts();document.getElementById('products').scrollIntoView({behavior:'smooth'})">Browse Products</button></div>`;}
- else if(isWishlist){content.innerHTML=`<div class="products-grid saved-products-grid">${list.map(p=>{const id=String(p.id).replace(/'/g,"\\'");return `<article class="product-card"><div class="product-img">${p.image?`<img src="${esc(p.image)}" alt="${esc(p.name)}" loading="lazy">`:p.emoji}</div><div class="category">${esc(p.cat)}</div><h3>${esc(p.name)}</h3><div class="price">${money(finalPrice(p))} ${p.discount>0?`<del>${money(p.price)}</del>`:""}</div><p class="saved-stock">${p.stock>0?`In stock: ${p.stock}`:"Out of stock"}</p><button class="add-btn" type="button" ${p.stock<=0?"disabled":""} onclick="addToCart('${id}')">Add to Cart</button><button class="saved-remove-btn" type="button" onclick="toggleWishlist('${id}');showSavedProducts('wishlist')">Remove from Wishlist</button></article>`}).join("")}</div>`;}
- else {content.innerHTML=`<div class="compare-table-wrap"><table class="compare-table"><thead><tr><th>Product</th>${list.map(p=>`<th>${esc(p.name)}</th>`).join("")}</tr></thead><tbody><tr><th>Image</th>${list.map(p=>`<td>${p.image?`<img class="compare-image" src="${esc(p.image)}" alt="${esc(p.name)}">`:`<span>${p.emoji}</span>`}</td>`).join("")}</tr><tr><th>Price</th>${list.map(p=>`<td><strong>${money(finalPrice(p))}</strong>${p.discount>0?`<small class="compare-old-price">${money(p.price)}</small>`:""}</td>`).join("")}</tr><tr><th>Category</th>${list.map(p=>`<td>${esc(p.cat)}</td>`).join("")}</tr><tr><th>Availability</th>${list.map(p=>`<td>${p.stock>0?`In stock (${p.stock})`:"Out of stock"}</td>`).join("")}</tr><tr><th>Action</th>${list.map(p=>{const id=String(p.id).replace(/'/g,"\\'");return `<td><button class="add-btn compare-add" type="button" ${p.stock<=0?"disabled":""} onclick="addToCart('${id}')">Add to Cart</button><button class="saved-remove-btn" type="button" onclick="toggleCompare('${id}');showSavedProducts('compare')">Remove</button></td>`}).join("")}</tr></tbody></table></div>`;}
- panel.scrollIntoView({behavior:"smooth",block:"start"});
+ const panel=$('savedProductsPanel');if(!panel)return;
+ const title=$('savedPanelTitle');if(title)title.dataset.kind=kind==='wishlist'?'wishlist':'compare';
+ panel.classList.remove('hidden');
+ if($('savedPanelTools'))$('savedPanelTools').classList.toggle('hidden',kind!=='compare');
+ if($('savedPanelEyebrow'))$('savedPanelEyebrow').textContent=kind==='wishlist'?'YOUR SAVED ITEMS':'MAKE THE RIGHT CHOICE';
+ if($('savedPanelTitle'))$('savedPanelTitle').textContent=kind==='wishlist'?'My Wishlist':'Compare Products';
+ if($('savedPanelSubtitle'))$('savedPanelSubtitle').textContent=kind==='wishlist'?'Saved gadgets, ready when you are.':'Compare price, availability and the product details we have.';
+ renderSavedPanel();panel.scrollIntoView({behavior:'smooth',block:'start'});
+}
+function productSpecEntries(p){
+ const entries=[];const add=(label,value)=>{if(value===undefined||value===null||value===''||typeof value==='object')return;entries.push([label,String(value)]);};
+ add('Brand',p.brand);add('Model',p.model);add('Warranty',p.warranty);add('Color',p.color);add('Connectivity',p.connectivity);add('Battery life',p.battery_life);add('Compatibility',p.compatibility);
+ let raw=p.specifications;
+ if(typeof raw==='string'){try{raw=JSON.parse(raw)}catch(e){raw=null}}
+ if(Array.isArray(raw)){raw.forEach((v,i)=>{if(v&&typeof v==='object')add(v.name||v.label||`Feature ${i+1}`,v.value||v.detail);else add(`Feature ${i+1}`,v)})}
+ else if(raw&&typeof raw==='object')Object.entries(raw).forEach(([k,v])=>add(k.replace(/[_-]+/g,' ').replace(/\b\w/g,c=>c.toUpperCase()),v));
+ if(p.description)add('Description',p.description);
+ return [...new Map(entries.map(([k,v])=>[k.toLowerCase(),[k,v]])).values()];
+}
+function savedProductCard(p,kind){
+ const id=jsArg(p.id),price=finalPrice(p),disc=Number(p.discount)>0,sold=p.stock<=0;
+ return `<article class="saved-product-card"><div class="saved-product-image">${p.image?`<img src="${esc(p.image)}" alt="${esc(p.name)}" loading="lazy" onerror="this.style.display='none'">`: `<span>${esc(p.emoji||'📦')}</span>`}</div><div class="saved-product-info"><span class="saved-product-category">${esc(p.cat)}</span><h3>${esc(p.name)}</h3><div class="saved-product-price">${money(price)} ${disc?`<del>${money(p.price)}</del><span class="discount-badge">${Math.round(Number(p.discount))}% OFF</span>`:''}</div><div class="saved-stock ${sold?'sold':''}">${sold?'Out of stock':`In stock: ${Math.max(0,p.stock)}`}</div><div class="saved-product-actions"><button type="button" class="add-btn" ${sold?'disabled':''} onclick="addToCart(${id})">Add to Cart</button><button type="button" class="buy-btn" ${sold?'disabled':''} onclick="buyNow(${id})">Buy Now</button><button type="button" class="saved-remove-btn" onclick="removeSavedProduct('${kind}',${id})">Remove</button></div></div></article>`;
+}
+function removeSavedProduct(kind,id){if(kind==='wishlist')wishlistIds.delete(String(id));else compareIds.delete(String(id));persistSavedIds();renderProducts();renderSavedPanel();toast(kind==='wishlist'?'Removed from Wishlist':'Removed from Compare');}
+function renderCompareTable(list){
+ const diffsOnly=!!$('compareDifferencesOnly')?.checked;
+ const specs=list.map(productSpecEntries);
+ const keys=['Price','Original price','Discount','Category','Availability','Stock'];
+ specs.forEach(a=>a.forEach(([k])=>{if(!keys.some(x=>x.toLowerCase()===k.toLowerCase()))keys.push(k)}));
+ const val=(p,entries,key)=>{const found=entries.find(([k])=>k.toLowerCase()===key.toLowerCase());if(found)return found[1];switch(key){case'Price':return finalPrice(p);case'Original price':return p.price;case'Discount':return Number(p.discount)>0?`${Math.round(p.discount)}% OFF`:'No discount';case'Category':return p.cat||'—';case'Availability':return p.stock>0?'In stock':'Out of stock';case'Stock':return Math.max(0,p.stock);default:return '—'}};
+ const lowest=Math.min(...list.filter(p=>p.stock>0).map(finalPrice));
+ const rows=keys.filter(key=>{
+  if(!diffsOnly)return true;const values=list.map((p,i)=>String(val(p,specs[i],key)));return new Set(values).size>1;
+ }).map(key=>`<tr><th scope="row">${esc(key)}</th>${list.map((p,i)=>{const v=val(p,specs[i],key),isLow=key==='Price'&&p.stock>0&&Number(v)===lowest;return `<td class="${isLow?'compare-lowest':''}">${key==='Price'?money(v):key==='Original price'?money(v):esc(v)}${isLow?'<span class="lowest-label">Lowest price</span>':''}</td>`}).join('')}</tr>`).join('');
+ return `<div class="compare-table-wrap"><table class="compare-table"><thead><tr><th scope="col">Product</th>${list.map(p=>`<th scope="col"><div class="compare-product-head"><div class="compare-product-image">${p.image?`<img src="${esc(p.image)}" alt="${esc(p.name)}" loading="lazy" onerror="this.style.display='none'">`:`<span>${esc(p.emoji||'📦')}</span>`}</div><strong>${esc(p.name)}</strong><button type="button" class="compare-remove-btn" onclick="removeSavedProduct('compare',${jsArg(p.id)})">Remove</button><div class="compare-buy-actions"><button type="button" class="add-btn" ${p.stock<=0?'disabled':''} onclick="addToCart(${jsArg(p.id)})">Add to Cart</button><button type="button" class="buy-btn" ${p.stock<=0?'disabled':''} onclick="buyNow(${jsArg(p.id)})">Buy Now</button></div></div></th>`).join('')}</tr></thead><tbody>${rows||`<tr><td colspan="${list.length+1}">No differing details found. Turn off “Show differences only” to see all details.</td></tr>`}</tbody></table></div><p class="compare-data-note">Product specifications are shown only when provided by the store. Please confirm important details before ordering.</p>`;
+}
+function renderSavedPanel(){
+ const kind=$('savedPanelTitle')?.dataset.kind||'wishlist',content=$('savedPanelContent');if(!content)return;
+ const ids=kind==='wishlist'?[...wishlistIds]:[...compareIds];let list=ids.map(getProduct).filter(Boolean);
+ if(kind==='compare'&&list.length>3){list=list.slice(0,3);compareIds=new Set(list.map(p=>String(p.id)));persistSavedIds();}
+ if(!list.length){content.innerHTML=`<div class="saved-empty"><div class="saved-empty-icon">${kind==='wishlist'?'♡':'⇄'}</div><h3>${kind==='wishlist'?'Your Wishlist is empty':'No products to compare yet'}</h3><p>${kind==='wishlist'?'Tap the heart/Wishlist button on any gadget to save it here.':'Choose up to 3 products from the catalogue and tap Compare.'}</p><button type="button" class="add-btn" onclick="closeSavedProducts();document.getElementById('products').scrollIntoView({behavior:'smooth'})">Explore Products</button></div>`;return;}
+ if(kind==='wishlist')content.innerHTML=`<div class="saved-products-grid">${list.map(p=>savedProductCard(p,'wishlist')).join('')}</div>`;
+ else content.innerHTML=renderCompareTable(list);
+ updateSavedCounters();
 }
 function renderProducts(){
  let g=$("productsGrid");if(!g)return;let a=filteredProducts();
@@ -258,6 +320,7 @@ function renderProducts(){
   let id=String(p.id).replace(/'/g,"\\'");
   return `<article class="product-card"><div class="product-img">${p.image?`<img src="${esc(p.image)}" alt="${esc(p.name)}" loading="lazy" style="width:100%;height:100%;object-fit:contain;border-radius:14px" onerror="this.remove()">`:p.emoji}</div><div class="category">${esc(p.cat)}</div><h3>${esc(p.name)}</h3><div class="price">${money(price)} ${disc?`<del style="font-size:12px;color:#7895af">${money(p.price)}</del>`:""}</div><div class="product-actions"><button class="add-btn" ${sold?"disabled":""} onclick="addToCart('${id}')">${sold?"Out of Stock":"Add to Cart"}</button><button class="buy-btn" ${sold?"disabled":""} onclick="buyNow('${id}')">${sold?"Out of Stock":"Buy Now"}</button></div><div class="extra-product-actions"><button type="button" onclick="toggleWishlist('${id}')">${wishlistIds.has(String(p.id))?"♥ Saved":"♡ Wishlist"}</button><button type="button" onclick="toggleCompare('${id}')">${compareIds.has(String(p.id))?"✓ Comparing":"⇄ Compare"}</button></div></article>`;
  }).join("")||`<div class="empty" style="grid-column:1/-1">No products found.</div>`;
+ updateSavedCounters();
 }
 function renderSmartRecommendations(){let old=$("smartRecommendations");if(old)old.remove();if(!products.length)return;let seed=products.find(p=>p.featured)||products[0];let picks=products.filter(p=>p.cat===seed.cat&&String(p.id)!==String(seed.id)&&p.stock>0).slice(0,3);if(!picks.length)picks=products.filter(p=>String(p.id)!==String(seed.id)&&p.stock>0).slice(0,3);if(!picks.length)return;let section=document.createElement("section");section.id="smartRecommendations";section.className="shop smart-recommendations";section.innerHTML=`<div class="section-head"><h2>✨ Smart Picks For You</h2><span>Based on product category and availability</span></div><div class="products-grid">${picks.map(p=>`<article class="product-card"><div class="product-img">${p.image?`<img src="${esc(p.image)}" alt="${esc(p.name)}" style="width:100%;height:100%;object-fit:contain">`:p.emoji}</div><div class="category">${esc(p.cat)}</div><h3>${esc(p.name)}</h3><div class="price">${money(finalPrice(p))}</div><button class="add-btn" onclick="addToCart('${String(p.id).replace(/'/g,"\'")}')">Add to Cart</button></article>`).join("")}</div>`;$("products")?.insertAdjacentElement("afterend",section);}
 function getProduct(id){return products.find(p=>String(p.id)===String(id));}
@@ -411,8 +474,8 @@ async function trackOrdersByPhone(){
  }catch(e){console.error(e);box.innerHTML=`<div class="tracking-error"><strong>Something went wrong.</strong><p>Please try again.</p></div>`;}finally{if(btn){btn.disabled=false;btn.textContent="Track Orders";}}
 }
 
-async function startCustomerSite(){initCustomerUI();renderProducts();updateCart();await refreshStore();setupLocationPickers();renderSmartRecommendations();}
-window.toggleWishlist=toggleWishlist;window.toggleCompare=toggleCompare;window.showSavedProducts=showSavedProducts;window.closeSavedProducts=closeSavedProducts;window.applyCoupon=applyCoupon;
+async function startCustomerSite(){initCustomerUI();updateSavedCounters();renderProducts();updateCart();await refreshStore();setupLocationPickers();renderSmartRecommendations();}
+window.toggleWishlist=toggleWishlist;window.toggleCompare=toggleCompare;window.showSavedProducts=showSavedProducts;window.closeSavedProducts=closeSavedProducts;window.renderSavedPanel=renderSavedPanel;window.removeSavedProduct=removeSavedProduct;window.applyCoupon=applyCoupon;
 window.showDealType=showDealType;
 window.viewOfferProducts=viewOfferProducts;
 window.addOfferToCart=addOfferToCart;
