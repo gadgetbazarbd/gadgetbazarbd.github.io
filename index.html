@@ -16,7 +16,7 @@
     rel="stylesheet"
   >
 
-  <link rel="stylesheet" href="style.css?v=gbbd-wishlist-compare-v2-20261015">
+  <link rel="stylesheet" href="style.css?v=gbbd-premium-neon-v3-20261016">
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
@@ -255,6 +255,10 @@
       <div class="hero-actions">
         <button class="primary" type="button" onclick="document.getElementById('products').scrollIntoView({behavior:'smooth'})">View More</button>
         <button class="discount-cta" type="button" onclick="openDealsPage()">🏷️ Up to 70% OFF Deals</button>
+      </div>
+      <div class="hero-saved-actions" aria-label="Quick saved shopping tools">
+        <button type="button" onclick="showSavedProducts('wishlist')">♡ Wishlist <span id="wishlistHeroCount">0</span></button>
+        <button type="button" onclick="showSavedProducts('compare')">⇄ Compare <span id="compareHeroCount">0</span></button>
       </div>
 
     </div>
@@ -824,7 +828,7 @@
 </footer>
 
 
-<script src="script.js?v=gbbd-wishlist-compare-v2-20261015"></script>
+<script src="script.js?v=gbbd-premium-neon-v3-20261016"></script>
 
 </body>
 </html>

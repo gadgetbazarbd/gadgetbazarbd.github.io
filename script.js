@@ -247,8 +247,8 @@ function persistSavedIds(){
 }
 function updateSavedCounters(){
  const wc=wishlistIds.size,cc=compareIds.size;
- ["wishlistMenuCount","wishlistToolbarCount"].forEach(id=>{const el=$(id);if(el)el.textContent=String(wc)});
- ["compareMenuCount","compareToolbarCount"].forEach(id=>{const el=$(id);if(el)el.textContent=String(cc)});
+ ["wishlistMenuCount","wishlistToolbarCount","wishlistHeroCount"].forEach(id=>{const el=$(id);if(el)el.textContent=String(wc)});
+ ["compareMenuCount","compareToolbarCount","compareHeroCount"].forEach(id=>{const el=$(id);if(el)el.textContent=String(cc)});
 }
 function toggleWishlist(id){
  id=String(id);
@@ -265,6 +265,18 @@ function toggleCompare(id){
  if(!$('savedProductsPanel')?.classList.contains('hidden')&&$('savedPanelTitle')?.dataset.kind==='compare')renderSavedPanel();
 }
 function closeSavedProducts(){$('savedProductsPanel')?.classList.add('hidden');}
+function viewProductDetails(id){
+ const p=getProduct(id);if(!p)return toast("Product details are not available");
+ let modal=$('productDetailsModal');
+ if(!modal){modal=document.createElement('div');modal.id='productDetailsModal';modal.className='product-details-modal';modal.setAttribute('role','dialog');modal.setAttribute('aria-modal','true');modal.innerHTML='<div class="product-details-backdrop" onclick="closeProductDetails()"></div><section class="product-details-dialog"><button type="button" class="product-details-close" onclick="closeProductDetails()" aria-label="Close details">×</button><div id="productDetailsBody"></div></section>';document.body.appendChild(modal);}
+ const specs=productSpecEntries(p);
+ const sold=Number(p.stock)<=0,discount=Number(p.discount)>0;
+ $('productDetailsBody').innerHTML=`<div class="product-details-layout"><div class="product-details-image">${p.image?`<img src="${esc(p.image)}" alt="${esc(p.name)}" onerror="this.style.display='none'">`:`<span>${esc(p.emoji||'📦')}</span>`}</div><div class="product-details-copy"><span class="product-details-kicker">${esc(p.cat||'Gadget')}</span><h2>${esc(p.name)}</h2><div class="product-details-price">${money(finalPrice(p))} ${discount?`<del>${money(p.price)}</del><span class="discount-badge">${Math.round(Number(p.discount))}% OFF</span>`:''}</div><p class="product-details-stock ${sold?'sold':''}">${sold?'Currently out of stock':`In stock: ${Math.max(0,Number(p.stock)||0)}`}</p>${p.description?`<p class="product-details-description">${esc(p.description)}</p>`:''}${specs.length?`<div class="product-details-specs"><h3>Product details</h3><dl>${specs.map(([k,v])=>`<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl></div>`:'<p class="product-details-description">Detailed specifications have not been added for this product yet.</p>'}<div class="product-details-actions"><button type="button" class="add-btn" ${sold?'disabled':''} onclick="closeProductDetails();window.addToCart(${jsArg(p.id)})">Add to Cart</button><button type="button" class="buy-btn" ${sold?'disabled':''} onclick="closeProductDetails();window.buyNow(${jsArg(p.id)})">Buy Now</button></div></div></div>`;
+ modal.classList.add('is-open');document.body.classList.add('product-details-open');
+}
+function closeProductDetails(){const modal=$('productDetailsModal');if(modal)modal.classList.remove('is-open');document.body.classList.remove('product-details-open');}
+window.viewProductDetails=viewProductDetails;window.closeProductDetails=closeProductDetails;
+
 function showSavedProducts(kind){
  const panel=$('savedProductsPanel');if(!panel)return;
  const title=$('savedPanelTitle');if(title)title.dataset.kind=kind==='wishlist'?'wishlist':'compare';
@@ -287,7 +299,7 @@ function productSpecEntries(p){
 }
 function savedProductCard(p,kind){
  const id=jsArg(p.id),price=finalPrice(p),disc=Number(p.discount)>0,sold=p.stock<=0;
- return `<article class="saved-product-card"><div class="saved-product-image">${p.image?`<img src="${esc(p.image)}" alt="${esc(p.name)}" loading="lazy" onerror="this.style.display='none'">`: `<span>${esc(p.emoji||'📦')}</span>`}</div><div class="saved-product-info"><span class="saved-product-category">${esc(p.cat)}</span><h3>${esc(p.name)}</h3><div class="saved-product-price">${money(price)} ${disc?`<del>${money(p.price)}</del><span class="discount-badge">${Math.round(Number(p.discount))}% OFF</span>`:''}</div><div class="saved-stock ${sold?'sold':''}">${sold?'Out of stock':`In stock: ${Math.max(0,p.stock)}`}</div><div class="saved-product-actions"><button type="button" class="add-btn" ${sold?'disabled':''} onclick="addToCart(${id})">Add to Cart</button><button type="button" class="buy-btn" ${sold?'disabled':''} onclick="buyNow(${id})">Buy Now</button><button type="button" class="saved-remove-btn" onclick="removeSavedProduct('${kind}',${id})">Remove</button></div></div></article>`;
+ return `<article class="saved-product-card"><div class="saved-product-image">${p.image?`<img src="${esc(p.image)}" alt="${esc(p.name)}" loading="lazy" onerror="this.style.display='none'">`: `<span>${esc(p.emoji||'📦')}</span>`}</div><div class="saved-product-info"><span class="saved-product-category">${esc(p.cat)}</span><h3>${esc(p.name)}</h3><div class="saved-product-price">${money(price)} ${disc?`<del>${money(p.price)}</del><span class="discount-badge">${Math.round(Number(p.discount))}% OFF</span>`:''}</div><div class="saved-stock ${sold?'sold':''}">${sold?'Out of stock':`In stock: ${Math.max(0,p.stock)}`}</div><div class="saved-product-actions"><button type="button" class="view-btn" onclick="viewProductDetails(${id})">View</button><button type="button" class="add-btn" ${sold?'disabled':''} onclick="window.addToCart(${id})">Add to Cart</button><button type="button" class="buy-btn" ${sold?'disabled':''} onclick="window.buyNow(${id})">Buy Now</button><button type="button" class="saved-remove-btn" onclick="removeSavedProduct('${kind}',${id})">Remove</button></div></div></article>`;
 }
 function removeSavedProduct(kind,id){if(kind==='wishlist')wishlistIds.delete(String(id));else compareIds.delete(String(id));persistSavedIds();renderProducts();renderSavedPanel();toast(kind==='wishlist'?'Removed from Wishlist':'Removed from Compare');}
 function renderCompareTable(list){
@@ -296,11 +308,11 @@ function renderCompareTable(list){
  const keys=['Price','Original price','Discount','Category','Availability','Stock'];
  specs.forEach(a=>a.forEach(([k])=>{if(!keys.some(x=>x.toLowerCase()===k.toLowerCase()))keys.push(k)}));
  const val=(p,entries,key)=>{const found=entries.find(([k])=>k.toLowerCase()===key.toLowerCase());if(found)return found[1];switch(key){case'Price':return finalPrice(p);case'Original price':return p.price;case'Discount':return Number(p.discount)>0?`${Math.round(p.discount)}% OFF`:'No discount';case'Category':return p.cat||'—';case'Availability':return p.stock>0?'In stock':'Out of stock';case'Stock':return Math.max(0,p.stock);default:return '—'}};
- const lowest=Math.min(...list.filter(p=>p.stock>0).map(finalPrice));
+ const availablePrices=list.filter(p=>p.stock>0).map(finalPrice);const lowest=availablePrices.length?Math.min(...availablePrices):null;
  const rows=keys.filter(key=>{
   if(!diffsOnly)return true;const values=list.map((p,i)=>String(val(p,specs[i],key)));return new Set(values).size>1;
- }).map(key=>`<tr><th scope="row">${esc(key)}</th>${list.map((p,i)=>{const v=val(p,specs[i],key),isLow=key==='Price'&&p.stock>0&&Number(v)===lowest;return `<td class="${isLow?'compare-lowest':''}">${key==='Price'?money(v):key==='Original price'?money(v):esc(v)}${isLow?'<span class="lowest-label">Lowest price</span>':''}</td>`}).join('')}</tr>`).join('');
- return `<div class="compare-table-wrap"><table class="compare-table"><thead><tr><th scope="col">Product</th>${list.map(p=>`<th scope="col"><div class="compare-product-head"><div class="compare-product-image">${p.image?`<img src="${esc(p.image)}" alt="${esc(p.name)}" loading="lazy" onerror="this.style.display='none'">`:`<span>${esc(p.emoji||'📦')}</span>`}</div><strong>${esc(p.name)}</strong><button type="button" class="compare-remove-btn" onclick="removeSavedProduct('compare',${jsArg(p.id)})">Remove</button><div class="compare-buy-actions"><button type="button" class="add-btn" ${p.stock<=0?'disabled':''} onclick="addToCart(${jsArg(p.id)})">Add to Cart</button><button type="button" class="buy-btn" ${p.stock<=0?'disabled':''} onclick="buyNow(${jsArg(p.id)})">Buy Now</button></div></div></th>`).join('')}</tr></thead><tbody>${rows||`<tr><td colspan="${list.length+1}">No differing details found. Turn off “Show differences only” to see all details.</td></tr>`}</tbody></table></div><p class="compare-data-note">Product specifications are shown only when provided by the store. Please confirm important details before ordering.</p>`;
+ }).map(key=>`<tr><th scope="row">${esc(key)}</th>${list.map((p,i)=>{const v=val(p,specs[i],key),isLow=key==='Price'&&lowest!==null&&p.stock>0&&Number(v)===lowest;return `<td class="${isLow?'compare-lowest':''}">${key==='Price'?money(v):key==='Original price'?money(v):esc(v)}${isLow?'<span class="lowest-label">Lowest price</span>':''}</td>`}).join('')}</tr>`).join('');
+ return `<div class="compare-table-wrap"><table class="compare-table"><thead><tr><th scope="col">Product</th>${list.map(p=>`<th scope="col"><div class="compare-product-head"><div class="compare-product-image">${p.image?`<img src="${esc(p.image)}" alt="${esc(p.name)}" loading="lazy" onerror="this.style.display='none'">`:`<span>${esc(p.emoji||'📦')}</span>`}</div><strong>${esc(p.name)}</strong><button type="button" class="compare-remove-btn" onclick="removeSavedProduct('compare',${jsArg(p.id)})">Remove</button><div class="compare-buy-actions"><button type="button" class="view-btn" onclick="viewProductDetails(${jsArg(p.id)})">View</button><button type="button" class="add-btn" ${p.stock<=0?'disabled':''} onclick="window.addToCart(${jsArg(p.id)})">Add to Cart</button><button type="button" class="buy-btn" ${p.stock<=0?'disabled':''} onclick="window.buyNow(${jsArg(p.id)})">Buy Now</button></div></div></th>`).join('')}</tr></thead><tbody>${rows||`<tr><td colspan="${list.length+1}">No differing details found. Turn off “Show differences only” to see all details.</td></tr>`}</tbody></table></div><p class="compare-data-note">Product specifications are shown only when provided by the store. Please confirm important details before ordering.</p>`;
 }
 function renderSavedPanel(){
  const kind=$('savedPanelTitle')?.dataset.kind||'wishlist',content=$('savedPanelContent');if(!content)return;
@@ -318,7 +330,7 @@ function renderProducts(){
  g.innerHTML=a.map(p=>{
   let sold=p.stock<=0,disc=p.discount>0,price=disc?Math.max(0,p.price-p.price*p.discount/100):p.price;
   let id=String(p.id).replace(/'/g,"\\'");
-  return `<article class="product-card"><div class="product-img">${p.image?`<img src="${esc(p.image)}" alt="${esc(p.name)}" loading="lazy" style="width:100%;height:100%;object-fit:contain;border-radius:14px" onerror="this.remove()">`:p.emoji}</div><div class="category">${esc(p.cat)}</div><h3>${esc(p.name)}</h3><div class="price">${money(price)} ${disc?`<del style="font-size:12px;color:#7895af">${money(p.price)}</del>`:""}</div><div class="product-actions"><button class="add-btn" ${sold?"disabled":""} onclick="addToCart('${id}')">${sold?"Out of Stock":"Add to Cart"}</button><button class="buy-btn" ${sold?"disabled":""} onclick="buyNow('${id}')">${sold?"Out of Stock":"Buy Now"}</button></div><div class="extra-product-actions"><button type="button" onclick="toggleWishlist('${id}')">${wishlistIds.has(String(p.id))?"♥ Saved":"♡ Wishlist"}</button><button type="button" onclick="toggleCompare('${id}')">${compareIds.has(String(p.id))?"✓ Comparing":"⇄ Compare"}</button></div></article>`;
+  return `<article class="product-card"><div class="product-img">${p.image?`<img src="${esc(p.image)}" alt="${esc(p.name)}" loading="lazy" style="width:100%;height:100%;object-fit:contain;border-radius:14px" onerror="this.remove()">`:p.emoji}</div><div class="category">${esc(p.cat)}</div><h3>${esc(p.name)}</h3><div class="price">${money(price)} ${disc?`<del style="font-size:12px;color:#7895af">${money(p.price)}</del>`:""}</div><div class="product-actions"><button class="view-btn" type="button" onclick="viewProductDetails('${id}')">View</button><button class="add-btn" ${sold?"disabled":""} onclick="window.addToCart('${id}')">${sold?"Out of Stock":"Add to Cart"}</button><button class="buy-btn" ${sold?"disabled":""} onclick="window.buyNow('${id}')">${sold?"Out of Stock":"Buy Now"}</button></div><div class="extra-product-actions"><button type="button" onclick="toggleWishlist('${id}')">${wishlistIds.has(String(p.id))?"♥ Saved":"♡ Wishlist"}</button><button type="button" onclick="toggleCompare('${id}')">${compareIds.has(String(p.id))?"✓ Comparing":"⇄ Compare"}</button></div></article>`;
  }).join("")||`<div class="empty" style="grid-column:1/-1">No products found.</div>`;
  updateSavedCounters();
 }
@@ -475,7 +487,7 @@ async function trackOrdersByPhone(){
 }
 
 async function startCustomerSite(){initCustomerUI();updateSavedCounters();renderProducts();updateCart();await refreshStore();setupLocationPickers();renderSmartRecommendations();}
-window.toggleWishlist=toggleWishlist;window.toggleCompare=toggleCompare;window.showSavedProducts=showSavedProducts;window.closeSavedProducts=closeSavedProducts;window.renderSavedPanel=renderSavedPanel;window.removeSavedProduct=removeSavedProduct;window.applyCoupon=applyCoupon;
+window.addToCart=addToCart;window.buyNow=buyNow;window.toggleWishlist=toggleWishlist;window.toggleCompare=toggleCompare;window.showSavedProducts=showSavedProducts;window.closeSavedProducts=closeSavedProducts;window.renderSavedPanel=renderSavedPanel;window.removeSavedProduct=removeSavedProduct;window.applyCoupon=applyCoupon;
 window.showDealType=showDealType;
 window.viewOfferProducts=viewOfferProducts;
 window.addOfferToCart=addOfferToCart;
