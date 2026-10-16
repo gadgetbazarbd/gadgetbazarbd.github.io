@@ -166,60 +166,80 @@ function addProduct(){editingProductId=null;openModal('Add Product',productForm(
 function editProduct(i){const p=productsCache[i];if(!p)return;editingProductId=p.id;openModal('Edit Product',productForm(p))}
 function productForm(p={}){
   const opts=categoriesCache.map(c=>`<option value="${esc(c.name)}" ${p.category===c.name?'selected':''}>${esc(c.name)}</option>`).join('');
+  let gallery=p.images??p.gallery??p.image_urls??[];
+  if(typeof gallery==='string'){try{gallery=JSON.parse(gallery)}catch(e){gallery=[]}}
+  if(!Array.isArray(gallery))gallery=[];
+  const currentImages=[...new Set([p.image,...gallery].filter(x=>typeof x==='string'&&/^https?:\/\//i.test(x)))];
+  const specs=p.specifications??p.specs??'';
+  const specsText=typeof specs==='string'?specs:(Array.isArray(specs)?specs.map(x=>typeof x==='object'&&x?`${x.name||x.label||'Feature'}: ${x.value||x.detail||''}`:String(x)).join('\n'):JSON.stringify(specs,null,2));
   return `<div class="form-grid">
-    <label>Product Name<input id="productName" value="${esc(p.name||'')}" placeholder="e.g. TWS AirBuds Pro"></label>
+    <label>Product Name<input id="productName" value="${esc(p.name||'')}" placeholder="e.g. TWS AirBuds Pro" required></label>
     <label>Category<input id="productCategory" list="categoryList" value="${esc(p.category||'')}" placeholder="Audio"><datalist id="categoryList">${opts}</datalist></label>
-    <label>Price<input id="productPrice" type="number" min="0" value="${Number(p.price||0)}"></label>
-    <label>Discount<input id="productDiscount" type="number" min="0" value="${Number(p.discount||0)}"></label>
+    <label>Price (৳)<input id="productPrice" type="number" min="0" value="${Number(p.price||0)}"></label>
+    <label>Discount (%)<input id="productDiscount" type="number" min="0" max="100" value="${Number(p.discount||0)}"></label>
     <label>Stock<input id="productStock" type="number" min="0" value="${Number(p.stock||0)}"></label>
     <label>Status<select id="productActive"><option value="true" ${p.active!==false?'selected':''}>Active</option><option value="false" ${p.active===false?'selected':''}>Inactive</option></select></label>
-    <label class="full">Product Image<input id="productImage" type="file" accept="image/*"></label>
-    ${p.image?`<label class="full">Current Image<img class="product-preview" src="${esc(p.image)}" alt=""></label>`:''}
+    <label>Brand<input id="productBrand" value="${esc(p.brand||'')}" placeholder="e.g. Xiaomi"></label>
+    <label>Model<input id="productModel" value="${esc(p.model||'')}" placeholder="e.g. Redmi Buds"></label>
+    <label>Warranty<input id="productWarranty" value="${esc(p.warranty||'')}" placeholder="e.g. 7 days replacement"></label>
+    <label>Color<input id="productColor" value="${esc(p.color||'')}" placeholder="Black"></label>
+    <label>Connectivity<input id="productConnectivity" value="${esc(p.connectivity||'')}" placeholder="Bluetooth 5.3 / USB-C"></label>
+    <label>Battery life<input id="productBatteryLife" value="${esc(p.battery_life||'')}" placeholder="e.g. Up to 20 hours"></label>
+    <label class="full">Compatibility<input id="productCompatibility" value="${esc(p.compatibility||'')}" placeholder="Compatible devices / systems"></label>
+    <label class="full">Full Description<textarea id="productDescription" rows="4" placeholder="Write the full product description...">${esc(p.description||'')}</textarea></label>
+    <label class="full">Specifications (one per line: Feature: Value)<textarea id="productSpecifications" rows="5" placeholder="Bluetooth: 5.3&#10;Battery: 400mAh&#10;Charging: USB-C">${esc(specsText||'')}</textarea><small>Write one specification per line. You do not need to open Supabase Table Editor for each product.</small></label>
+    <label class="full">Product Images (select multiple)<input id="productImages" type="file" accept="image/*" multiple><small>Choose multiple photos. Existing photos are kept unless you remove them below.</small></label>
+    ${currentImages.length?`<div class="full admin-current-gallery"><strong>Saved images</strong><div class="admin-gallery-grid">${currentImages.map((src,i)=>`<label class="admin-gallery-item"><img src="${esc(src)}" alt="Saved product image ${i+1}"><span><input type="checkbox" class="remove-product-image" value="${esc(src)}"> Remove</span></label>`).join('')}</div></div>`:''}
+    <label class="full admin-checkline"><input id="productIsDeal" type="checkbox" ${p.is_deal||Number(p.discount)>=70?'checked':''}> Show this product in the 70% OFF Deals page (it will also remain in Home and its category)</label>
   </div><div class="btn-row"><button class="btn muted" onclick="closeModal()">Cancel</button><button class="btn primary" id="saveProductBtn" onclick="saveProduct()">Save Product</button></div>`
 }
 async function saveProduct(){
   const name=$('productName')?.value.trim(),category=$('productCategory')?.value.trim();
-  const priceRaw=$('productPrice')?.value ?? '0';
-  const discountRaw=$('productDiscount')?.value ?? '0';
-  const stockRaw=$('productStock')?.value ?? '0';
-  const price=Number(priceRaw), discount=Number(discountRaw), stock=Number(stockRaw);
-
-  if(!Number.isFinite(price)||!Number.isFinite(discount)||!Number.isFinite(stock)||price<0||discount<0||stock<0){
-    alert('Please enter valid non-negative numbers for Price, Discount and Stock.');
-    return;
+  const priceRaw=$('productPrice')?.value ?? '0',discountRaw=$('productDiscount')?.value ?? '0',stockRaw=$('productStock')?.value ?? '0';
+  const price=Number(priceRaw),discount=Number(discountRaw),stock=Number(stockRaw);
+  if(!Number.isFinite(price)||!Number.isFinite(discount)||!Number.isFinite(stock)||price<0||discount<0||discount>100||stock<0){
+    alert('Enter valid values: price and stock must be 0 or more, discount must be between 0 and 100.');return;
   }
-  if(price>999999999999||discount>999999999999||stock>2147483647){
-    alert('The number is too large. Please enter a smaller Price, Discount or Stock value.');
-    return;
-  }
-
-  const active=$('productActive')?.value==='true',file=$('productImage')?.files?.[0];
+  if(price>999999999999||stock>2147483647){alert('The number is too large.');return;}
+  const active=$('productActive')?.value==='true';
+  const files=[...($('productImages')?.files||[])];
   if(!name){alert('Product name is required.');return}
-
   try{
-    const isEdit=!!editingProductId;
-    const id=editingProductId||crypto.randomUUID();
-    const old=productsCache.find(p=>p.id===id);
-    let image=old?.image||'';
-    const btn=$('saveProductBtn');
-    if(btn){btn.disabled=true;btn.textContent='Saving...'}
-
-    if(file)image=await uploadImage(file,id);
-
-    const {error}=await sb.from('products').upsert(
-      {id,name,category,price,discount,stock,active,image},
-      {onConflict:'id'}
-    );
+    const isEdit=!!editingProductId,id=editingProductId||crypto.randomUUID(),old=productsCache.find(p=>String(p.id)===String(id));
+    const btn=$('saveProductBtn');if(btn){btn.disabled=true;btn.textContent='Saving...'}
+    let images=old?.images??old?.gallery??old?.image_urls??[];
+    if(typeof images==='string'){try{images=JSON.parse(images)}catch(e){images=[]}}
+    if(!Array.isArray(images))images=[];
+    images=[...new Set([old?.image,...images].filter(x=>typeof x==='string'&&/^https?:\/\//i.test(x)))];
+    const remove=new Set([...document.querySelectorAll('.remove-product-image:checked')].map(x=>x.value));
+    images=images.filter(x=>!remove.has(x));
+    for(const file of files){const url=await uploadImage(file,id);if(url)images.push(url)}
+    images=[...new Set(images)];
+    const image=images[0]||'';
+    const rawSpecs=$('productSpecifications')?.value.trim()||'';
+    const specifications=rawSpecs.split(/\r?\n/).map(line=>line.trim()).filter(Boolean).map(line=>{
+      const at=line.indexOf(':');return at<0?{name:line,value:''}:{name:line.slice(0,at).trim(),value:line.slice(at+1).trim()};
+    }).filter(x=>x.name);
+    const product={
+      id,name,category,price,discount,stock,active,image,images,
+      brand:$('productBrand')?.value.trim()||'',
+      model:$('productModel')?.value.trim()||'',
+      warranty:$('productWarranty')?.value.trim()||'',
+      color:$('productColor')?.value.trim()||'',
+      connectivity:$('productConnectivity')?.value.trim()||'',
+      battery_life:$('productBatteryLife')?.value.trim()||'',
+      compatibility:$('productCompatibility')?.value.trim()||'',
+      description:$('productDescription')?.value.trim()||'',
+      specifications,
+      is_deal:!!$('productIsDeal')?.checked
+    };
+    const {error}=await sb.from('products').upsert(product,{onConflict:'id'});
     if(error)throw error;
-
-    await refreshProducts();
-    closeModal();
-    render();
+    await refreshProducts();closeModal();render();
     alert(isEdit?'Product updated successfully.':'Product added successfully.');
   }catch(e){
     showError(e);
-    const btn=$('saveProductBtn');
-    if(btn){btn.disabled=false;btn.textContent='Save Product'}
+    const btn=$('saveProductBtn');if(btn){btn.disabled=false;btn.textContent='Save Product'}
   }
 }
 async function deleteProduct(i){
