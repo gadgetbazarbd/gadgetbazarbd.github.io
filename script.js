@@ -36,7 +36,7 @@ function normalizeProduct(r){return{
  id:r.id,name:r.name||r.product_name||"Unnamed Product",cat:String(r.category||r.cat||"Other").trim(),
  price:Number(r.price||0),discount:Number(r.discount||0),stock:Number(r.stock??r.stock_quantity??0),
  image:r.image||r.image_url||"",featured:!!r.featured,emoji:r.emoji||"📦",
- brand:r.brand||"",model:r.model||"",description:r.description||"",
+ brand:r.brand||"",model:r.model||"",description:r.description||"",is_deal:!!r.is_deal,
  specifications:r.specifications??r.specs??r.features??r.attributes??null,
  warranty:r.warranty||r.warranty_period||"",color:r.color||"",connectivity:r.connectivity||"",
  battery_life:r.battery_life||"",compatibility:r.compatibility||"",
@@ -103,7 +103,7 @@ function offerStockLimit(offer){
 function renderOffers(){
  const grids=[$("offersGrid"),$("dealsPageGrid")].filter(Boolean);
  const list=activeDealType?storeOffers.filter(o=>String(o.offer_type||"")===activeDealType):storeOffers;
- const cards=list.length?list.map(o=>{
+ const offerCards=list.map(o=>{
   const pct=Number(o.discount_percent||0),type=esc(o.offer_type||"Special Offers");
   const img=o.cover_image||o.image_url||"";
   const matched=offerProducts(o),isCombo=String(o.offer_type||"").toLowerCase().includes("combo");
@@ -112,7 +112,13 @@ function renderOffers(){
   const offerId=esc(o.id);
   const priceLabel=Number(o.combo_price)>0?(isCombo?"Combo Deal":"Special Deal"):pct>0?`${pct}% OFF`:"Special Deal";
   return `<article class="offer-card">${img?`<div class="offer-cover"><img src="${esc(img)}" alt="${esc(o.title||"Offer")}" loading="lazy"></div>`:""}<span class="offer-type">${type}</span><h3>${esc(o.title||"Special offer")}</h3><p>${esc(o.description||"Limited-time offer from Gadget Bazar BD.")}</p>${matched.length?`<div class="offer-products">${matched.map(p=>`<div class="offer-mini-product">${p.image?`<img src="${esc(p.image)}" alt="" loading="lazy">`:""}<span>${esc(p.name)}</span></div>`).join("")}</div>`:""}<div class="offer-value">${esc(priceLabel)}</div>${unitPrice>0?`<strong class="offer-combo-price">${money(unitPrice)}${isCombo?" per combo":" total"}</strong>`:""}${o.ends_at?`<small>Ends: ${new Date(o.ends_at).toLocaleString("en-BD",{dateStyle:"medium",timeStyle:"short"})}</small>`:""}${matched.length?`<div class="offer-card-actions"><button type="button" class="add-btn" ${sold?"disabled":""} onclick="addOfferToCart('${offerId}')">${sold?"Out of Stock":isCombo?"Add Combo to Cart":"Add to Cart"}</button><button type="button" class="buy-btn" ${sold?"disabled":""} onclick="buyOfferNow('${offerId}')">${sold?"Out of Stock":isCombo?"Buy Combo Now":"Buy Now"}</button></div>`:`<small>Products for this offer are not available right now.</small>`}</article>`;
- }).join(""):`<div class="offer-placeholder">${activeDealType?`No active ${esc(activeDealType)} right now.`:"No active offers right now. New deals will appear here."}</div>`;
+ }).join("");
+ const dealProducts=products.filter(p=>p.is_deal||Number(p.discount)>=70);
+ const productCards=dealProducts.map(p=>{
+  const id=jsArg(p.id),sold=Number(p.stock)<=0,disc=Number(p.discount)>0;
+  return `<article class="offer-card deal-product-card">${p.image?`<div class="offer-cover"><img src="${esc(p.image)}" alt="${esc(p.name)}" loading="lazy" onerror="this.style.display='none'"></div>`:''}<span class="offer-type">${disc?`${Math.round(Number(p.discount))}% OFF`:'Featured Deal'}</span><h3>${esc(p.name)}</h3><p>${esc(p.description||'Special gadget deal from Gadget Bazar BD.')}</p><strong class="offer-combo-price">${money(finalPrice(p))} ${disc?`<del style="font-size:12px;opacity:.7">${money(p.price)}</del>`:''}</strong><small>${sold?'Out of stock':`In stock: ${Math.max(0,Number(p.stock)||0)}`}</small><div class="offer-card-actions"><button type="button" class="view-btn" onclick="viewProductDetails(${id})">View Details</button><button type="button" class="add-btn" ${sold?'disabled':''} onclick="window.addToCart(${id})">${sold?'Out of Stock':'Add to Cart'}</button><button type="button" class="buy-btn" ${sold?'disabled':''} onclick="window.buyNow(${id})">${sold?'Out of Stock':'Buy Now'}</button><button type="button" class="view-btn" onclick="toggleWishlist(${id})">${wishlistIds.has(String(p.id))?'♥ Wishlist':'♡ Wishlist'}</button><button type="button" class="view-btn" onclick="toggleCompare(${id})">${compareIds.has(String(p.id))?'✓ Compare':'⇄ Compare'}</button></div></article>`;
+ }).join("");
+ const cards=offerCards+productCards||`<div class="offer-placeholder">${activeDealType?`No active ${esc(activeDealType)} right now.`:"No active offers or deal products right now. Add a product in Admin Panel and select “Show this product in the 70% OFF Deals page”."}</div>`;
  grids.forEach(g=>g.innerHTML=cards);
 }
 function addOfferToCart(offerId){
