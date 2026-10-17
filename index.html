@@ -16,7 +16,7 @@
     rel="stylesheet"
   >
 
-  <link rel="stylesheet" href="style.css?v=gbbd-premium-neon-20261017">
+  <link rel="stylesheet" href="style.css?v=gbbd-compact-home-v1-20261017">
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
@@ -89,13 +89,6 @@
     <span>Gadget <b>Bazar</b> BD</span>
   </a>
 
-  <nav class="desktop-nav" aria-label="Main navigation">
-    <a href="#shopCategories">Categories</a>
-    <a href="#featuredProducts">Featured</a>
-    <a href="#products">Shop</a>
-    <a href="#dealZone">Deals</a>
-  </nav>
-
   <div class="top-actions">
 
     <!-- Menu -->
@@ -139,6 +132,11 @@
   </div>
 </header>
 
+<!-- Compact quick actions: keep core header tools and surface Wishlist/Compare at the top -->
+<nav class="home-quick-actions" aria-label="Quick shopping links">
+  <button type="button" onclick="showSavedProducts('wishlist')">♡ Wishlist <span id="wishlistTopCount">0</span></button>
+  <button type="button" onclick="showSavedProducts('compare')">⇄ Compare <span id="compareTopCount">0</span></button>
+</nav>
 
 <div id="overlay" class="overlay hidden"></div>
 
@@ -260,7 +258,7 @@
       </p>
 
       <div class="hero-actions">
-        <button class="primary" type="button" onclick="document.getElementById('products').scrollIntoView({behavior:'smooth'})">Shop Now</button>
+        <button class="primary" type="button" onclick="document.getElementById('products').scrollIntoView({behavior:'smooth'})">View More</button>
         <button class="discount-cta" type="button" onclick="openDealsPage()">🏷️ Up to 70% OFF Deals</button>
       </div>
       <div class="hero-saved-actions" aria-label="Quick saved shopping tools">
@@ -272,33 +270,18 @@
 
   </section>
 
-  <!-- PREMIUM HOME SHOWCASE: categories are rendered from the live store categories -->
-  <section class="category-showcase" id="shopCategories" aria-labelledby="shopCategoriesTitle">
-    <div class="showcase-heading">
-      <div>
-        <p class="eyebrow">FIND YOUR NEXT FAVOURITE</p>
-        <h2 id="shopCategoriesTitle">Shop by Category</h2>
-        <p>Explore gadgets picked for your everyday life.</p>
-      </div>
-      <button class="showcase-link" type="button" onclick="showAllProducts()">View all products <span aria-hidden="true">→</span></button>
+  <!-- Compact discovery controls; categories remain in the three-line menu -->
+  <section class="home-discovery" aria-label="Explore products">
+    <div class="home-discovery-buttons">
+      <button type="button" onclick="openCategoryMenu()"><span aria-hidden="true">▦</span><span>Categories</span></button>
+      <button type="button" onclick="showProductCollection('best')"><span aria-hidden="true">🏆</span><span>Best Sellers</span></button>
+      <button type="button" onclick="showProductCollection('new')"><span aria-hidden="true">✨</span><span>New Arrivals</span></button>
     </div>
-    <div class="category-tiles" id="homeCategoryGrid" aria-live="polite">
-      <div class="showcase-empty">Loading store categories…</div>
-    </div>
-  </section>
-
-  <section class="home-products-section" id="featuredProducts" aria-labelledby="featuredProductsTitle">
-    <div class="showcase-heading">
-      <div>
-        <p class="eyebrow">HANDPICKED FOR YOU</p>
-        <h2 id="featuredProductsTitle">Featured Products</h2>
-        <p>Discover standout gadgets from our collection.</p>
-      </div>
-      <button class="showcase-link" type="button" onclick="showAllProducts()">Explore shop <span aria-hidden="true">→</span></button>
-    </div>
-    <div class="products-grid home-products-grid" id="featuredProductsGrid" aria-live="polite">
-      <div class="showcase-empty">Loading featured products…</div>
-    </div>
+    <button class="home-deals-banner" type="button" onclick="showDiscountProducts()">
+      <span class="home-deals-icon" aria-hidden="true">🏷️</span>
+      <span class="home-deals-copy"><strong>UP TO 70% OFF</strong><small>দারুণ ছাড়ের পণ্য দেখতে এখানে ক্লিক করুন</small></span>
+      <span class="home-deals-arrow" aria-hidden="true">→</span>
+    </button>
   </section>
 
   <section class="shop" id="products">
@@ -329,12 +312,6 @@
         </option>
       </select>
 
-    </div>
-
-
-    <div class="saved-tools" aria-label="Saved shopping tools">
-      <button type="button" onclick="showSavedProducts('wishlist')">♡ Wishlist <span id="wishlistToolbarCount">0</span></button>
-      <button type="button" onclick="showSavedProducts('compare')">⇄ Compare <span id="compareToolbarCount">0</span></button>
     </div>
     <section id="savedProductsPanel" class="saved-products-panel hidden" aria-live="polite">
       <div class="saved-panel-head">
@@ -393,34 +370,6 @@
   <section class="deal-products-zone" id="dealProductsZone" aria-labelledby="dealProductsTitle">
     <div class="deal-zone-head"><div><p class="eyebrow">SPECIAL PRODUCT OFFERS</p><h2 id="dealProductsTitle">🏷️ 70% OFF Products</h2><p>Products selected from Admin Panel appear here and remain in their normal categories.</p></div><span class="deal-zone-tag">PRODUCT DEALS</span></div>
     <div id="dealProductsGrid" class="offers-grid"><div class="offer-placeholder">Loading deal products…</div></div>
-  </section>
-
-  <section class="home-products-section" id="newArrivals" aria-labelledby="newArrivalsTitle">
-    <div class="showcase-heading">
-      <div>
-        <p class="eyebrow">JUST ADDED TO THE STORE</p>
-        <h2 id="newArrivalsTitle">New Arrivals</h2>
-        <p>Recently added gadgets, ready to explore.</p>
-      </div>
-      <button class="showcase-link" type="button" onclick="showAllProducts()">View all <span aria-hidden="true">→</span></button>
-    </div>
-    <div class="products-grid home-products-grid" id="newArrivalsGrid" aria-live="polite">
-      <div class="showcase-empty">Loading new arrivals…</div>
-    </div>
-  </section>
-
-  <section class="home-products-section" id="bestSellers" aria-labelledby="bestSellersTitle">
-    <div class="showcase-heading">
-      <div>
-        <p class="eyebrow">STORE FAVOURITES</p>
-        <h2 id="bestSellersTitle">Best Sellers &amp; Top Picks</h2>
-        <p>Featured products and available favourites selected for easy discovery.</p>
-      </div>
-      <button class="showcase-link" type="button" onclick="showAllProducts()">Browse collection <span aria-hidden="true">→</span></button>
-    </div>
-    <div class="products-grid home-products-grid" id="bestSellersGrid" aria-live="polite">
-      <div class="showcase-empty">Loading store favourites…</div>
-    </div>
   </section>
 
   <section class="benefit-strip" aria-label="Shopping benefits">
@@ -894,39 +843,12 @@
 
 <div id="fullProductPage" class="full-product-page hidden" aria-live="polite"></div>
 
-<footer class="site-footer">
-  <div class="footer-inner">
-    <div class="footer-brand-block">
-      <a class="footer-brand" href="#" onclick="showAllProducts();return false;"><span>🛒</span> Gadget <b>Bazar</b> BD</a>
-      <p>Smart gadgets for everyday life. Browse the collection and choose the products that work for you.</p>
-      <span class="footer-bangladesh">Made for gadget lovers in Bangladesh 🇧🇩</span>
-    </div>
-    <div class="footer-column">
-      <h3>Quick Links</h3>
-      <a href="#shopCategories">Shop by Category</a>
-      <a href="#featuredProducts">Featured Products</a>
-      <a href="#products">All Products</a>
-      <a href="#dealZone">Deal Zone</a>
-    </div>
-    <div class="footer-column">
-      <h3>Customer Service</h3>
-      <a href="#orderTracking">Track Your Order</a>
-      <button type="button" onclick="openCart()">Your Cart</button>
-      <button type="button" onclick="openDealsPage()">Special Offers</button>
-    </div>
-    <div class="footer-column footer-trust">
-      <h3>Shop with Confidence</h3>
-      <span>🚚 Nationwide delivery</span>
-      <span>🔒 Checkout options</span>
-      <span>📦 Order tracking</span>
-      <span>💳 COD &amp; available manual payments</span>
-    </div>
-  </div>
-  <div class="footer-bottom">© 2026 Gadget Bazar BD. Prices and availability may change.</div>
+<footer>
+  © 2026 Gadget Bazar BD • COD & manual payment options
 </footer>
 
 
-<script src="script.js?v=gbbd-premium-neon-20261017"></script>
+<script src="script.js?v=gbbd-compact-home-v1-20261017"></script>
 
 </body>
 </html>

@@ -15,7 +15,7 @@ try {
  const savedCart=JSON.parse(localStorage.getItem("gbbd_cart")||"[]");
  cart=Array.isArray(savedCart)?savedCart.filter(x=>x&&Number(x.qty)>0&&(x.type==="combo"?x.offerId!=null:x.id!=null)).map(x=>x.type==="combo"?({type:"combo",offerId:String(x.offerId),qty:Math.max(1,Math.floor(Number(x.qty)||1))}):({id:x.id,qty:Math.max(1,Math.floor(Number(x.qty)||1))})):[];
 } catch(e) { cart=[]; }
-let currentCategory="All Products",selectedDistrict="",selectedUpazila="";
+let currentCategory="All Products",currentCollection="all",selectedDistrict="",selectedUpazila="";
 let locationData=[],locationLoaded=false;
 function loadSavedIds(key,limit=Infinity){try{const v=JSON.parse(localStorage.getItem(key)||"[]");return new Set((Array.isArray(v)?v:[]).map(String).slice(0,limit));}catch(e){console.warn("Saved product list could not be read",key,e);return new Set();}}
 let wishlistIds=loadSavedIds("gbbd_wishlist");
@@ -33,7 +33,7 @@ function esc(v){return String(v??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&l
 function jsArg(v){return "'"+String(v??'').replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/\r/g,'\\r').replace(/\n/g,'\\n').replace(/</g,'\\x3c')+"'";}
 
 function normalizeProduct(r){return{
- id:r.id,name:r.name||r.product_name||"Unnamed Product",cat:String(r.category||r.cat||"Other").trim(),
+ id:r.id,name:r.name||r.product_name||"Unnamed Product",cat:String(r.category||r.cat||"Other").trim(),created_at:r.created_at||r.updated_at||"",
  price:Number(r.price||0),discount:Number(r.discount||0),stock:Number(r.stock??r.stock_quantity??0),
  image:r.image||r.image_url||"",featured:!!r.featured,emoji:r.emoji||"📦",
  brand:r.brand||"",model:r.model||"",description:r.description||"",is_deal:!!r.is_deal,
@@ -239,7 +239,7 @@ async function loadStoreData(){
 async function refreshStore(){
  try{await Promise.all([loadProducts(),loadStoreData(),loadCategories(),loadOffers()]);
   cart=cart.filter(x=>x.type!=="combo"||(getOffer(x.offerId)&&offerProducts(getOffer(x.offerId)).length>0));
-  saveCart();renderProducts();renderHomepageShowcases();updateCart();renderOffers();setTimeout(setupLocationPickers,0);handleProductPageRoute();}
+  saveCart();renderProducts();updateCart();renderOffers();setTimeout(setupLocationPickers,0);handleProductPageRoute();}
  catch(e){console.error(e);toast("Products could not be loaded");handleProductPageRoute(true);}
 }
 
@@ -250,6 +250,15 @@ function filteredProducts(){
  let q=($("searchInput")?.value||"").trim().toLowerCase();
  const selectedKey=categoryKey(currentCategory);
  let a=products.filter(p=>selectedKey===categoryKey("All Products")||categoryKey(p.cat)===selectedKey);
+ if(currentCollection==="deals")a=a.filter(p=>p.is_deal||Number(p.discount)>=70);
+ if(currentCollection==="best"){
+  const marked=a.filter(p=>p.featured);
+  a=marked.length?marked:a.slice().sort((x,y)=>Number(y.stock)-Number(x.stock));
+ }
+ if(currentCollection==="new")a=a.slice().sort((x,y)=>{
+  const dx=Date.parse(x.created_at||"")||0,dy=Date.parse(y.created_at||"")||0;
+  return dy-dx;
+ });
  if(q)a=a.filter(p=>(p.name+" "+p.cat).toLowerCase().includes(q));
  let s=$("sortSelect")?.value||"";
  if(s==="low")a.sort((x,y)=>x.price-y.price);
@@ -264,8 +273,8 @@ function persistSavedIds(){
 }
 function updateSavedCounters(){
  const wc=wishlistIds.size,cc=compareIds.size;
- ["wishlistMenuCount","wishlistToolbarCount","wishlistHeroCount"].forEach(id=>{const el=$(id);if(el)el.textContent=String(wc)});
- ["compareMenuCount","compareToolbarCount","compareHeroCount"].forEach(id=>{const el=$(id);if(el)el.textContent=String(cc)});
+ ["wishlistMenuCount","wishlistToolbarCount","wishlistHeroCount","wishlistTopCount"].forEach(id=>{const el=$(id);if(el)el.textContent=String(wc)});
+ ["compareMenuCount","compareToolbarCount","compareHeroCount","compareTopCount"].forEach(id=>{const el=$(id);if(el)el.textContent=String(cc)});
 }
 function toggleWishlist(id){
  id=String(id);
@@ -358,49 +367,6 @@ function renderProducts(){
  updateSavedCounters();
  renderDealProducts();
 }
-function homeCategoryIcon(name){
- const v=String(name||"").toLowerCase();
- if(/audio|earbud|headphone|speaker|sound/.test(v))return "🎧";
- if(/gaming|game|keyboard|mouse|controller/.test(v))return "🎮";
- if(/wearable|watch|fitness|band/.test(v))return "⌚";
- if(/mobile|phone|case|screen|accessor/.test(v))return "📱";
- if(/power|charg|battery|cable|adapter/.test(v))return "⚡";
- if(/rgb|light|led|lamp/.test(v))return "💡";
- if(/home|kitchen|house/.test(v))return "🏠";
- if(/camera|photo/.test(v))return "📷";
- if(/laptop|computer|pc|storage/.test(v))return "💻";
- if(/tv|appliance/.test(v))return "📺";
- return "✨";
-}
-function homeProductCard(p){
- const id=jsArg(p.id),sold=Number(p.stock)<=0,disc=Number(p.discount)>0;
- return `<article class="product-card home-product-card"><div class="product-img">${p.image?`<img src="${esc(p.image)}" alt="${esc(p.name)}" loading="lazy" style="width:100%;height:100%;object-fit:contain;border-radius:12px" onerror="this.remove()">`:esc(p.emoji||"📦")}${disc?`<span class="home-discount-badge">${Math.round(Number(p.discount))}% OFF</span>`:""}</div><div class="category">${esc(p.cat||"Gadget")}</div><h3>${esc(p.name)}</h3><div class="price">${money(finalPrice(p))} ${disc?`<del>${money(p.price)}</del>`:""}</div><div class="product-actions"><button class="view-btn" type="button" onclick="viewProductDetails(${id})">View Details</button><button class="add-btn" type="button" ${sold?"disabled":""} onclick="window.addToCart(${id})">${sold?"Out of Stock":"Add to Cart"}</button><button class="buy-btn" type="button" ${sold?"disabled":""} onclick="window.buyNow(${id})">${sold?"Out of Stock":"Buy Now"}</button></div></article>`;
-}
-function renderHomeProductGrid(id,list,emptyText){
- const grid=$(id);if(!grid)return;
- const unique=[],seen=new Set();
- (list||[]).forEach(p=>{const key=String(p.id);if(!seen.has(key)){seen.add(key);unique.push(p);}});
- grid.innerHTML=unique.length?unique.slice(0,4).map(homeProductCard).join(""):`<div class="showcase-empty">${esc(emptyText)}</div>`;
-}
-function renderHomepageShowcases(){
- const catGrid=$("homeCategoryGrid");
- if(catGrid){
-  let names=[...new Set(categories.map(c=>String(c.name||"").trim()).filter(Boolean))];
-  if(!names.length)names=[...new Set(products.map(p=>String(p.cat||"").trim()).filter(Boolean))];
-  if(names.length){
-   catGrid.innerHTML=names.slice(0,8).map(name=>`<button class="category-tile" type="button" onclick="filterCategory(${jsArg(name)})"><span class="category-tile-icon" aria-hidden="true">${homeCategoryIcon(name)}</span><strong>${esc(name)}</strong><small>Explore collection</small><span class="category-tile-arrow" aria-hidden="true">↗</span></button>`).join("");
-  }else catGrid.innerHTML='<div class="showcase-empty">Categories will appear here when they are added in the store.</div>';
- }
- const available=products.filter(p=>Number(p.stock)>0);
- const featured=products.filter(p=>p.featured);
- renderHomeProductGrid("featuredProductsGrid",featured.length?featured:products,"Products will appear here when the store catalogue is available.");
- // The products query is ordered by created_at descending, so the first items are the latest additions.
- renderHomeProductGrid("newArrivalsGrid",products,"New arrivals will appear here when products are added.");
- // This store currently has no verified sales-count field; use admin-featured products first and label the section transparently.
- const topPicks=featured.length?featured:available.slice().sort((a,b)=>Number(b.stock)-Number(a.stock));
- renderHomeProductGrid("bestSellersGrid",topPicks,"Store favourites will appear here when products are available.");
-}
-
 function renderSmartRecommendations(){let old=$("smartRecommendations");if(old)old.remove();if(!products.length)return;let seed=products.find(p=>p.featured)||products[0];let picks=products.filter(p=>p.cat===seed.cat&&String(p.id)!==String(seed.id)&&p.stock>0).slice(0,3);if(!picks.length)picks=products.filter(p=>String(p.id)!==String(seed.id)&&p.stock>0).slice(0,3);if(!picks.length)return;let section=document.createElement("section");section.id="smartRecommendations";section.className="shop smart-recommendations";section.innerHTML=`<div class="section-head"><h2>✨ Smart Picks For You</h2><span>Based on product category and availability</span></div><div class="products-grid">${picks.map(p=>`<article class="product-card"><div class="product-img">${p.image?`<img src="${esc(p.image)}" alt="${esc(p.name)}" style="width:100%;height:100%;object-fit:contain">`:p.emoji}</div><div class="category">${esc(p.cat)}</div><h3>${esc(p.name)}</h3><div class="price">${money(finalPrice(p))}</div><button class="add-btn" onclick="addToCart('${String(p.id).replace(/'/g,"\'")}')">Add to Cart</button></article>`).join("")}</div>`;$("products")?.insertAdjacentElement("afterend",section);}
 function getProduct(id){return products.find(p=>String(p.id)===String(id));}
 function finalPrice(p){return p.discount>0?Math.max(0,p.price-p.price*p.discount/100):p.price;}
@@ -484,8 +450,25 @@ function closeCart(){$("cartDrawer")?.classList.remove("open");let o=$("overlay"
 function openCheckout(){if(!cart.length)return;closeCart();$("checkoutModal")?.classList.remove("hidden");applyPaymentSettings();updateCart();}
 function closeCheckout(){$("checkoutModal")?.classList.add("hidden");}
 function closeSuccess(){$("successModal")?.classList.add("hidden");}
-function showAllProducts(){currentCategory="All Products";renderProducts();$("products")?.scrollIntoView({behavior:"smooth"});}
+function openCategoryMenu(){const b=$("menuBtn");if(b)b.click();}
+function showProductCollection(kind){
+ currentCategory="All Products";currentCollection=kind==="best"?"best":"new";
+ if($("searchInput"))$("searchInput").value="";
+ if($("sortSelect"))$("sortSelect").value="featured";
+ renderProducts();
+ if($("sectionTitle"))$("sectionTitle").textContent=kind==="best"?"Best Sellers":"New Arrivals";
+ $("products")?.scrollIntoView({behavior:"smooth"});
+}
+function showDiscountProducts(){
+ currentCategory="All Products";currentCollection="deals";
+ if($("searchInput"))$("searchInput").value="";
+ renderProducts();
+ if($("sectionTitle"))$("sectionTitle").textContent="Up to 70% OFF Deals";
+ $("products")?.scrollIntoView({behavior:"smooth"});
+}
+function showAllProducts(){currentCategory="All Products";currentCollection="all";renderProducts();if($("sectionTitle"))$("sectionTitle").textContent="All Products";$("products")?.scrollIntoView({behavior:"smooth"});}
 function filterCategory(c){
+ currentCollection="all";
  const key=categoryKey(c);
  currentCategory=key===categoryKey("All Products")?"All Products":(categories.find(x=>categoryKey(x.name)===key)?.name||String(c??"").trim());
  renderProducts();
