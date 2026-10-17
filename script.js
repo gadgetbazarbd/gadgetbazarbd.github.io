@@ -239,7 +239,7 @@ async function loadStoreData(){
 async function refreshStore(){
  try{await Promise.all([loadProducts(),loadStoreData(),loadCategories(),loadOffers()]);
   cart=cart.filter(x=>x.type!=="combo"||(getOffer(x.offerId)&&offerProducts(getOffer(x.offerId)).length>0));
-  saveCart();renderProducts();updateCart();renderOffers();setTimeout(setupLocationPickers,0);handleProductPageRoute();}
+  saveCart();renderProducts();renderHomepageShowcases();updateCart();renderOffers();setTimeout(setupLocationPickers,0);handleProductPageRoute();}
  catch(e){console.error(e);toast("Products could not be loaded");handleProductPageRoute(true);}
 }
 
@@ -358,6 +358,49 @@ function renderProducts(){
  updateSavedCounters();
  renderDealProducts();
 }
+function homeCategoryIcon(name){
+ const v=String(name||"").toLowerCase();
+ if(/audio|earbud|headphone|speaker|sound/.test(v))return "🎧";
+ if(/gaming|game|keyboard|mouse|controller/.test(v))return "🎮";
+ if(/wearable|watch|fitness|band/.test(v))return "⌚";
+ if(/mobile|phone|case|screen|accessor/.test(v))return "📱";
+ if(/power|charg|battery|cable|adapter/.test(v))return "⚡";
+ if(/rgb|light|led|lamp/.test(v))return "💡";
+ if(/home|kitchen|house/.test(v))return "🏠";
+ if(/camera|photo/.test(v))return "📷";
+ if(/laptop|computer|pc|storage/.test(v))return "💻";
+ if(/tv|appliance/.test(v))return "📺";
+ return "✨";
+}
+function homeProductCard(p){
+ const id=jsArg(p.id),sold=Number(p.stock)<=0,disc=Number(p.discount)>0;
+ return `<article class="product-card home-product-card"><div class="product-img">${p.image?`<img src="${esc(p.image)}" alt="${esc(p.name)}" loading="lazy" style="width:100%;height:100%;object-fit:contain;border-radius:12px" onerror="this.remove()">`:esc(p.emoji||"📦")}${disc?`<span class="home-discount-badge">${Math.round(Number(p.discount))}% OFF</span>`:""}</div><div class="category">${esc(p.cat||"Gadget")}</div><h3>${esc(p.name)}</h3><div class="price">${money(finalPrice(p))} ${disc?`<del>${money(p.price)}</del>`:""}</div><div class="product-actions"><button class="view-btn" type="button" onclick="viewProductDetails(${id})">View Details</button><button class="add-btn" type="button" ${sold?"disabled":""} onclick="window.addToCart(${id})">${sold?"Out of Stock":"Add to Cart"}</button><button class="buy-btn" type="button" ${sold?"disabled":""} onclick="window.buyNow(${id})">${sold?"Out of Stock":"Buy Now"}</button></div></article>`;
+}
+function renderHomeProductGrid(id,list,emptyText){
+ const grid=$(id);if(!grid)return;
+ const unique=[],seen=new Set();
+ (list||[]).forEach(p=>{const key=String(p.id);if(!seen.has(key)){seen.add(key);unique.push(p);}});
+ grid.innerHTML=unique.length?unique.slice(0,4).map(homeProductCard).join(""):`<div class="showcase-empty">${esc(emptyText)}</div>`;
+}
+function renderHomepageShowcases(){
+ const catGrid=$("homeCategoryGrid");
+ if(catGrid){
+  let names=[...new Set(categories.map(c=>String(c.name||"").trim()).filter(Boolean))];
+  if(!names.length)names=[...new Set(products.map(p=>String(p.cat||"").trim()).filter(Boolean))];
+  if(names.length){
+   catGrid.innerHTML=names.slice(0,8).map(name=>`<button class="category-tile" type="button" onclick="filterCategory(${jsArg(name)})"><span class="category-tile-icon" aria-hidden="true">${homeCategoryIcon(name)}</span><strong>${esc(name)}</strong><small>Explore collection</small><span class="category-tile-arrow" aria-hidden="true">↗</span></button>`).join("");
+  }else catGrid.innerHTML='<div class="showcase-empty">Categories will appear here when they are added in the store.</div>';
+ }
+ const available=products.filter(p=>Number(p.stock)>0);
+ const featured=products.filter(p=>p.featured);
+ renderHomeProductGrid("featuredProductsGrid",featured.length?featured:products,"Products will appear here when the store catalogue is available.");
+ // The products query is ordered by created_at descending, so the first items are the latest additions.
+ renderHomeProductGrid("newArrivalsGrid",products,"New arrivals will appear here when products are added.");
+ // This store currently has no verified sales-count field; use admin-featured products first and label the section transparently.
+ const topPicks=featured.length?featured:available.slice().sort((a,b)=>Number(b.stock)-Number(a.stock));
+ renderHomeProductGrid("bestSellersGrid",topPicks,"Store favourites will appear here when products are available.");
+}
+
 function renderSmartRecommendations(){let old=$("smartRecommendations");if(old)old.remove();if(!products.length)return;let seed=products.find(p=>p.featured)||products[0];let picks=products.filter(p=>p.cat===seed.cat&&String(p.id)!==String(seed.id)&&p.stock>0).slice(0,3);if(!picks.length)picks=products.filter(p=>String(p.id)!==String(seed.id)&&p.stock>0).slice(0,3);if(!picks.length)return;let section=document.createElement("section");section.id="smartRecommendations";section.className="shop smart-recommendations";section.innerHTML=`<div class="section-head"><h2>✨ Smart Picks For You</h2><span>Based on product category and availability</span></div><div class="products-grid">${picks.map(p=>`<article class="product-card"><div class="product-img">${p.image?`<img src="${esc(p.image)}" alt="${esc(p.name)}" style="width:100%;height:100%;object-fit:contain">`:p.emoji}</div><div class="category">${esc(p.cat)}</div><h3>${esc(p.name)}</h3><div class="price">${money(finalPrice(p))}</div><button class="add-btn" onclick="addToCart('${String(p.id).replace(/'/g,"\'")}')">Add to Cart</button></article>`).join("")}</div>`;$("products")?.insertAdjacentElement("afterend",section);}
 function getProduct(id){return products.find(p=>String(p.id)===String(id));}
 function finalPrice(p){return p.discount>0?Math.max(0,p.price-p.price*p.discount/100):p.price;}
