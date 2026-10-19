@@ -272,6 +272,14 @@
 
   </section>
 
+  <!-- MOBILE-FIRST QUICK SHOP SHORTCUTS -->
+  <nav class="quick-shop-nav" aria-label="Quick shop">
+    <button type="button" onclick="openMenu()"><span>▦</span> Categories</button>
+    <a href="#bestSellers"><span>★</span> Best Sellers</a>
+    <a href="#newArrivals"><span>✦</span> New Arrivals</a>
+    <button class="quick-deals" type="button" onclick="openDealsPage()"><span>％</span> Up to 70% OFF</button>
+  </nav>
+
   <!-- PREMIUM HOME SHOWCASE: categories are rendered from the live store categories -->
   <section class="category-showcase" id="shopCategories" aria-labelledby="shopCategoriesTitle">
     <div class="showcase-heading">
@@ -300,6 +308,35 @@
       <div class="showcase-empty">Loading featured products…</div>
     </div>
   </section>
+
+  <section class="home-products-section" id="newArrivals" aria-labelledby="newArrivalsTitle">
+    <div class="showcase-heading">
+      <div>
+        <p class="eyebrow">JUST ADDED TO THE STORE</p>
+        <h2 id="newArrivalsTitle">New Arrivals</h2>
+        <p>Recently added gadgets, ready to explore.</p>
+      </div>
+      <button class="showcase-link" type="button" onclick="showAllProducts()">View all <span aria-hidden="true">→</span></button>
+    </div>
+    <div class="products-grid home-products-grid" id="newArrivalsGrid" aria-live="polite">
+      <div class="showcase-empty">Loading new arrivals…</div>
+    </div>
+  </section>
+
+  <section class="home-products-section" id="bestSellers" aria-labelledby="bestSellersTitle">
+    <div class="showcase-heading">
+      <div>
+        <p class="eyebrow">STORE FAVOURITES</p>
+        <h2 id="bestSellersTitle">Best Sellers &amp; Top Picks</h2>
+        <p>Featured products and available favourites selected for easy discovery.</p>
+      </div>
+      <button class="showcase-link" type="button" onclick="showAllProducts()">Browse collection <span aria-hidden="true">→</span></button>
+    </div>
+    <div class="products-grid home-products-grid" id="bestSellersGrid" aria-live="polite">
+      <div class="showcase-empty">Loading store favourites…</div>
+    </div>
+  </section>
+
 
   <section class="shop" id="products">
 
@@ -393,34 +430,6 @@
   <section class="deal-products-zone" id="dealProductsZone" aria-labelledby="dealProductsTitle">
     <div class="deal-zone-head"><div><p class="eyebrow">SPECIAL PRODUCT OFFERS</p><h2 id="dealProductsTitle">🏷️ 70% OFF Products</h2><p>Products selected from Admin Panel appear here and remain in their normal categories.</p></div><span class="deal-zone-tag">PRODUCT DEALS</span></div>
     <div id="dealProductsGrid" class="offers-grid"><div class="offer-placeholder">Loading deal products…</div></div>
-  </section>
-
-  <section class="home-products-section" id="newArrivals" aria-labelledby="newArrivalsTitle">
-    <div class="showcase-heading">
-      <div>
-        <p class="eyebrow">JUST ADDED TO THE STORE</p>
-        <h2 id="newArrivalsTitle">New Arrivals</h2>
-        <p>Recently added gadgets, ready to explore.</p>
-      </div>
-      <button class="showcase-link" type="button" onclick="showAllProducts()">View all <span aria-hidden="true">→</span></button>
-    </div>
-    <div class="products-grid home-products-grid" id="newArrivalsGrid" aria-live="polite">
-      <div class="showcase-empty">Loading new arrivals…</div>
-    </div>
-  </section>
-
-  <section class="home-products-section" id="bestSellers" aria-labelledby="bestSellersTitle">
-    <div class="showcase-heading">
-      <div>
-        <p class="eyebrow">STORE FAVOURITES</p>
-        <h2 id="bestSellersTitle">Best Sellers &amp; Top Picks</h2>
-        <p>Featured products and available favourites selected for easy discovery.</p>
-      </div>
-      <button class="showcase-link" type="button" onclick="showAllProducts()">Browse collection <span aria-hidden="true">→</span></button>
-    </div>
-    <div class="products-grid home-products-grid" id="bestSellersGrid" aria-live="polite">
-      <div class="showcase-empty">Loading store favourites…</div>
-    </div>
   </section>
 
   <section class="benefit-strip" aria-label="Shopping benefits">
