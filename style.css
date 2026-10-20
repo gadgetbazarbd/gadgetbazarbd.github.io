@@ -518,3 +518,23 @@ body.full-product-page-open{overflow:hidden}
  .deal-zone-head h2,.deal-products-zone .deal-zone-head h2{font-size:21px!important}
 }
 @media(max-width:360px){.quick-shop-nav{gap:4px;padding:0 7px}.quick-shop-nav a,.quick-shop-nav button{font-size:8px}.hero-actions button{font-size:10px!important;padding:8px!important}.product-img{height:96px!important}}
+
+
+/* Premium payment section refinement */
+.payment-options{gap:12px}
+.pay-option{position:relative;align-items:flex-start;gap:12px;padding:15px!important;border-radius:16px;background:linear-gradient(135deg,rgba(13,34,58,.96),rgba(7,24,43,.98));border:1px solid rgba(74,132,177,.28);transition:border-color .2s,background .2s,box-shadow .2s;cursor:pointer}
+.pay-option:has(input:checked){border-color:#18c9ff;background:linear-gradient(125deg,rgba(9,74,111,.58),rgba(13,36,68,.96));box-shadow:0 0 0 1px rgba(24,201,255,.12),0 8px 24px rgba(0,143,255,.09)}
+.pay-option input{accent-color:#16baff;width:18px!important;height:18px;margin-top:3px;flex:0 0 auto}
+.pay-option>span{font-size:15px;font-weight:600;flex:1;min-width:0}
+.pay-option small{font-size:12px;line-height:1.55;font-weight:400;margin-top:5px}
+.payment-number-display{display:block;margin-top:12px;padding:10px 11px;border:1px solid rgba(36,179,255,.28);border-radius:12px;background:rgba(2,15,31,.55);width:100%;}
+.payment-number-label{display:block;color:#9ab9d5;font-size:10px;letter-spacing:.25px;margin-bottom:5px}
+.payment-number-row{display:flex;align-items:center;justify-content:space-between;gap:8px;min-width:0}
+.payment-number-value{font-size:15px;color:#57d7ff;letter-spacing:.3px;overflow-wrap:anywhere}
+.payment-copy-btn{flex:0 0 auto;border:1px solid rgba(38,192,255,.45);border-radius:9px;padding:7px 10px;background:rgba(15,106,157,.35);color:#eafaff;font-size:11px;font-weight:700}
+.payment-copy-btn:active{transform:scale(.97)}
+.payment-note{padding:10px 12px;border-radius:10px;background:rgba(15,38,62,.6);line-height:1.6}
+.checkout-total{border:1px solid rgba(30,183,255,.25);background:linear-gradient(110deg,rgba(9,55,87,.92),rgba(10,31,53,.98));border-radius:15px}
+.checkout-total strong{color:#6de6ff;font-size:22px}
+#checkoutForm button[type="submit"]{min-height:54px;font-size:16px;border-radius:15px;background:linear-gradient(110deg,#12c9f4,#0879ff 68%,#654bff);box-shadow:0 9px 24px rgba(0,144,255,.22)}
+@media(max-width:420px){.pay-option{padding:12px!important}.payment-number-value{font-size:14px}.payment-copy-btn{padding:7px 8px}}

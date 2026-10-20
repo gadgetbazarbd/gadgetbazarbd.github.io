@@ -462,8 +462,16 @@ function applyPaymentSettings(){
   let l=r.closest("label")||r.parentElement;if(l)l.style.display=ok?"":"none";
   if((t==="bkash"||t==="nagad")&&l){
    let n=t==="bkash"?PAYMENT_SETTINGS.bkash_number:PAYMENT_SETTINGS.nagad_number;
-   let b=l.querySelector(".payment-number-display");if(!b){b=document.createElement("div");b.className="payment-number-display";b.style.cssText="margin-top:6px;font-size:13px;font-weight:600;color:#1d9bf0;";l.appendChild(b);}
-   b.textContent=n?`Send payment to: ${n}`:"";b.style.display=n?"":"none";
+   let b=l.querySelector(".payment-number-display");
+   if(!b){b=document.createElement("div");b.className="payment-number-display";l.appendChild(b);}
+   b.innerHTML="";
+   if(n){
+    const label=document.createElement("span");label.className="payment-number-label";label.textContent="Payment number / পেমেন্ট নম্বর";
+    const row=document.createElement("div");row.className="payment-number-row";
+    const number=document.createElement("strong");number.className="payment-number-value";number.textContent=n;
+    const copy=document.createElement("button");copy.type="button";copy.className="payment-copy-btn";copy.textContent="Copy";copy.setAttribute("aria-label",`Copy ${t} payment number`);copy.addEventListener("click",async ev=>{ev.preventDefault();ev.stopPropagation();try{await navigator.clipboard.writeText(n);copy.textContent="Copied ✓";setTimeout(()=>{copy.textContent="Copy";},1600);}catch(_){const temp=document.createElement("textarea");temp.value=n;temp.style.position="fixed";temp.style.opacity="0";document.body.appendChild(temp);temp.select();try{document.execCommand("copy");copy.textContent="Copied ✓";}catch(__){copy.textContent=n;}temp.remove();setTimeout(()=>{copy.textContent="Copy";},1600);}});
+    row.append(number,copy);b.append(label,row);b.style.display="";
+   }else{b.style.display="none";}
   }
  });
  let ch=document.querySelector('input[name="payment"]:checked');
