@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#071426">
   <meta name="description" content="Shop smart gadgets, mobile accessories, audio, wearables, RGB lighting and home electronics at Gadget Bazar BD.">
 
-  <title>Gadget Bazar BD</title>
+  <title>Gadget Bazar BD | Smart Gadgets & Accessories</title>
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -16,7 +16,7 @@
     rel="stylesheet"
   >
 
-  <link rel="stylesheet" href="style.css?v=gbbd-premium-neon-20261017">
+  <link rel="stylesheet" href="style.css?v=gbbd-catalogue-20261021">
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
@@ -134,6 +134,17 @@
       type="button"
     >
       🛒 <span id="cartCount">0</span>
+    </button>
+
+    <!-- Quick checkout: keeps the existing cart and checkout flow intact -->
+    <button
+      class="header-checkout-btn"
+      id="headerCheckoutBtn"
+      type="button"
+      aria-label="Go to checkout"
+      onclick="openHeaderCheckout()"
+    >
+      <span aria-hidden="true">⚡</span><span class="header-checkout-label">Checkout</span>
     </button>
 
   </div>
@@ -274,7 +285,7 @@
 
   <!-- MOBILE-FIRST QUICK SHOP SHORTCUTS -->
   <nav class="quick-shop-nav" aria-label="Quick shop">
-    <button type="button" onclick="openMenu()"><span>▦</span> Categories</button>
+    <button type="button" onclick="document.getElementById('shopCategories').scrollIntoView({behavior:'smooth'})"><span>▦</span> Categories</button>
     <a href="#bestSellers"><span>★</span> Best Sellers</a>
     <a href="#newArrivals"><span>✦</span> New Arrivals</a>
     <button class="quick-deals" type="button" onclick="openDealsPage()"><span>％</span> Up to 70% OFF</button>
@@ -813,7 +824,9 @@
         </label>
 
         <p class="payment-note">
-          টাকা পাঠানোর পর Transaction ID দিন। কখনো PIN, OTP বা CVV দেবেন না।
+          Before using bKash/Nagad, set your own payment number in
+          <code>script.js</code>.
+          Never ask customers for PIN, OTP or CVV.
         </p>
 
       </div>
@@ -933,7 +946,7 @@
 </footer>
 
 
-<script src="script.js?v=gbbd-premium-neon-20261017"></script>
+<script src="script.js?v=gbbd-catalogue-20261021"></script>
 
 </body>
 </html>

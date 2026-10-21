@@ -271,14 +271,14 @@ function toggleWishlist(id){
  id=String(id);
  if(wishlistIds.has(id)){wishlistIds.delete(id);toast("Removed from Wishlist");}
  else{wishlistIds.add(id);toast("Added to Wishlist");}
- persistSavedIds();renderProducts();
+ persistSavedIds();renderProducts();renderHomepageShowcases();
  if(!$('savedProductsPanel')?.classList.contains('hidden')&&$('savedPanelTitle')?.dataset.kind==='wishlist')renderSavedPanel();
 }
 function toggleCompare(id){
  id=String(id);
  if(compareIds.has(id)){compareIds.delete(id);toast("Removed from Compare");}
  else{if(compareIds.size>=3)return toast("Compare up to 3 products — remove one first");compareIds.add(id);toast("Added to Compare");}
- persistSavedIds();renderProducts();
+ persistSavedIds();renderProducts();renderHomepageShowcases();
  if(!$('savedProductsPanel')?.classList.contains('hidden')&&$('savedPanelTitle')?.dataset.kind==='compare')renderSavedPanel();
 }
 function closeSavedProducts(){$('savedProductsPanel')?.classList.add('hidden');}
@@ -324,7 +324,7 @@ function savedProductCard(p,kind){
  const id=jsArg(p.id),price=finalPrice(p),disc=Number(p.discount)>0,sold=p.stock<=0;
  return `<article class="saved-product-card"><div class="saved-product-image">${p.image?`<img src="${esc(p.image)}" alt="${esc(p.name)}" loading="lazy" onerror="this.style.display='none'">`: `<span>${esc(p.emoji||'📦')}</span>`}</div><div class="saved-product-info"><span class="saved-product-category">${esc(p.cat)}</span><h3>${esc(p.name)}</h3><div class="saved-product-price">${money(price)} ${disc?`<del>${money(p.price)}</del><span class="discount-badge">${Math.round(Number(p.discount))}% OFF</span>`:''}</div><div class="saved-stock ${sold?'sold':''}">${sold?'Out of stock':`In stock: ${Math.max(0,p.stock)}`}</div><div class="saved-product-actions"><button type="button" class="view-btn" onclick="viewProductDetails(${id})">View</button><button type="button" class="add-btn" ${sold?'disabled':''} onclick="window.addToCart(${id})">Add to Cart</button><button type="button" class="buy-btn" ${sold?'disabled':''} onclick="window.buyNow(${id})">Buy Now</button><button type="button" class="saved-remove-btn" onclick="removeSavedProduct('${kind}',${id})">Remove</button></div></div></article>`;
 }
-function removeSavedProduct(kind,id){if(kind==='wishlist')wishlistIds.delete(String(id));else compareIds.delete(String(id));persistSavedIds();renderProducts();renderSavedPanel();toast(kind==='wishlist'?'Removed from Wishlist':'Removed from Compare');}
+function removeSavedProduct(kind,id){if(kind==='wishlist')wishlistIds.delete(String(id));else compareIds.delete(String(id));persistSavedIds();renderProducts();renderHomepageShowcases();renderSavedPanel();toast(kind==='wishlist'?'Removed from Wishlist':'Removed from Compare');}
 function renderCompareTable(list){
  const diffsOnly=!!$('compareDifferencesOnly')?.checked;
  const specs=list.map(productSpecEntries);
@@ -374,7 +374,8 @@ function homeCategoryIcon(name){
 }
 function homeProductCard(p){
  const id=jsArg(p.id),sold=Number(p.stock)<=0,disc=Number(p.discount)>0;
- return `<article class="product-card home-product-card"><div class="product-img">${p.image?`<img src="${esc(p.image)}" alt="${esc(p.name)}" loading="lazy" style="width:100%;height:100%;object-fit:contain;border-radius:12px" onerror="this.remove()">`:esc(p.emoji||"📦")}${disc?`<span class="home-discount-badge">${Math.round(Number(p.discount))}% OFF</span>`:""}</div><div class="category">${esc(p.cat||"Gadget")}</div><h3>${esc(p.name)}</h3><div class="price">${money(finalPrice(p))} ${disc?`<del>${money(p.price)}</del>`:""}</div><div class="product-actions"><button class="view-btn" type="button" onclick="viewProductDetails(${id})">View Details</button><button class="add-btn" type="button" ${sold?"disabled":""} onclick="window.addToCart(${id})">${sold?"Out of Stock":"Add to Cart"}</button><button class="buy-btn" type="button" ${sold?"disabled":""} onclick="window.buyNow(${id})">${sold?"Out of Stock":"Buy Now"}</button></div></article>`;
+ const saved=wishlistIds.has(String(p.id)),compared=compareIds.has(String(p.id));
+ return `<article class="product-card home-product-card"><div class="product-img">${p.image?`<img src="${esc(p.image)}" alt="${esc(p.name)}" loading="lazy" style="width:100%;height:100%;object-fit:contain;border-radius:12px" onerror="this.remove()">`:esc(p.emoji||"📦")}${disc?`<span class="home-discount-badge">${Math.round(Number(p.discount))}% OFF</span>`:""}<div class="home-card-tools"><button type="button" class="home-save-btn ${saved?'is-saved':''}" aria-label="${saved?'Remove from Wishlist':'Add to Wishlist'}" title="${saved?'Remove from Wishlist':'Add to Wishlist'}" onclick="toggleWishlist(${id})">${saved?'♥':'♡'}</button><button type="button" class="home-save-btn ${compared?'is-compared':''}" aria-label="${compared?'Remove from Compare':'Add to Compare'}" title="${compared?'Remove from Compare':'Add to Compare'}" onclick="toggleCompare(${id})">${compared?'✓':'⇄'}</button></div></div><div class="category">${esc(p.cat||"Gadget")}</div><h3>${esc(p.name)}</h3><div class="price">${money(finalPrice(p))} ${disc?`<del>${money(p.price)}</del>`:""}</div><div class="product-actions"><button class="view-btn" type="button" onclick="viewProductDetails(${id})">View Details</button><button class="add-btn" type="button" ${sold?"disabled":""} onclick="window.addToCart(${id})">${sold?"Out of Stock":"Add to Cart"}</button><button class="buy-btn" type="button" ${sold?"disabled":""} onclick="window.buyNow(${id})">${sold?"Out of Stock":"Buy Now"}</button></div></article>`;
 }
 function renderHomeProductGrid(id,list,emptyText){
  const grid=$(id);if(!grid)return;
@@ -462,16 +463,8 @@ function applyPaymentSettings(){
   let l=r.closest("label")||r.parentElement;if(l)l.style.display=ok?"":"none";
   if((t==="bkash"||t==="nagad")&&l){
    let n=t==="bkash"?PAYMENT_SETTINGS.bkash_number:PAYMENT_SETTINGS.nagad_number;
-   let b=l.querySelector(".payment-number-display");
-   if(!b){b=document.createElement("div");b.className="payment-number-display";l.appendChild(b);}
-   b.innerHTML="";
-   if(n){
-    const label=document.createElement("span");label.className="payment-number-label";label.textContent="Payment number / পেমেন্ট নম্বর";
-    const row=document.createElement("div");row.className="payment-number-row";
-    const number=document.createElement("strong");number.className="payment-number-value";number.textContent=n;
-    const copy=document.createElement("button");copy.type="button";copy.className="payment-copy-btn";copy.textContent="Copy";copy.setAttribute("aria-label",`Copy ${t} payment number`);copy.addEventListener("click",async ev=>{ev.preventDefault();ev.stopPropagation();try{await navigator.clipboard.writeText(n);copy.textContent="Copied ✓";setTimeout(()=>{copy.textContent="Copy";},1600);}catch(_){const temp=document.createElement("textarea");temp.value=n;temp.style.position="fixed";temp.style.opacity="0";document.body.appendChild(temp);temp.select();try{document.execCommand("copy");copy.textContent="Copied ✓";}catch(__){copy.textContent=n;}temp.remove();setTimeout(()=>{copy.textContent="Copy";},1600);}});
-    row.append(number,copy);b.append(label,row);b.style.display="";
-   }else{b.style.display="none";}
+   let b=l.querySelector(".payment-number-display");if(!b){b=document.createElement("div");b.className="payment-number-display";b.style.cssText="margin-top:6px;font-size:13px;font-weight:600;color:#1d9bf0;";l.appendChild(b);}
+   b.textContent=n?`Send payment to: ${n}`:"";b.style.display=n?"":"none";
   }
  });
  let ch=document.querySelector('input[name="payment"]:checked');
@@ -490,6 +483,8 @@ function closeMenu(){$("sideMenu")?.classList.remove("open");let o=$("overlay"),
 function openCart(){$("cartDrawer")?.classList.add("open");$("overlay")?.classList.remove("hidden");updateCart();}
 function closeCart(){$("cartDrawer")?.classList.remove("open");let o=$("overlay"),m=$("sideMenu");if(o&&(!m||!m.classList.contains("open")))o.classList.add("hidden");}
 function openCheckout(){if(!cart.length)return;closeCart();$("checkoutModal")?.classList.remove("hidden");applyPaymentSettings();updateCart();}
+function openHeaderCheckout(){if(!cart.length){openCart();toast("Add a product to continue to checkout");return;}openCheckout();}
+window.openHeaderCheckout=openHeaderCheckout;
 function closeCheckout(){$("checkoutModal")?.classList.add("hidden");}
 function closeSuccess(){$("successModal")?.classList.add("hidden");}
 function showAllProducts(){currentCategory="All Products";renderProducts();$("products")?.scrollIntoView({behavior:"smooth"});}
