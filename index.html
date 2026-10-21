@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#071426">
   <meta name="description" content="Shop smart gadgets, mobile accessories, audio, wearables, RGB lighting and home electronics at Gadget Bazar BD.">
 
-  <title>Gadget Bazar BD | Smart Gadgets & Accessories</title>
+  <title>Gadget Bazar BD</title>
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -16,7 +16,7 @@
     rel="stylesheet"
   >
 
-  <link rel="stylesheet" href="style.css?v=gbbd-catalogue-20261021">
+  <link rel="stylesheet" href="style.css?v=gbbd-premium-neon-20261017">
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
@@ -134,17 +134,6 @@
       type="button"
     >
       🛒 <span id="cartCount">0</span>
-    </button>
-
-    <!-- Quick checkout: keeps the existing cart and checkout flow intact -->
-    <button
-      class="header-checkout-btn"
-      id="headerCheckoutBtn"
-      type="button"
-      aria-label="Go to checkout"
-      onclick="openHeaderCheckout()"
-    >
-      <span aria-hidden="true">⚡</span><span class="header-checkout-label">Checkout</span>
     </button>
 
   </div>
@@ -285,7 +274,7 @@
 
   <!-- MOBILE-FIRST QUICK SHOP SHORTCUTS -->
   <nav class="quick-shop-nav" aria-label="Quick shop">
-    <button type="button" onclick="document.getElementById('shopCategories').scrollIntoView({behavior:'smooth'})"><span>▦</span> Categories</button>
+    <button type="button" onclick="openMenu()"><span>▦</span> Categories</button>
     <a href="#bestSellers"><span>★</span> Best Sellers</a>
     <a href="#newArrivals"><span>✦</span> New Arrivals</a>
     <button class="quick-deals" type="button" onclick="openDealsPage()"><span>％</span> Up to 70% OFF</button>
@@ -740,71 +729,54 @@
 
       <div class="coupon-box"><label for="couponCode">Coupon code</label><div class="coupon-row"><input id="couponCode" type="text" maxlength="24" placeholder="WELCOME5 or GADGET50"><button id="applyCouponBtn" type="button" class="add-btn">Apply</button></div><small id="couponStatus">Try WELCOME5 or GADGET50</small><div class="coupon-discount-row"><span>Coupon discount</span><strong id="couponDiscount">৳0</strong></div></div>
 
-      <h3>
-        Payment Method
-      </h3>
+      <section class="premium-payment-section" aria-labelledby="paymentSectionTitle">
+        <div class="payment-section-heading">
+          <div class="payment-heading-icon" aria-hidden="true">♧</div>
+          <div class="payment-heading-copy">
+            <h3 id="paymentSectionTitle">Payment method</h3>
+            <p>Choose the option that works best for you.</p>
+          </div>
+          <span class="payment-step-pill">STEP 2</span>
+        </div>
 
+        <div class="payment-options">
+          <label class="pay-option pay-option-cod">
+            <input type="radio" name="payment" value="Cash on Delivery" checked>
+            <span class="pay-brand-mark cod-mark" aria-hidden="true">৳</span>
+            <span class="pay-option-copy">
+              <span class="pay-option-title">Cash on Delivery <span class="pay-recommended">Easy</span></span>
+              <small>Pay in cash when your order arrives.</small>
+            </span>
+            <span class="pay-radio-indicator" aria-hidden="true"></span>
+          </label>
 
-      <div class="payment-options">
+          <label class="pay-option pay-option-bkash">
+            <input type="radio" name="payment" value="bKash (manual)">
+            <span class="pay-brand-mark bkash-mark" aria-hidden="true">b</span>
+            <span class="pay-option-copy">
+              <span class="pay-option-title">bKash <span class="pay-manual-tag">Manual</span></span>
+              <small>Send payment to the displayed number, then enter the Transaction ID.</small>
+            </span>
+            <span class="pay-radio-indicator" aria-hidden="true"></span>
+          </label>
 
-        <label class="pay-option">
+          <label class="pay-option pay-option-nagad">
+            <input type="radio" name="payment" value="Nagad (manual)">
+            <span class="pay-brand-mark nagad-mark" aria-hidden="true">N</span>
+            <span class="pay-option-copy">
+              <span class="pay-option-title">Nagad <span class="pay-manual-tag">Manual</span></span>
+              <small>Send payment to the displayed number, then enter the Transaction ID.</small>
+            </span>
+            <span class="pay-radio-indicator" aria-hidden="true"></span>
+          </label>
+        </div>
 
-          <input
-            type="radio"
-            name="payment"
-            value="Cash on Delivery"
-            checked
-          >
-
-          <span>
-            💵 Cash on Delivery
-
-            <small>
-              Pay when your order arrives.
-            </small>
-          </span>
-
-        </label>
-
-
-        <label class="pay-option">
-
-          <input
-            type="radio"
-            name="payment"
-            value="bKash (manual)"
-          >
-
-          <span>
-            📲 bKash
-
-            <small>
-              Manual payment. Add transaction ID below after payment.
-            </small>
-          </span>
-
-        </label>
-
-
-        <label class="pay-option">
-
-          <input
-            type="radio"
-            name="payment"
-            value="Nagad (manual)"
-          >
-
-          <span>
-            📲 Nagad
-
-            <small>
-              Manual payment. Add transaction ID below after payment.
-            </small>
-          </span>
-
-        </label>
-
-      </div>
+        <div class="payment-security-note">
+          <span class="payment-security-icon" aria-hidden="true">✓</span>
+          <span><strong>Shop with confidence</strong><small>Never share your PIN, OTP or card security code in this form.</small></span>
+          <span class="payment-lock" aria-hidden="true">⌑</span>
+        </div>
+      </section>
 
 
       <div
@@ -824,9 +796,7 @@
         </label>
 
         <p class="payment-note">
-          Before using bKash/Nagad, set your own payment number in
-          <code>script.js</code>.
-          Never ask customers for PIN, OTP or CVV.
+          টাকা পাঠানোর পর Transaction ID দিন। কখনো PIN, OTP বা CVV দেবেন না।
         </p>
 
       </div>
@@ -946,7 +916,7 @@
 </footer>
 
 
-<script src="script.js?v=gbbd-catalogue-20261021"></script>
+<script src="script.js?v=gbbd-premium-neon-20261017"></script>
 
 </body>
 </html>
