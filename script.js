@@ -23,6 +23,24 @@ let compareIds=loadSavedIds("gbbd_compare",3);
 let appliedCoupon="";
 const COUPONS={WELCOME5:{type:"percent",value:5,min:500},GADGET50:{type:"flat",value:50,min:1000}};
 
+/* =====================================================
+   STORE DETAILS — edit this block, nothing else needed.
+   Contact cards and the WhatsApp button appear on the
+   site only for the fields you fill in.
+===================================================== */
+const STORE_INFO={
+ whatsapp:"",   // country code + number, digits only. Example: "8801XXXXXXXXX"
+ phone:"",      // Example: "01XXXXXXXXX"
+ email:"",      // Example: "hello@yourshop.com"
+ facebook:"",   // Full page link. Example: "https://facebook.com/yourpage"
+ address:"",    // Shop / pickup address, if you want to show one
+ hours:""       // Example: "Every day, 10 AM to 10 PM"
+};
+// Estimated delivery time per zone (shown at checkout and in Policies). Change to match your couriers.
+const DELIVERY_TIME={dhaka:"1–2 days",nearby:"2–3 days",outside:"3–5 days"};
+// Returns window shown in Policies.
+const RETURN_WINDOW="3 days";
+
 function toast(msg){
  let t=$("gbToast"); if(!t){t=document.createElement("div");t.id="gbToast";t.className="gb-toast";document.body.appendChild(t);}
  t.textContent=msg;t.classList.add("show");clearTimeout(window.__gbToastTimer);
@@ -56,7 +74,8 @@ async function loadOffers(){
   renderOffers();
  }catch(e){
   // Keep the site working if the optional offers table has not been created yet.
-  if(grid)grid.innerHTML='<div class="offer-placeholder">Offers are being prepared. Please check back soon.</div>';
+  if(grid)grid.innerHTML='';
+  updateDealsVisibility();
   console.info("Optional offers table is not available yet. Run offers_setup.sql to enable Deal Zone.",e.message||e);
  }
 }
@@ -110,7 +129,21 @@ function renderDealProductCards(){
 function renderDealProducts(){
  const grid=$('dealProductsGrid');
  const cards=renderDealProductCards();
- if(grid)grid.innerHTML=cards||`<div class="offer-placeholder">No deal products yet. In Admin Panel, edit a product and select “Show this product in the 70% OFF Deals page”. Products will still remain in Home and their normal category.</div>`;
+ if(grid)grid.innerHTML=cards;
+ $('dealProductsHead')?.classList.toggle('hidden',!cards);
+ updateDealsVisibility();
+}
+// Deals appear on the site only when there is something to show.
+function updateDealsVisibility(){
+ const has=storeOffers.length>0||products.some(p=>p.is_deal||Number(p.discount)>=70);
+ $('dealZone')?.classList.toggle('hidden',!has);
+ document.querySelectorAll('.needs-deals').forEach(el=>el.classList.toggle('hidden',!has));
+}
+function dealTypes(){return [...new Set(storeOffers.map(o=>String(o.offer_type||'').trim()).filter(Boolean))];}
+function renderDealChips(){
+ const types=dealTypes();
+ const html=types.length?types.map(t=>`<button type="button" class="${t===activeDealType?'is-active':''}" onclick="showDealType(${esc(jsArg(t))})">${esc(t)}</button>`).join('')+`<button type="button" class="${activeDealType?'':'is-active'}" onclick="showDealType('')">All Deals</button>`:'';
+ const el=$('dealsPageChips');if(el){el.innerHTML=html;el.classList.toggle('hidden',!html);}
 }
 function renderOffers(){
  const offerGrid=$('offersGrid');
@@ -126,9 +159,10 @@ function renderOffers(){
   const priceLabel=Number(o.combo_price)>0?(isCombo?'Combo Deal':'Special Deal'):pct>0?`${pct}% OFF`:'Special Deal';
   return `<article class="offer-card">${img?`<div class="offer-cover"><img src="${esc(img)}" alt="${esc(o.title||'Offer')}" loading="lazy"></div>`:''}<span class="offer-type">${type}</span><h3>${esc(o.title||'Special offer')}</h3><p>${esc(o.description||'Limited-time offer from Gadget Bazar BD.')}</p>${matched.length?`<div class="offer-products">${matched.map(p=>`<div class="offer-mini-product">${p.image?`<img src="${esc(p.image)}" alt="" loading="lazy">`:''}<span>${esc(p.name)}</span></div>`).join('')}</div>`:''}<div class="offer-value">${esc(priceLabel)}</div>${unitPrice>0?`<strong class="offer-combo-price">${money(unitPrice)}${isCombo?' per combo':' total'}</strong>`:''}${o.ends_at?`<small>Ends: ${new Date(o.ends_at).toLocaleString('en-BD',{dateStyle:'medium',timeStyle:'short'})}</small>`:''}${matched.length?`<div class="offer-card-actions"><button type="button" class="add-btn" ${sold?'disabled':''} onclick="addOfferToCart('${offerId}')">${sold?'Out of Stock':isCombo?'Add Combo to Cart':'Add to Cart'}</button><button type="button" class="buy-btn" ${sold?'disabled':''} onclick="buyOfferNow('${offerId}')">${sold?'Out of Stock':isCombo?'Buy Combo Now':'Buy Now'}</button></div>`:`<small>Products for this offer are not available right now.</small>`}</article>`;
  }).join('');
- const placeholder=`<div class="offer-placeholder">${activeDealType?`No active ${esc(activeDealType)} right now.`:'No active store offers yet. Add Combo Deals or special offers from Admin Panel.'}</div>`;
- if(offerGrid)offerGrid.innerHTML=offerCards||placeholder;
+ const placeholder=`<div class="offer-placeholder">${activeDealType?`No active ${esc(activeDealType)} right now.`:'No offers right now. Please check back soon.'}</div>`;
+ if(offerGrid)offerGrid.innerHTML=offerCards;
  if(pageGrid){const dealProducts=activeDealType?'':renderDealProductCards();pageGrid.innerHTML=(offerCards||'')+dealProducts||placeholder;}
+ renderDealChips();
  renderDealProducts();
 }
 function addOfferToCart(offerId){
@@ -239,7 +273,7 @@ async function loadStoreData(){
 async function refreshStore(){
  try{await Promise.all([loadProducts(),loadStoreData(),loadCategories(),loadOffers()]);
   cart=cart.filter(x=>x.type!=="combo"||(getOffer(x.offerId)&&offerProducts(getOffer(x.offerId)).length>0));
-  saveCart();renderProducts();renderHomepageShowcases();updateCart();renderOffers();setTimeout(setupLocationPickers,0);handleProductPageRoute();}
+  saveCart();renderProducts();renderHomepageShowcases();updateCart();renderOffers();renderPolicyInfo();setTimeout(setupLocationPickers,0);handleProductPageRoute();}
  catch(e){console.error(e);toast("Products could not be loaded");handleProductPageRoute(true);}
 }
 
@@ -360,17 +394,17 @@ function renderProducts(){
 }
 function homeCategoryIcon(name){
  const v=String(name||"").toLowerCase();
- if(/audio|earbud|headphone|speaker|sound/.test(v))return "🎧";
- if(/gaming|game|keyboard|mouse|controller/.test(v))return "🎮";
- if(/wearable|watch|fitness|band/.test(v))return "⌚";
- if(/mobile|phone|case|screen|accessor/.test(v))return "📱";
- if(/power|charg|battery|cable|adapter/.test(v))return "⚡";
- if(/rgb|light|led|lamp/.test(v))return "💡";
- if(/home|kitchen|house/.test(v))return "🏠";
- if(/camera|photo/.test(v))return "📷";
- if(/laptop|computer|pc|storage/.test(v))return "💻";
- if(/tv|appliance/.test(v))return "📺";
- return "✨";
+ const svg=id=>`<svg class="ic ic-lg" aria-hidden="true"><use href="#i-${id}"/></svg>`;
+ if(/audio|earbud|headphone|speaker|sound/.test(v))return svg("headphones");
+ if(/gaming|game|keyboard|mouse|controller/.test(v))return svg("gamepad");
+ if(/wearable|watch|fitness|band/.test(v))return svg("watch");
+ if(/mobile|phone|case|screen|accessor/.test(v))return svg("mobile");
+ if(/power|charg|battery|cable|adapter/.test(v))return svg("battery");
+ if(/rgb|light|led|lamp/.test(v))return svg("bulb");
+ if(/home|kitchen|house/.test(v))return svg("home");
+ if(/camera|photo/.test(v))return svg("camera");
+ if(/laptop|computer|pc|storage/.test(v))return svg("laptop");
+ return svg("sparkle");
 }
 function homeProductCard(p){
  const id=jsArg(p.id),sold=Number(p.stock)<=0,disc=Number(p.discount)>0;
@@ -402,7 +436,7 @@ function renderHomepageShowcases(){
  renderHomeProductGrid("bestSellersGrid",topPicks,"Store favourites will appear here when products are available.");
 }
 
-function renderSmartRecommendations(){let old=$("smartRecommendations");if(old)old.remove();if(!products.length)return;let seed=products.find(p=>p.featured)||products[0];let picks=products.filter(p=>p.cat===seed.cat&&String(p.id)!==String(seed.id)&&p.stock>0).slice(0,3);if(!picks.length)picks=products.filter(p=>String(p.id)!==String(seed.id)&&p.stock>0).slice(0,3);if(!picks.length)return;let section=document.createElement("section");section.id="smartRecommendations";section.className="shop smart-recommendations";section.innerHTML=`<div class="section-head"><h2>✨ Smart Picks For You</h2><span>Based on product category and availability</span></div><div class="products-grid">${picks.map(p=>`<article class="product-card"><div class="product-img">${p.image?`<img src="${esc(p.image)}" alt="${esc(p.name)}" style="width:100%;height:100%;object-fit:contain">`:p.emoji}</div><div class="category">${esc(p.cat)}</div><h3>${esc(p.name)}</h3><div class="price">${money(finalPrice(p))}</div><button class="add-btn" onclick="addToCart('${String(p.id).replace(/'/g,"\'")}')">Add to Cart</button></article>`).join("")}</div>`;$("products")?.insertAdjacentElement("afterend",section);}
+function renderSmartRecommendations(){let old=$("smartRecommendations");if(old)old.remove();if(!products.length)return;let seed=products.find(p=>p.featured)||products[0];let picks=products.filter(p=>p.cat===seed.cat&&String(p.id)!==String(seed.id)&&p.stock>0).slice(0,3);if(!picks.length)picks=products.filter(p=>String(p.id)!==String(seed.id)&&p.stock>0).slice(0,3);if(!picks.length)return;let section=document.createElement("section");section.id="smartRecommendations";section.className="shop smart-recommendations";section.innerHTML=`<div class="section-head"><h2>Smart Picks For You</h2><span>Based on product category and availability</span></div><div class="products-grid">${picks.map(p=>`<article class="product-card"><div class="product-img">${p.image?`<img src="${esc(p.image)}" alt="${esc(p.name)}" style="width:100%;height:100%;object-fit:contain">`:p.emoji}</div><div class="category">${esc(p.cat)}</div><h3>${esc(p.name)}</h3><div class="price">${money(finalPrice(p))}</div><button class="add-btn" onclick="addToCart('${String(p.id).replace(/'/g,"\'")}')">Add to Cart</button></article>`).join("")}</div>`;$("products")?.insertAdjacentElement("afterend",section);}
 function getProduct(id){return products.find(p=>String(p.id)===String(id));}
 function finalPrice(p){return p.discount>0?Math.max(0,p.price-p.price*p.discount/100):p.price;}
 function cartUnitPrice(item){if(item?.type==="combo"){const offer=getOffer(item.offerId);return offer?offerUnitPrice(offer):0;}const p=getProduct(item?.id);return p?finalPrice(p):0;}
@@ -424,12 +458,12 @@ function totals(){
 function updateDeliveryInfo(){
  let b=$("deliveryInfo");if(!b)return;
  if(!selectedDistrict)b.textContent="Select your district to calculate delivery charge.";
- else{let z=selectedDistrict==="Dhaka"?"Dhaka":NEARBY_DISTRICTS.includes(selectedDistrict)?"Nearby Dhaka":"Outside Dhaka";b.textContent=`Delivery: ${money(getDeliveryFee())} • ${z}`;}
+ else{let k=selectedDistrict==="Dhaka"?"dhaka":NEARBY_DISTRICTS.includes(selectedDistrict)?"nearby":"outside";let z={dhaka:"Dhaka",nearby:"Nearby Dhaka",outside:"Outside Dhaka"}[k];b.textContent=`Delivery: ${money(getDeliveryFee())} • ${z} • Usually ${DELIVERY_TIME[k]}`;}
  updateCart();
 }
 function updateCart(){
  let c=$("cartCount");if(c)c.textContent=cart.reduce((sum,item)=>sum+item.qty,0);
- let t=totals();["cartSubtotal","cartDelivery","cartTotal","checkoutTotal"].forEach((id,i)=>{let e=$(id);if(e)e.textContent=money([t.subtotal,t.delivery,t.total,t.total][i]);});let dc=$("couponDiscount");if(dc)dc.textContent=money(t.discount);let ca=$("couponStatus");if(ca)ca.textContent=appliedCoupon?(t.discount?`Coupon ${appliedCoupon} applied`:`Coupon ${appliedCoupon}: minimum order ${money(COUPONS[appliedCoupon]?.min||0)}`):"Try WELCOME5 or GADGET50";
+ let t=totals();["cartSubtotal","cartDelivery","cartTotal","checkoutTotal"].forEach((id,i)=>{let e=$(id);if(e)e.textContent=money([t.subtotal,t.delivery,t.total,t.total][i]);});let dc=$("couponDiscount");if(dc)dc.textContent=money(t.discount);let ca=$("couponStatus");if(ca)ca.textContent=appliedCoupon?(t.discount?`Coupon ${appliedCoupon} applied`:`Coupon ${appliedCoupon}: minimum order ${money(COUPONS[appliedCoupon]?.min||0)}`):"Enter a code and tap Apply.";
  let cb=$("checkoutBtn");if(cb)cb.disabled=!cart.length||!enabledPaymentTypes().length;
  let box=$("cartItems");if(!box)return;
  box.innerHTML=cart.length?cart.map(item=>{
@@ -523,7 +557,17 @@ async function submitOrderToSupabase(o){
  let {data,error}=await sb.from("orders").insert(row).select();if(error)throw error;console.log("ORDER SAVED",data);
 }
 
-function applyCoupon(){const input=$("couponCode");const code=String(input?.value||"").trim().toUpperCase();if(!code){appliedCoupon="";updateCart();return toast("Enter a coupon code")}if(!COUPONS[code])return toast("Invalid coupon code");appliedCoupon=code;updateCart();toast("Coupon checked");}
+function couponLines(){return Object.entries(COUPONS).map(([code,c])=>`<li><b>${esc(code)}</b> ${c.type==="percent"?c.value+"% off":money(c.value)+" off"} on orders of ${money(c.min)} or more</li>`).join("");}
+function applyCoupon(){
+ const input=$("couponCode");const code=String(input?.value||"").trim().toUpperCase();
+ if(!code){appliedCoupon="";updateCart();return toast("Enter a coupon code")}
+ const c=COUPONS[code];
+ if(!c){appliedCoupon="";updateCart();return toast("Invalid coupon code")}
+ appliedCoupon=code;updateCart();
+ const sub=totals().subtotal;
+ if(sub<c.min)toast(`Add ${money(c.min-sub)} more to use ${code}`);
+ else toast(`${code} applied`);
+}
 function initCustomerUI(){
  $("menuBtn")&&( $("menuBtn").onclick=openMenu);$("cartBtn")&&($("cartBtn").onclick=openCart);$("overlay")&&($("overlay").onclick=()=>{closeMenu();closeCart();});
  document.querySelectorAll('[data-close="menu"]').forEach(x=>x.onclick=closeMenu);document.querySelectorAll('[data-close="cart"]').forEach(x=>x.onclick=closeCart);document.querySelectorAll('[data-close="checkout"]').forEach(x=>x.onclick=closeCheckout);
@@ -556,7 +600,34 @@ async function trackOrdersByPhone(){
  }catch(e){console.error(e);box.innerHTML=`<div class="tracking-error"><strong>Something went wrong.</strong><p>Please try again.</p></div>`;}finally{if(btn){btn.disabled=false;btn.textContent="Track Orders";}}
 }
 
-async function startCustomerSite(){initCustomerUI();updateSavedCounters();renderProducts();updateCart();await refreshStore();setupLocationPickers();renderSmartRecommendations();}
+/* Policies, delivery fees and contact details shown on the page */
+function renderPolicyInfo(){
+ document.querySelectorAll("[data-fee]").forEach(el=>{el.textContent=money(DELIVERY_SETTINGS[el.dataset.fee]);});
+ document.querySelectorAll("[data-time]").forEach(el=>{el.textContent=DELIVERY_TIME[el.dataset.time]||"";});
+ document.querySelectorAll("[data-return-window]").forEach(el=>{el.textContent=RETURN_WINDOW;});
+ const note=$("nearbyNote");if(note)note.textContent="Nearby Dhaka: "+NEARBY_DISTRICTS.join(", ")+".";
+ const sum=$("deliverySummary");if(sum)sum.textContent=`Dhaka ${DELIVERY_TIME.dhaka} · Outside Dhaka ${DELIVERY_TIME.outside}`;
+ const pay=$("paymentSummary");
+ if(pay){const names=[];if(PAYMENT_SETTINGS.cod_enabled)names.push("Cash on Delivery");if(PAYMENT_SETTINGS.bkash_enabled&&PAYMENT_SETTINGS.bkash_number)names.push("bKash");if(PAYMENT_SETTINGS.nagad_enabled&&PAYMENT_SETTINGS.nagad_number)names.push("Nagad");pay.textContent=names.length?"Accepted: "+names.join(", ")+".":"Pay with the methods shown at checkout.";}
+ const help=$("couponHelp");if(help)help.innerHTML=couponLines();
+}
+function renderStoreInfo(){
+ const i=STORE_INFO,digits=s=>String(s||"").replace(/\D/g,""),cards=[];
+ const card=(icon,label,text,href)=>`<${href?`a href="${esc(href)}"${/^https?:/.test(href)?' target="_blank" rel="noopener"':''}`:"div"} class="contact-card"><span class="info-icon"><svg class="ic" aria-hidden="true"><use href="#i-${icon}"/></svg></span><span><small>${esc(label)}</small><strong>${esc(text)}</strong></span></${href?"a":"div"}>`;
+ if(digits(i.whatsapp))cards.push(card("chat","WhatsApp","+"+digits(i.whatsapp),`https://wa.me/${digits(i.whatsapp)}`));
+ if(String(i.phone||"").trim())cards.push(card("call","Phone",i.phone.trim(),`tel:${digits(i.phone)}`));
+ if(String(i.email||"").trim())cards.push(card("mail","Email",i.email.trim(),`mailto:${i.email.trim()}`));
+ if(/^https?:\/\//i.test(String(i.facebook||"").trim()))cards.push(card("link","Facebook",i.facebook.trim().replace(/^https?:\/\/(www\.)?/i,""),i.facebook.trim()));
+ if(String(i.address||"").trim())cards.push(card("pin","Address",i.address.trim()));
+ if(String(i.hours||"").trim())cards.push(card("clock","Open hours",i.hours.trim()));
+ const grid=$("contactGrid"),sec=$("contact");
+ if(grid)grid.innerHTML=cards.join("");
+ sec?.classList.toggle("hidden",!cards.length);
+ $("footContactLink")?.classList.toggle("hidden",!cards.length);
+ const wa=$("waFloat");
+ if(wa){if(digits(i.whatsapp)){wa.href=`https://wa.me/${digits(i.whatsapp)}?text=${encodeURIComponent("Hello Gadget Bazar BD, I need help with an order.")}`;wa.classList.remove("hidden");}else wa.classList.add("hidden");}
+}
+async function startCustomerSite(){initCustomerUI();updateSavedCounters();renderPolicyInfo();renderStoreInfo();renderProducts();updateCart();await refreshStore();setupLocationPickers();renderSmartRecommendations();}
 window.addToCart=addToCart;window.buyNow=buyNow;window.toggleWishlist=toggleWishlist;window.toggleCompare=toggleCompare;window.showSavedProducts=showSavedProducts;window.closeSavedProducts=closeSavedProducts;window.renderSavedPanel=renderSavedPanel;window.removeSavedProduct=removeSavedProduct;window.applyCoupon=applyCoupon;
 window.showDealType=showDealType;
 window.viewOfferProducts=viewOfferProducts;
