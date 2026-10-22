@@ -29,12 +29,12 @@ const COUPONS={WELCOME5:{type:"percent",value:5,min:500},GADGET50:{type:"flat",v
    site only for the fields you fill in.
 ===================================================== */
 const STORE_INFO={
- whatsapp:"",   // +8801320992683
- phone:"",      // 01776446709
- email:"",      //	itztanvir007@gmail.com
+ whatsapp:"",   // country code + number, digits only. Example: "8801XXXXXXXXX"
+ phone:"",      // Example: "01XXXXXXXXX"
+ email:"",      // Example: "hello@yourshop.com"
  facebook:"",   // Full page link. Example: "https://facebook.com/yourpage"
  address:"",    // Shop / pickup address, if you want to show one
- hours:""       // 24/7 
+ hours:""       // Example: "Every day, 10 AM to 10 PM"
 };
 // Estimated delivery time per zone (shown at checkout and in Policies). Change to match your couriers.
 const DELIVERY_TIME={dhaka:"1–2 days",nearby:"2–3 days",outside:"3–5 days"};
