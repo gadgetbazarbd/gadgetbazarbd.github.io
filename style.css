@@ -273,7 +273,7 @@ body.deals-open{overflow:hidden}
 @media(max-width:600px){.deals-page-categories{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.deals-page-categories button{font-size:12px;padding:9px 6px}.deals-page{padding:14px}.deals-page-top h2{font-size:27px}}
 
 /* Show live offers on the homepage; keep category filters only inside the dedicated Deals screen. */
-#dealZone:not(.hidden){display:block!important}
+#dealZone{display:block!important}
 #dealZone .deal-categories{display:none!important}
 #dealZone .offers-grid{margin-top:14px}
 .product-actions{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;visibility:visible!important;opacity:1!important}
@@ -574,76 +574,3 @@ body.full-product-page-open{overflow:hidden}
   .header-checkout-btn{width:33px;min-width:33px;min-height:38px}
 }
 @media(prefers-reduced-motion:reduce){.header-checkout-btn{transition:none}}
-
-
-/* =====================================================
-   2026-10 FIXES: icons, deals, info sections, contact
-===================================================== */
-.ic{width:18px;height:18px;flex:0 0 auto;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;vertical-align:-3px}
-.ic-lg{width:24px;height:24px}
-.ic-xl{width:30px;height:30px;color:#57dcff}
-.ic-logo{width:28px;height:28px;color:var(--blue);vertical-align:middle}
-.logo{display:inline-flex;align-items:center}
-.menu-item .ic{margin-right:8px;color:#57dcff}
-.menu-item.deals-menu-item .ic{color:#ffd27b}
-.quick-shop-nav .ic{width:17px;height:17px;color:#57dcff}
-.quick-shop-nav .quick-deals .ic{color:#160e18}
-.discount-cta .ic{margin-right:4px;vertical-align:-3px}
-.header-checkout-btn .ic{width:16px;height:16px;color:#6ee1ff}
-.cart-btn .ic{width:19px;height:19px;vertical-align:-4px}
-.benefit-icon .ic{width:22px;height:22px;color:#35baff}
-.category-tile-icon .ic{width:56%;height:56%;color:#6fd4ff}
-.pay-option .ic{width:17px;height:17px;margin-right:4px;color:#57dcff;vertical-align:-3px}
-.footer-column span .ic{width:14px;height:14px;margin-right:6px;color:#57dcff;vertical-align:-2px}
-.footer-brand .ic{width:22px;height:22px;color:#35baff}
-.tracking-icon .ic{color:#57dcff}
-
-/* Deals: one section, buttons built from real offer types */
-.deal-categories{grid-template-columns:repeat(auto-fit,minmax(130px,1fr))}
-.deal-categories button.is-active{border-color:#3ca9ed;background:linear-gradient(135deg,#124568,#0b2a44)}
-.deal-subhead{margin:22px 2px 12px;font-size:17px;color:#dcecff}
-
-/* Four trust items */
-.benefit-strip{grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
-.benefit-link{text-decoration:none;color:inherit;transition:border-color .2s,transform .2s}
-.benefit-link:hover{border-color:#3ca9ed;transform:translateY(-1px)}
-
-/* About / Policies / Contact */
-.info-section{max-width:1120px;margin:0 auto;padding:30px 18px 6px;scroll-margin-top:90px}
-.info-inner .eyebrow{margin:0 0 6px;color:#74cfff;font-size:11px;font-weight:800;letter-spacing:.16em}
-.info-inner h2{margin:0 0 12px;font-size:clamp(24px,4vw,32px)}
-.info-lead{max-width:720px;margin:0;color:#a9bfd5;font-size:14px;line-height:1.8}
-.info-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin-top:6px}
-.info-card{min-width:0;padding:18px;border:1px solid rgba(67,126,171,.22);border-radius:16px;background:linear-gradient(145deg,rgba(13,33,56,.72),rgba(8,23,40,.7))}
-.info-card h3{margin:12px 0 8px;font-size:16px}
-.info-card p{margin:0 0 8px;color:#a9bfd5;font-size:12.5px;line-height:1.7}
-.info-card p:last-child{margin-bottom:0}
-.info-card b{color:#edf7ff}
-.info-icon{display:grid;place-items:center;width:40px;height:40px;border-radius:12px;background:rgba(35,166,240,.13);color:#57dcff;flex:0 0 40px}
-.info-list{list-style:none;margin:0 0 8px;padding:0;display:grid;gap:8px}
-.info-list li{display:flex;justify-content:space-between;gap:10px;font-size:12.5px;color:#a9bfd5;padding-bottom:8px;border-bottom:1px solid #17324b}
-.info-list li:last-child{border-bottom:0;padding-bottom:0}
-.info-list li b{text-align:right;color:#edf7ff;font-weight:600}
-.info-note{font-size:11.5px!important;color:#7f99b3!important}
-.contact-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}
-.contact-card{display:flex;align-items:center;gap:12px;min-width:0;padding:14px 16px;border:1px solid rgba(67,126,171,.22);border-radius:16px;background:linear-gradient(145deg,rgba(13,33,56,.72),rgba(8,23,40,.7));color:var(--text);text-decoration:none}
-a.contact-card:hover{border-color:#3ca9ed}
-.contact-card small{display:block;color:var(--muted);font-size:11px}
-.contact-card strong{display:block;font-size:14px;overflow-wrap:anywhere}
-
-/* Coupons */
-.coupon-help{list-style:none;margin:8px 0 2px;padding:0;display:grid;gap:4px;font-size:12px;color:#a9bfd5}
-.coupon-help b{color:#ffd27b;letter-spacing:.04em}
-
-/* WhatsApp button */
-.wa-float{position:fixed;right:16px;bottom:16px;z-index:45;display:inline-flex;align-items:center;gap:8px;min-height:48px;padding:0 18px;border-radius:999px;background:#1fa855;color:#fff;font-weight:700;font-size:14px;text-decoration:none;box-shadow:0 10px 26px rgba(0,0,0,.35)}
-.wa-float:hover{filter:brightness(1.08)}
-@media(max-width:520px){.wa-float{padding:0;width:52px;height:52px;justify-content:center}.wa-float span{display:none}.info-section{padding:24px 14px 4px}}
-.deal-zone-all{font-family:inherit;cursor:pointer}
-.deal-zone-all:hover{background:rgba(255,139,50,.22)}
-
-/* Cart count sits on the corner of the cart icon on phones */
-.cart-btn{position:relative;display:inline-flex;align-items:center;justify-content:center}
-@media(max-width:650px){
-  .cart-btn #cartCount{position:absolute;top:-7px;right:-7px;min-width:19px;height:19px;padding:0 5px;margin:0;font-size:11px;line-height:19px;text-align:center}
-}
