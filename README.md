@@ -1,31 +1,30 @@
-# Gadget Bazar BD Admin Website
+# Gadget Bazar BD
 
-This is a polished, mobile-responsive admin dashboard for Gadget Bazar BD.
+Static online shop (GitHub Pages) + admin panel, both using Supabase.
 
-## Included
-- Admin login (demo: `admin` / `admin123`)
-- Dashboard KPIs and sales overview
-- Product CRUD, active/hidden state, featured state
-- Orders table, search/filter, status updates, order details
-- Customer directory
-- Sales reports
-- Delivery settings
-- Category management
-- COD / bKash / Nagad settings
-- Store/general settings
-- JSON export/import for backup and migration
-- No Firestore, no Google Sheets, no paid dependency
+## Files
+| File | Purpose |
+|---|---|
+| `index.html`, `script.js`, `style.css` | Customer website |
+| `admin.html`, `admin.js`, `admin.css` | Admin panel (`/admin.html`), Supabase Auth login |
 
-## Current storage model
-The app uses browser `localStorage` so it works immediately on GitHub Pages and can be tested without a backend.
+## Supabase
+Tables: `products`, `categories`, `offers`, `orders`, `delivery_settings`, `payment_settings`, `store_settings`.
+RPC: `track_orders_by_phone`. Storage bucket: `product images`.
 
-## Future connection point
-When you are ready to connect the customer website, add an API adapter around these data objects:
-- `db.products`
-- `db.orders`
-- `db.customers`
-- `db.delivery`
-- `db.payments`
-- `db.settings`
+## What the admin controls
+- Products, categories, orders, customers
+- Offers & Deals (combo, flash sale, etc.) - shown on the site only when active offers exist
+- Delivery charges, bKash / Nagad numbers and COD (Payments)
+- Settings: phone, email, address, support hours - shown on the customer site's Contact section
+  (the `store_settings` table must allow public read; otherwise edit `STORE_INFO` in `script.js`)
 
-Replace `load()` / `save()` with `fetch()` calls to your chosen backend. The UI already separates data rendering from storage so this swap can be made later without redesigning the dashboard.
+## Things you edit in `script.js` (top of file)
+- `STORE_INFO`: WhatsApp number (needed for the WhatsApp button), Facebook link, and fallback phone/email/address/hours
+- `DELIVERY_TIME`: delivery estimates per zone
+- `RETURN_WINDOW`: return period shown in Policies
+- `COUPONS`: WELCOME5 = 5% off on orders of ৳500+, GADGET50 = ৳50 off on orders of ৳1000+
+
+## Notes
+- Coupon and price calculation currently run in the browser. For stronger protection, validate totals in a Supabase function.
+- Deploy: upload all changed files to the repo root in one commit, then hard-refresh.

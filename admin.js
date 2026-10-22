@@ -13,6 +13,8 @@ const ADMIN_UID='9aa2e054-a19a-4f86-aaf7-25f13e720722';
 let productsCache=[];
 let ordersCache=[];
 let categoriesCache=[];
+let offersCache=[];
+let editingOfferId=null;
 let deliverySettingsCache=null;
 let storeSettingsCache={store_name:'Gadget Bazar BD',phone:'',email:'',address:'',support_hours:''};
 let currentSection='dashboard';
@@ -69,11 +71,12 @@ async function loadDeliverySettings(){
 }
 
 async function loadCloud(){
-  const [p,o,c,d]=await Promise.all([
+  const [p,o,c,d,of]=await Promise.all([
     sb.from('products').select('*').order('created_at',{ascending:false}),
     sb.from('orders').select('*').order('created_at',{ascending:false}),
     sb.from('categories').select('*').order('name',{ascending:true}),
-    sb.from('delivery_settings').select('*').order('id',{ascending:true}).limit(1)
+    sb.from('delivery_settings').select('*').order('id',{ascending:true}).limit(1),
+    sb.from('offers').select('*').order('created_at',{ascending:false})
   ]);
 
   if(p.error)throw p.error;
@@ -85,9 +88,12 @@ async function loadCloud(){
   ordersCache=o.data||[];
   categoriesCache=c.data||[];
   deliverySettingsCache=d.data?.[0]||null;
+  // Offers are optional: a missing table or permission must not block login or the dashboard.
+  if(of.error){offersCache=[];console.warn('Offers table permission/schema issue:',of.error.message)}
+  else offersCache=of.data||[];
 
   if($('connectionStatus')){
-    $('connectionStatus').textContent='● Connected';
+    $('connectionStatus').textContent=of.error?'● Connected (offers need setup)':'● Connected';
     $('connectionStatus').className='live'
   }
 }
@@ -695,6 +701,7 @@ function go(section){
     orders:['Orders','Manage customer orders'],
     customers:['Customers','Customer list'],
     categories:['Categories','Manage categories'],
+    offers:['Offers & Deals','Manage promotions and schedules'],
     delivery:['Delivery','Delivery settings'],
     payments:['Payments','Payment settings'],
     settings:['Settings','Store settings']
@@ -710,7 +717,7 @@ function go(section){
 }
 function render(){
   const c=$('content');if(!c)return;
-  const map={dashboard,products,orders,customers,categories,delivery,payments,settings};
+  const map={dashboard,products,orders,customers,categories,offers,delivery,payments,settings};
   c.innerHTML=(map[currentSection]||dashboard)();
 }
 function toggleSidebar(force){
@@ -770,6 +777,7 @@ function exportData(){
     products:productsCache,
     orders:ordersCache,
     categories:categoriesCache,
+    offers:offersCache,
     delivery_settings:deliverySettingsCache,
     payment_settings:paymentSettingsFull,
     store_settings:storeSettingsCache
@@ -812,6 +820,102 @@ async function importData(e){
   }
 
   e.target.value=''
+}
+
+/* =========================================================
+   OFFERS & DEALS
+   Restored from the 14 Oct 2026 admin (commit acaca7c).
+   Writes to the `offers` table that the customer website reads.
+========================================================= */
+function offerDateInput(v){
+  if(!v)return '';
+  const d=new Date(v);
+  return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,16);
+}
+function offers(){
+  const rows=offersCache.map((o,i)=>{
+    const ids=Array.isArray(o.product_ids)?o.product_ids:[];
+    const names=ids.map(id=>productsCache.find(p=>String(p.id)===String(id))?.name).filter(Boolean).map(esc).join(', ')||'—';
+    const value=Number(o.discount_percent||0)>0?Number(o.discount_percent)+'% off':(o.combo_price?money(o.combo_price):'Special deal');
+    return `<tr><td><b>${esc(o.title)}</b><br><small>${esc(o.description||'')}</small></td><td>${esc(o.offer_type)}</td><td>${value}</td><td>${names}</td><td>${o.starts_at?esc(new Date(o.starts_at).toLocaleString()):'Now'}<br>→ ${o.ends_at?esc(new Date(o.ends_at).toLocaleString()):'No end'}</td><td><span class="pill ${o.active?'green':'red'}">${o.active?'Active':'Inactive'}</span></td><td class="actions"><button class="btn muted" onclick="editOffer(${i})">Edit</button><button class="btn danger" onclick="deleteOffer(${i})">Delete</button></td></tr>`;
+  }).join('');
+  return `<div class="section-head"><div><h3>Offers & Deals</h3><p>Create and schedule the deals shown on your customer website.</p></div><button class="btn primary" onclick="addOffer()">＋ Create Offer</button></div>
+  <div class="table-wrap"><table class="table"><thead><tr><th>Offer</th><th>Type</th><th>Discount / Combo</th><th>Products</th><th>Schedule</th><th>Status</th><th>Actions</th></tr></thead><tbody>${rows||`<tr><td colspan="7" class="empty">No offers yet. Create your first offer.</td></tr>`}</tbody></table></div>
+  <p class="orders-count" style="margin-top:12px"><small>A percentage offer changes the price at checkout only if the product's own discount is also set in Products. A Combo Deal is charged at its combo price.</small></p>`;
+}
+function offerForm(o={}){
+  const chosen=(Array.isArray(o.product_ids)?o.product_ids:[]).map(String);
+  const picker=productsCache.map(p=>`<label class="combo-product-choice"><input class="offer-product-check" type="checkbox" value="${esc(p.id)}" ${chosen.includes(String(p.id))?'checked':''}><img src="${esc(p.image||'')}" alt="" onerror="this.style.visibility='hidden'"><span><b>${esc(p.name)}</b><small>${money(p.price)} · Stock ${Number(p.stock||0)}</small></span></label>`).join('');
+  const types=['Combo Deals','Flash Sale','Big Discount','Special Offers','Limited-Time Deals','Best Deals','Clearance Sale'];
+  return `<div class="form-grid">
+    <label>Offer title<input id="offerTitle" value="${esc(o.title||'')}" placeholder="Weekend Combo Deal" required></label>
+    <label>Offer type<select id="offerType">${types.map(t=>`<option ${o.offer_type===t?'selected':''}>${t}</option>`).join('')}</select></label>
+    <label>Discount percent<input id="offerDiscount" type="number" min="0" max="100" value="${Number(o.discount_percent||0)}"></label>
+    <label>Combo price (৳)<input id="offerComboPrice" type="number" min="0" step="1" value="${o.combo_price??''}"></label>
+    <div class="full"><label for="offerCoverImage">Offer cover image</label><input id="offerCoverImage" type="file" accept="image/*"><small>Choose a clear image for the offer card. ${o.cover_image?'An existing cover image is saved.':''}</small><div id="offerCoverPreview" class="offer-cover-preview">${o.cover_image?`<img src="${esc(o.cover_image)}" alt="Current offer cover">`:'No cover selected yet.'}</div></div>
+    <div class="full"><label>Products included in this offer</label><input id="offerProductSearch" class="input" type="search" placeholder="Search products by name..." oninput="filterOfferProducts(this.value)"><div class="combo-product-picker" id="comboProductPicker">${picker||'<p>No products found. Add products first.</p>'}</div><small>For a Combo Deal, select at least two products.</small></div>
+    <label>Starts at (optional)<input id="offerStarts" type="datetime-local" value="${offerDateInput(o.starts_at)}"></label>
+    <label>Ends at (optional)<input id="offerEnds" type="datetime-local" value="${offerDateInput(o.ends_at)}"></label>
+    <label class="full">Description<textarea id="offerDescription" rows="3">${esc(o.description||'')}</textarea></label>
+    <label class="full admin-checkline"><input id="offerActive" type="checkbox" ${o.active!==false?'checked':''}> Offer is active (visible on the website)</label>
+  </div><div class="btn-row"><button class="btn muted" onclick="closeModal()">Cancel</button><button class="btn primary" id="saveOfferBtn" onclick="saveOffer()">Save Offer</button></div>`;
+}
+function filterOfferProducts(query){
+  const q=String(query||'').toLowerCase();
+  document.querySelectorAll('.combo-product-choice').forEach(el=>{el.style.display=el.textContent.toLowerCase().includes(q)?'flex':'none'});
+}
+function addOffer(){editingOfferId=null;openModal('Create Offer',offerForm())}
+function editOffer(i){const o=offersCache[i];if(!o)return;editingOfferId=o.id;openModal('Edit Offer',offerForm(o))}
+async function saveOffer(){
+  const title=$('offerTitle')?.value.trim();
+  if(!title){alert('Offer title is required.');return}
+  const type=$('offerType').value;
+  const starts=$('offerStarts')?.value,ends=$('offerEnds')?.value;
+  if(starts&&ends&&new Date(ends)<=new Date(starts)){alert('End time must be after start time.');return}
+  const pct=Number($('offerDiscount')?.value||0);
+  if(!Number.isFinite(pct)||pct<0||pct>100){alert('Discount must be between 0 and 100.');return}
+  const productIds=[...document.querySelectorAll('.offer-product-check:checked')].map(x=>x.value);
+  if(type==='Combo Deals'&&productIds.length<2){alert('Select at least two products for a Combo Deal.');return}
+  const comboPrice=$('offerComboPrice').value?Number($('offerComboPrice').value):null;
+  if(comboPrice!==null&&(!Number.isFinite(comboPrice)||comboPrice<0)){alert('Enter a valid combo price.');return}
+  if(type==='Combo Deals'&&(!comboPrice||comboPrice<=0)){alert('Enter a valid combo price.');return}
+  const payload={title,offer_type:type,description:$('offerDescription').value.trim(),discount_percent:pct,combo_price:comboPrice,product_ids:productIds,starts_at:starts?new Date(starts).toISOString():null,ends_at:ends?new Date(ends).toISOString():null,active:$('offerActive').checked};
+  const btn=$('saveOfferBtn');
+  try{
+    if(btn){btn.disabled=true;btn.textContent='Saving...'}
+    const file=$('offerCoverImage')?.files?.[0];
+    if(file){
+      const path=`offers/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g,'_')}`;
+      const {error:upErr}=await sb.storage.from(BUCKET).upload(path,file,{upsert:true,contentType:file.type});
+      if(upErr)throw upErr;
+      payload.cover_image=sb.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
+    }
+    if(editingOfferId){
+      const existing=offersCache.find(x=>String(x.id)===String(editingOfferId));
+      if(!payload.cover_image&&existing?.cover_image)payload.cover_image=existing.cover_image;
+    }
+    const q=editingOfferId?sb.from('offers').update(payload).eq('id',editingOfferId):sb.from('offers').insert(payload);
+    const {error}=await q;
+    if(error)throw error;
+    const {data,error:e}=await sb.from('offers').select('*').order('created_at',{ascending:false});
+    if(e)throw e;
+    offersCache=data||[];
+    closeModal();render();
+    alert('Offer saved.');
+  }catch(e){
+    showError(e);
+    if(btn){btn.disabled=false;btn.textContent='Save Offer'}
+  }
+}
+async function deleteOffer(i){
+  const o=offersCache[i];if(!o)return;
+  if(!confirm(`Delete offer "${o.title}"?`))return;
+  try{
+    const {error}=await sb.from('offers').delete().eq('id',o.id);
+    if(error)throw error;
+    offersCache=offersCache.filter(x=>x.id!==o.id);
+    render();
+  }catch(e){showError(e)}
 }
 
 /* =========================================================
@@ -882,6 +986,12 @@ window.deleteCategory=deleteCategory;
 window.refreshProducts=refreshProducts;
 window.refreshOrders=refreshOrders;
 window.refreshDashboard=refreshDashboard;
+
+window.addOffer=addOffer;
+window.editOffer=editOffer;
+window.saveOffer=saveOffer;
+window.deleteOffer=deleteOffer;
+window.filterOfferProducts=filterOfferProducts;
 
 window.refreshDeliverySettings=refreshDeliverySettings;
 window.saveDeliverySettings=saveDeliverySettings;
