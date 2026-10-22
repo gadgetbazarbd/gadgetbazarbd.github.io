@@ -29,7 +29,7 @@ const COUPONS={WELCOME5:{type:"percent",value:5,min:500},GADGET50:{type:"flat",v
    site only for the fields you fill in.
 ===================================================== */
 const STORE_INFO={
- whatsapp:"",   // country code + number, digits only. Example: "8801XXXXXXXXX"
+ whatsapp:"8801320992683",   // country code + number, digits only. Example: "8801XXXXXXXXX"
  phone:"",      // Example: "01XXXXXXXXX"
  email:"",      // Example: "hello@yourshop.com"
  facebook:"",   // Full page link. Example: "https://facebook.com/yourpage"
@@ -472,7 +472,7 @@ function updateDeliveryInfo(){
  updateCart();
 }
 function updateCart(){
- let c=$("cartCount");if(c)c.textContent=cart.reduce((sum,item)=>sum+item.qty,0);
+ let c=$("cartCount");if(c)c.textContent=cart.reduce((sum,item)=>sum+item.qty,0);{const n=cart.reduce((sum,item)=>sum+item.qty,0),b=$("bottomCartCount");if(b){b.textContent=n;b.classList.toggle("is-empty",!n);}}
  let t=totals();["cartSubtotal","cartDelivery","cartTotal","checkoutTotal"].forEach((id,i)=>{let e=$(id);if(e)e.textContent=money([t.subtotal,t.delivery,t.total,t.total][i]);});let dc=$("couponDiscount");if(dc)dc.textContent=money(t.discount);let ca=$("couponStatus");if(ca)ca.textContent=appliedCoupon?(t.discount?`Coupon ${appliedCoupon} applied`:`Coupon ${appliedCoupon}: minimum order ${money(COUPONS[appliedCoupon]?.min||0)}`):"Enter a code and tap Apply.";
  let cb=$("checkoutBtn");if(cb)cb.disabled=!cart.length||!enabledPaymentTypes().length;
  let box=$("cartItems");if(!box)return;

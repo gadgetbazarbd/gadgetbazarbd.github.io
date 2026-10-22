@@ -16,7 +16,7 @@
     rel="stylesheet"
   >
 
-  <link rel="stylesheet" href="style.css?v=gbbd-fixes-20261022">
+  <link rel="stylesheet" href="style.css?v=gbbd-fixes-20261022b">
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
@@ -583,6 +583,15 @@
 
 <div id="fullProductPage" class="full-product-page hidden" aria-live="polite"></div>
 
+<!-- FIXED BOTTOM BAR -->
+<nav class="bottom-bar" aria-label="Quick actions">
+  <a href="#" onclick="window.scrollTo({top:0,behavior:'smooth'});return false;"><svg class="ic" aria-hidden="true"><use href="#i-home"/></svg><span>Home</span></a>
+  <a href="#shopCategories" onclick="var e=document.getElementById('shopCategories');if(e){e.scrollIntoView({behavior:'smooth'});}return false;"><svg class="ic" aria-hidden="true"><use href="#i-grid"/></svg><span>Categories</span></a>
+  <a href="#orderTracking" onclick="var e=document.getElementById('orderTracking');if(e){e.scrollIntoView({behavior:'smooth'});setTimeout(function(){var i=document.getElementById('trackPhone');if(i)i.focus();},500);}return false;"><svg class="ic" aria-hidden="true"><use href="#i-box"/></svg><span>Track</span></a>
+  <button type="button" onclick="openCart()" aria-label="Open cart"><svg class="ic" aria-hidden="true"><use href="#i-cart"/></svg><span>Cart</span><em id="bottomCartCount" class="bb-badge">0</em></button>
+  <button type="button" class="bb-checkout" onclick="openHeaderCheckout()"><svg class="ic" aria-hidden="true"><use href="#i-bolt"/></svg><span>Checkout</span></button>
+</nav>
+
 <a id="waFloat" class="wa-float hidden" href="#" target="_blank" rel="noopener" aria-label="Chat on WhatsApp">
   <svg class="ic ic-lg" aria-hidden="true"><use href="#i-chat"/></svg><span>WhatsApp</span>
 </a>
@@ -621,7 +630,7 @@
 </footer>
 
 
-<script src="script.js?v=gbbd-fixes-20261022"></script>
+<script src="script.js?v=gbbd-fixes-20261022b"></script>
 
 </body>
 </html>
