@@ -294,7 +294,7 @@ function orderRows(list){
     else if(s==='Processing')next=actionBtn(i,'Shipped','Shipped','primary');
     else if(s==='Shipped')next=actionBtn(i,'Delivered','Delivered','primary');
     const cancel=(s!=='Delivered'&&s!=='Cancelled')?actionBtn(i,'Cancelled','Cancel','danger'):'';
-    return `<tr><td><b>${esc(id)}</b><br><small>${esc(created)}</small></td><td>${esc(name)}</td><td>${esc(phone)}</td><td>${money(total)}</td><td>${esc(o.payment_method||o.paymentMethod||'COD')}${o.transaction_id?`<br><small>TXN: ${esc(o.transaction_id)}</small>`:''}</td><td><span class="pill ${statusClass(s)}">${esc(s)}</span></td><td class="actions"><button class="btn muted" onclick="viewOrder(${i})">View</button>${next}${cancel}</td></tr>`
+    return `<tr><td><b>${esc(id)}</b><br><small>${esc(created)}</small></td><td>${esc(name)}</td><td>${esc(phone)}</td><td>${money(total)}</td><td>${esc(o.payment_method||o.paymentMethod||'COD')}${o.transaction_id?`<br><small>TXN: ${esc(o.transaction_id)}</small>`:''}</td><td><span class="pill ${statusClass(s)}">${esc(s)}</span></td><td class="actions"><button class="btn muted" onclick="viewOrder(${i})">View</button><button class="btn" style="background:#1fa855;color:#fff" onclick="whatsappOrder(${i})" title="Message customer on WhatsApp">WhatsApp</button>${next}${cancel}</td></tr>`
   }).join('');
 }
 function orders(){
@@ -340,7 +340,47 @@ function viewOrder(i){
   if(typeof items==='string'){try{items=JSON.parse(items)}catch{items=[]}}
   if(Array.isArray(items))itemHtml=items.map(x=>{const qty=Number(x.qty||x.quantity||1);const price=Number(x.price||x.unit_price||0);return `<div class="order-item"><span>${esc(x.name||x.title||'Product')} × ${qty}</span><b>${money(price*qty)}</b></div>`}).join('');
   const created=o.created_at?new Date(o.created_at).toLocaleString('en-BD'):'—';
-  openModal('Order '+id,`<div class="card"><b>Order Information</b><p><b>Order ID:</b> ${esc(id)}</p><p><b>Placed:</b> ${esc(created)}</p><p><b>Status:</b> <span class="pill ${statusClass(s)}">${esc(s)}</span></p><hr><b>Customer</b><p>${esc(name)} · ${esc(phone)}</p><p>${esc([district,upazila].filter(Boolean).join(', '))}</p><p>${esc(address||'—')}</p><hr><p><b>Payment:</b> ${esc(payment)}</p><p><b>Transaction ID:</b> ${esc(o.transaction_id||'—')}</p><p><b>Subtotal:</b> ${money(o.subtotal)}</p><p><b>Delivery:</b> ${money(delivery)}</p><p><b>Total:</b> <b>${money(total)}</b></p><p><b>Customer note:</b> ${esc(o.note||'—')}</p>${itemHtml?`<hr><b>Items</b><div class="order-items">${itemHtml}</div>`:'<hr><p>No item details saved with this order.</p>'}</div><div class="btn-row">${s==='Pending'?actionBtn(i,'Confirmed','Confirm Order','primary'):''}${s==='Confirmed'?actionBtn(i,'Processing','Start Processing','primary'):''}${s==='Processing'?actionBtn(i,'Shipped','Mark Shipped','primary'):''}${s==='Shipped'?actionBtn(i,'Delivered','Mark Delivered','primary'):''}${s!=='Delivered'&&s!=='Cancelled'?actionBtn(i,'Cancelled','Cancel Order','danger'):''}</div>`);
+  openModal('Order '+id,`<div class="card"><b>Order Information</b><p><b>Order ID:</b> ${esc(id)}</p><p><b>Placed:</b> ${esc(created)}</p><p><b>Status:</b> <span class="pill ${statusClass(s)}">${esc(s)}</span></p><hr><b>Customer</b><p>${esc(name)} · ${esc(phone)}</p><p>${esc([district,upazila].filter(Boolean).join(', '))}</p><p>${esc(address||'—')}</p><hr><p><b>Payment:</b> ${esc(payment)}</p><p><b>Transaction ID:</b> ${esc(o.transaction_id||'—')}</p><p><b>Subtotal:</b> ${money(o.subtotal)}</p><p><b>Delivery:</b> ${money(delivery)}</p><p><b>Total:</b> <b>${money(total)}</b></p><p><b>Customer note:</b> ${esc(o.note||'—')}</p>${itemHtml?`<hr><b>Items</b><div class="order-items">${itemHtml}</div>`:'<hr><p>No item details saved with this order.</p>'}</div><div class="btn-row"><button class="btn" style="background:#1fa855;color:#fff" onclick="whatsappOrder(${i})">WhatsApp Customer</button>${s==='Pending'?actionBtn(i,'Confirmed','Confirm Order','primary'):''}${s==='Confirmed'?actionBtn(i,'Processing','Start Processing','primary'):''}${s==='Processing'?actionBtn(i,'Shipped','Mark Shipped','primary'):''}${s==='Shipped'?actionBtn(i,'Delivered','Mark Delivered','primary'):''}${s!=='Delivered'&&s!=='Cancelled'?actionBtn(i,'Cancelled','Cancel Order','danger'):''}</div>`);
+}
+/* WhatsApp helpers: the status is always changed in this panel (single source of truth);
+   WhatsApp is only used to message the customer. */
+function waPhone(v){
+  let d=String(v||'').replace(/\D/g,'');
+  if(!d)return '';
+  if(d.startsWith('00'))d=d.slice(2);
+  if(d.startsWith('880'))return d;
+  if(d.startsWith('0'))return '88'+d;
+  if(d.length===10&&d.startsWith('1'))return '880'+d;
+  return d;
+}
+function waMessage(o){
+  const s=o.status||'Pending';
+  const id=o.order_number||o.order_id||o.id||'';
+  const name=o.customer_name||o.name||'';
+  const total=o.total??(Number(o.subtotal||0)+Number(o.delivery_charge??o.delivery_fee??0));
+  const head=`আসসালামু আলাইকুম${name?' '+name:''}, Gadget Bazar BD থেকে বলছি।\nঅর্ডার নং: ${id}\nমোট: ${money(total)}\n`;
+  const tail={
+    Pending:'আপনার অর্ডারটি আমরা পেয়েছি। কনফার্ম করার জন্য যোগাযোগ করছি, দয়া করে ঠিকানা ও নম্বর ঠিক আছে কিনা জানাবেন।',
+    Confirmed:'আপনার অর্ডারটি কনফার্ম করা হয়েছে। শীঘ্রই প্রস্তুত করে পাঠানো হবে। ধন্যবাদ!',
+    Processing:'আপনার অর্ডারটি প্রস্তুত করা হচ্ছে।',
+    Shipped:'আপনার অর্ডারটি কুরিয়ারে পাঠানো হয়েছে। শীঘ্রই পৌঁছে যাবে।',
+    Delivered:'আপনার অর্ডারটি ডেলিভারি হয়েছে। আমাদের থেকে কেনার জন্য ধন্যবাদ!',
+    Cancelled:'দুঃখিত, আপনার অর্ডারটি বাতিল করা হয়েছে। কোনো প্রশ্ন থাকলে জানাবেন।'
+  }[s]||'';
+  return head+tail;
+}
+function whatsappOrder(i){
+  const o=ordersCache[i];if(!o)return;
+  const ph=waPhone(o.phone||o.customer_phone||o.customer?.phone);
+  if(!ph){alert('This order has no phone number.');return}
+  window.open(`https://wa.me/${ph}?text=${encodeURIComponent(waMessage(o))}`,'_blank','noopener');
+}
+function updateOrderBadge(){
+  const n=ordersCache.filter(o=>(o.status||'Pending')==='Pending').length;
+  const btn=document.querySelector('.nav[data-section="orders"]');if(!btn)return;
+  let b=btn.querySelector('.nav-badge');
+  if(!b){b=document.createElement('em');b.className='nav-badge';b.style.cssText='margin-left:auto;background:#ef4444;color:#fff;border-radius:99px;font-style:normal;font-size:11px;font-weight:700;padding:1px 7px';btn.appendChild(b)}
+  b.textContent=n;b.style.display=n?'inline-block':'none';
 }
 async function updateOrderStatus(i,newStatus){
   const order=ordersCache[i];if(!order)return;
@@ -354,6 +394,7 @@ async function updateOrderStatus(i,newStatus){
     const {error}=await sb.from('orders').update({status:newStatus,updated_at:new Date().toISOString()}).eq('id',order.id);
     if(error)throw error;
     await refreshOrders();
+    if(newStatus==='Cancelled'){try{await refreshProducts()}catch(e){console.warn(e)}}
     closeModal();
     render();
   }catch(e){showError(e)}
@@ -719,6 +760,7 @@ function render(){
   const c=$('content');if(!c)return;
   const map={dashboard,products,orders,customers,categories,offers,delivery,payments,settings};
   c.innerHTML=(map[currentSection]||dashboard)();
+  updateOrderBadge();
 }
 function toggleSidebar(force){
   const side=document.querySelector('.sidebar'),overlay=$('sidebarOverlay');
@@ -987,6 +1029,7 @@ window.refreshProducts=refreshProducts;
 window.refreshOrders=refreshOrders;
 window.refreshDashboard=refreshDashboard;
 
+window.whatsappOrder=whatsappOrder;
 window.addOffer=addOffer;
 window.editOffer=editOffer;
 window.saveOffer=saveOffer;

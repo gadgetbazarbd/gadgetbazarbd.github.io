@@ -539,10 +539,24 @@ function filterCategory(c){
  $("products")?.scrollIntoView({behavior:"smooth"});
 }
 
+/* District list kept inside this file, used only if the online location list cannot be loaded and nothing is cached.
+   Format: English name|Bangla name. Customers then type their upazila/thana themselves. */
+const FALLBACK_DISTRICTS=("Bagerhat|বাগেরহাট,Bandarban|বান্দরবান,Barguna|বরগুনা,Barishal|বরিশাল,Bhola|ভোলা,Bogura|বগুড়া,Brahmanbaria|ব্রাহ্মণবাড়িয়া,Chandpur|চাঁদপুর,Chapainawabganj|চাঁপাইনবাবগঞ্জ,Chattogram|চট্টগ্রাম,Chuadanga|চুয়াডাঙ্গা,Cumilla|কুমিল্লা,Cox's Bazar|কক্সবাজার,Dhaka|ঢাকা,Dinajpur|দিনাজপুর,Faridpur|ফরিদপুর,Feni|ফেনী,Gaibandha|গাইবান্ধা,Gazipur|গাজীপুর,Gopalganj|গোপালগঞ্জ,Habiganj|হবিগঞ্জ,Jamalpur|জামালপুর,Jashore|যশোর,Jhalokati|ঝালকাঠি,Jhenaidah|ঝিনাইদহ,Joypurhat|জয়পুরহাট,Khagrachhari|খাগড়াছড়ি,Khulna|খুলনা,Kishoreganj|কিশোরগঞ্জ,Kurigram|কুড়িগ্রাম,Kushtia|কুষ্টিয়া,Lakshmipur|লক্ষ্মীপুর,Lalmonirhat|লালমনিরহাট,Madaripur|মাদারীপুর,Magura|মাগুরা,Manikganj|মানিকগঞ্জ,Meherpur|মেহেরপুর,Moulvibazar|মৌলভীবাজার,Munshiganj|মুন্সিগঞ্জ,Mymensingh|ময়মনসিংহ,Naogaon|নওগাঁ,Narail|নড়াইল,Narayanganj|নারায়ণগঞ্জ,Narsingdi|নরসিংদী,Natore|নাটোর,Netrokona|নেত্রকোণা,Nilphamari|নীলফামারী,Noakhali|নোয়াখালী,Pabna|পাবনা,Panchagarh|পঞ্চগড়,Patuakhali|পটুয়াখালী,Pirojpur|পিরোজপুর,Rajbari|রাজবাড়ী,Rajshahi|রাজশাহী,Rangamati|রাঙ্গামাটি,Rangpur|রংপুর,Satkhira|সাতক্ষীরা,Shariatpur|শরীয়তপুর,Sherpur|শেরপুর,Sirajganj|সিরাজগঞ্জ,Sunamganj|সুনামগঞ্জ,Sylhet|সিলেট,Tangail|টাঙ্গাইল,Thakurgaon|ঠাকুরগাঁও").split(",").map(x=>{const[n,b]=x.split("|");return{name:n,bn_name:b,upazilas:[]};});
+const GEO_URL="https://iqbalhasandev.github.io/bangladesh-geo-json/bangladesh-geo.json",GEO_CACHE_KEY="gbbd_geo_v1";
 async function loadLocations(){
  if(locationLoaded)return;
- try{let r=await fetch("https://iqbalhasandev.github.io/bangladesh-geo-json/bangladesh-geo.json",{cache:"force-cache"});if(!r.ok)throw Error();locationData=await r.json();locationLoaded=true;}
- catch(e){console.warn("Location data unavailable",e);locationData=[];}
+ try{
+  const ctrl=typeof AbortController==="function"?new AbortController():null,timer=ctrl?setTimeout(()=>ctrl.abort(),8000):null;
+  const r=await fetch(GEO_URL,{cache:"force-cache",signal:ctrl?ctrl.signal:undefined});if(timer)clearTimeout(timer);
+  if(!r.ok)throw Error("HTTP "+r.status);
+  const data=await r.json();if(!Array.isArray(data)||!data.length)throw Error("Bad location data");
+  locationData=data;locationLoaded=true;
+  try{localStorage.setItem(GEO_CACHE_KEY,JSON.stringify(data));}catch(e){}
+  return;
+ }catch(e){console.warn("Online location list unavailable, using saved copy",e);}
+ try{const c=JSON.parse(localStorage.getItem(GEO_CACHE_KEY)||"null");if(Array.isArray(c)&&c.length){locationData=c;locationLoaded=true;return;}}catch(e){}
+ // Last resort: built-in district list; upazila is typed by the customer.
+ locationData=[{districts:FALLBACK_DISTRICTS}];locationLoaded=true;
 }
 function districts(){let a=[];for(let d of locationData)for(let x of(d.districts||[]))a.push({name:x.name,bn:x.bn_name,upazilas:x.upazilas||[]});return a;}
 function districtMatches(q){q=q.trim().toLowerCase();return districts().filter(x=>!q||(`${x.name} ${x.bn}`).toLowerCase().includes(q)).slice(0,15);}
@@ -557,14 +571,30 @@ async function setupLocationPickers(){
  d.addEventListener("focus",()=>suggestions($("districtSuggestions"),districtMatches(d.value),"district"));
  d.addEventListener("input",()=>{selectedDistrict="";selectedUpazila="";u.value="";u.disabled=true;updateDeliveryInfo();suggestions($("districtSuggestions"),districtMatches(d.value),"district");});
  u.addEventListener("focus",()=>suggestions($("upazilaSuggestions"),upazilaMatches(u.value),"upazila"));
- u.addEventListener("input",()=>suggestions($("upazilaSuggestions"),upazilaMatches(u.value),"upazila"));
+ u.addEventListener("input",()=>{const dd=districts().find(x=>x.name===selectedDistrict);if(dd&&!(dd.upazilas||[]).length){selectedUpazila=u.value.trim();$("upazilaSuggestions")?.classList.add("hidden");return;}suggestions($("upazilaSuggestions"),upazilaMatches(u.value),"upazila");});
  document.addEventListener("click",e=>{if(!e.target.closest(".search-select")){$("districtSuggestions")?.classList.add("hidden");$("upazilaSuggestions")?.classList.add("hidden");}});
 }
 
 function makeOrderId(){return"GBBD-"+Date.now().toString().slice(-8);}
-async function submitOrderToSupabase(o){
+function isMissingRpc(err){return !!err&&(err.code==="PGRST202"||err.code==="42883"||/could not find the function|schema cache/i.test(String(err.message||"")));}
+async function legacyInsertOrder(o){
+ // Used only until "1_place_order.sql" has been run in Supabase. Prices are NOT verified by the server in this mode.
  let row={order_number:o.orderId,customer_name:o.customer.name,phone:o.customer.phone,district:o.customer.district,upazila:o.customer.area,address:o.customer.address,note:[o.note,o.couponCode?`Coupon: ${o.couponCode}`:""].filter(Boolean).join(" | ")||null,items:o.items,subtotal:Number(o.subtotal)||0,delivery_charge:Number(o.delivery)||0,total:Number(o.total)||0,payment_method:o.paymentMethod||"Cash on Delivery",transaction_id:o.transactionId||null,status:"Pending"};
- let {data,error}=await sb.from("orders").insert(row).select();if(error)throw error;console.log("ORDER SAVED",data);
+ let {data,error}=await sb.from("orders").insert(row).select();if(error)throw error;console.log("ORDER SAVED (legacy mode)",data);
+}
+async function submitOrderToSupabase(o){
+ // The server looks up real prices, checks stock, applies the coupon and saves the order.
+ const items=cart.map(item=>item.type==="combo"?{offer_id:String(item.offerId),qty:Number(item.qty)||1,is_combo:true}:{id:String(item.id),qty:Number(item.qty)||1});
+ const {data,error}=await sb.rpc("place_order",{
+  p_name:o.customer.name,p_phone:o.customer.phone,p_district:o.customer.district,p_upazila:o.customer.area,p_address:o.customer.address,
+  p_note:o.note||null,p_items:items,p_payment_method:o.paymentMethod||"Cash on Delivery",p_transaction_id:o.transactionId||null,p_coupon:o.couponCode||null
+ });
+ if(error){if(isMissingRpc(error)){console.warn("place_order() not installed yet - using legacy insert");return legacyInsertOrder(o);}throw error;}
+ if(data&&data.order_number){
+  o.orderId=data.order_number;o.subtotal=Number(data.subtotal)||0;o.delivery=Number(data.delivery_charge)||0;o.total=Number(data.total)||0;o.discount=Number(data.discount)||0;
+  if(Array.isArray(data.items))o.items=data.items;
+ }
+ console.log("ORDER SAVED",data);
 }
 
 function couponLines(){return Object.entries(COUPONS).map(([code,c])=>`<li><b>${esc(code)}</b> ${c.type==="percent"?c.value+"% off":money(c.value)+" off"} on orders of ${money(c.min)} or more</li>`).join("");}
@@ -596,9 +626,9 @@ function initCustomerUI(){
    }
    const p=getProduct(item.id);return p?{id:p.id,name:p.name,price:finalPrice(p),qty:item.qty}:null;
   }).filter(Boolean),subtotal:t.subtotal,delivery:t.delivery,total:t.total};
-  try{await submitOrderToSupabase(o);}catch(err){console.error(err);return alert("ORDER ERROR\n\nMessage: "+(err.message||"Unknown")+"\nCode: "+(err.code||"N/A"));}
+  try{await submitOrderToSupabase(o);}catch(err){console.error(err);if(err&&err.code==="P0001"){refreshStore();return alert(err.message);}return alert("ORDER ERROR\n\nMessage: "+(err.message||"Unknown")+"\nCode: "+(err.code||"N/A"));}
   localStorage.setItem("gbbd_last_order",JSON.stringify(o));let orders=JSON.parse(localStorage.getItem("gbbd_orders")||"[]");orders.unshift(o);localStorage.setItem("gbbd_orders",JSON.stringify(orders));
-  cart=[];saveCart();appliedCoupon="";e.target.reset();selectedDistrict="";selectedUpazila="";if($("districtInput"))$("districtInput").value="";if($("upazilaInput")){$("upazilaInput").value="";$("upazilaInput").disabled=true;$("upazilaInput").placeholder="Select district first...";}$("transactionBox")?.classList.add("hidden");updateDeliveryInfo();closeCheckout();if($("successOrderId"))$("successOrderId").textContent=o.orderId;$("successModal")?.classList.remove("hidden");
+  cart=[];saveCart();appliedCoupon="";e.target.reset();selectedDistrict="";selectedUpazila="";if($("districtInput"))$("districtInput").value="";if($("upazilaInput")){$("upazilaInput").value="";$("upazilaInput").disabled=true;$("upazilaInput").placeholder="Select district first...";}$("transactionBox")?.classList.add("hidden");updateDeliveryInfo();closeCheckout();if($("successOrderId"))$("successOrderId").textContent=o.orderId;setupSuccessWhatsApp(o);$("successModal")?.classList.remove("hidden");
  });
 }
 
@@ -648,3 +678,46 @@ window.removeComboFromCart=removeComboFromCart;
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",startCustomerSite);else startCustomerSite();
 setInterval(refreshStore,60000);
 document.addEventListener("DOMContentLoaded",()=>{$("trackOrderBtn")?.addEventListener("click",trackOrdersByPhone);});
+
+/* Bottom bar: highlight the section that is open / in view */
+function updateBottomBar(){
+ const bar=document.querySelector(".bottom-bar");if(!bar)return;
+ const open=id=>{const e=$(id);return !!e&&(e.classList.contains("open")||!e.classList.contains("hidden"));};
+ let active="";
+ if($("sideMenu")?.classList.contains("open"))active="categories";
+ else if($("cartDrawer")?.classList.contains("open"))active="cart";
+ else if($("checkoutModal")&&!$("checkoutModal").classList.contains("hidden"))active="checkout";
+ else{
+  const t=$("orderTracking");
+  if(t){const r=t.getBoundingClientRect();if(r.top<innerHeight*0.6&&r.bottom>innerHeight*0.2)active="track";}
+  if(!active&&window.scrollY<300)active="home";
+ }
+ bar.querySelectorAll("[data-bar]").forEach(el=>{const on=el.dataset.bar===active;el.classList.toggle("is-active",on);if(on)el.setAttribute("aria-current","true");else el.removeAttribute("aria-current");});
+}
+document.addEventListener("DOMContentLoaded",()=>{
+ updateBottomBar();
+ addEventListener("scroll",updateBottomBar,{passive:true});
+ addEventListener("click",()=>setTimeout(updateBottomBar,60));
+ ["sideMenu","cartDrawer","checkoutModal"].forEach(id=>{const e=$(id);if(e)new MutationObserver(updateBottomBar).observe(e,{attributes:true,attributeFilter:["class"]});});
+});
+/* Side menu: mark the category that is currently selected */
+function markCurrentCategory(){
+ const cur=categoryKey(currentCategory);
+ document.querySelectorAll("#sideMenu .menu-item:not(.persistent-menu)").forEach(b=>{
+  const label=categoryKey(b.textContent.replace(/\d+\s*$/,""));
+  b.classList.toggle("is-current",label===cur||(cur===categoryKey("All Products")&&/all products/i.test(b.textContent)));
+ });
+}
+document.addEventListener("click",e=>{if(e.target.closest("#sideMenu"))setTimeout(markCurrentCategory,80);});
+document.addEventListener("DOMContentLoaded",()=>{$("menuBtn")&&$("menuBtn").addEventListener("click",markCurrentCategory);$("sideMenu")&&null;});
+
+/* After an order: optional WhatsApp message. The order is already saved in Supabase, so the admin panel always shows it. */
+function setupSuccessWhatsApp(o){
+ const btn=$("successWaBtn"),note=$("successWaNote");if(!btn)return;
+ const num=String((typeof STORE_INFO!=="undefined"&&STORE_INFO.whatsapp)||"").replace(/\D/g,"");
+ if(!num){btn.classList.add("hidden");note?.classList.add("hidden");return;}
+ const lines=(o.items||[]).map(i=>`• ${i.name} x${i.qty}`).join("\n");
+ const msg=`আসসালামু আলাইকুম, আমি Gadget Bazar BD-তে অর্ডার করেছি।\nOrder ID: ${o.orderId}\nনাম: ${o.customer?.name||""}\nফোন: ${o.customer?.phone||""}\n${lines}\nমোট: ৳${Number(o.total||0).toLocaleString("en-BD")}\nদয়া করে কনফার্ম করুন।`;
+ btn.href=`https://wa.me/${num}?text=${encodeURIComponent(msg)}`;
+ btn.classList.remove("hidden");note?.classList.remove("hidden");
+}
