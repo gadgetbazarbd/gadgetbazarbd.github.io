@@ -181,7 +181,7 @@ function products(){
 }
 function productRows(list){
   if(!list.length)return `<tr><td colspan="7" class="empty">No products found</td></tr>`;
-  return list.map(p=>`<tr><td>${p.image?`<img class="thumb" src="${esc(p.image)}" alt="">`:'—'}</td><td><b>${esc(p.name)}</b></td><td>${esc(p.category||'—')}</td><td>${money(p.price)}</td><td>${Number(p.stock||0)}</td><td><span class="pill ${p.active!==false?'green':'red'}">${p.active!==false?'Active':'Inactive'}</span></td><td class="actions"><button class="btn muted" onclick="editProduct(${productsCache.indexOf(p)})">Edit</button><button class="btn danger" onclick="deleteProduct(${productsCache.indexOf(p)})">Delete</button></td></tr>`).join('')
+  return list.map(p=>`<tr><td>${p.image?`<img class="thumb" src="${esc(p.image)}" alt="">`:'—'}</td><td><b>${esc(p.name)}</b></td><td>${esc(p.category||'—')}</td><td>${money(p.price)}</td><td>${Number(p.stock||0)}</td><td><span class="pill ${p.active!==false?'green':'red'}">${p.active!==false?'Active':'Inactive'}</span></td><td class="actions"><button class="btn primary" onclick="openPostBuilder(${productsCache.indexOf(p)})">📣 Post</button><button class="btn muted" onclick="editProduct(${productsCache.indexOf(p)})">Edit</button><button class="btn danger" onclick="deleteProduct(${productsCache.indexOf(p)})">Delete</button></td></tr>`).join('')
 }
 function filterProducts(){
   const q=($('productSearch')?.value||'').toLowerCase().trim();
@@ -207,7 +207,7 @@ function productForm(p={}){
   const specsText=typeof specs==='string'?specs:(Array.isArray(specs)?specs.map(x=>typeof x==='object'&&x?`${x.name||x.label||'Feature'}: ${x.value||x.detail||''}`:String(x)).join('\n'):JSON.stringify(specs,null,2));
   return `<div class="form-grid">
     <label>Product Name<input id="productName" value="${esc(p.name||'')}" placeholder="e.g. TWS AirBuds Pro" required></label>
-    <label>Category<input id="productCategory" list="categoryList" value="${esc(p.category||'')}" placeholder="Audio"><datalist id="categoryList">${opts}</datalist></label>
+    <label>Category<span class="cat-wrap"><input id="productCategory" autocomplete="off" value="${esc(p.category||'')}" placeholder="Select or type a new category" onfocus="showCatSuggest()" oninput="showCatSuggest()" onblur="setTimeout(hideCatSuggest,180)"><div id="catSuggest" class="cat-suggest hidden"></div></span></label>
     <label>Price (৳)<input id="productPrice" type="number" min="0" value="${Number(p.price||0)}"></label>
     <label>Discount (%)<input id="productDiscount" type="number" min="0" max="100" value="${Number(p.discount||0)}"></label>
     <label>Stock<input id="productStock" type="number" min="0" value="${Number(p.stock||0)}"></label>
@@ -266,6 +266,17 @@ async function saveProduct(){
       specifications,
       is_deal:!!$('productIsDeal')?.checked
     };
+    if(category){
+      const hit=categoriesCache.find(c=>String(c.name).trim().toLowerCase()===category.toLowerCase());
+      if(hit){product.category=hit.name}
+      else{
+        const slug=category.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')||('cat-'+Date.now());
+        const {error:ce}=await sb.from('categories').insert({name:category,slug});
+        if(ce&&!/duplicate|23505/i.test((ce.code||'')+(ce.message||'')))throw ce;
+        const cr=await sb.from('categories').select('*').order('name');
+        if(!cr.error&&cr.data)categoriesCache=cr.data;
+      }
+    }
     const {error}=await sb.from('products').upsert(product,{onConflict:'id'});
     if(error)throw error;
     await refreshProducts();closeModal();render();
@@ -1082,3 +1093,102 @@ window.loadPaymentSettingsFull=loadPaymentSettingsFull;
 window.savePaymentSettingsFull=savePaymentSettingsFull;
 window.loadStoreSettings=loadStoreSettings;
 window.saveStoreSettings=saveStoreSettings;
+
+/* =========================================================
+   CATEGORY PICKER + POST BUILDER
+========================================================= */
+(function(){
+  const st=document.createElement('style');
+  st.textContent=`.cat-wrap{position:relative;display:block}.cat-suggest{position:absolute;left:0;right:0;top:100%;z-index:50;background:#fff;color:#111;border:1px solid #cbd5e1;border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.18);max-height:220px;overflow:auto;margin-top:4px}.cat-suggest.hidden{display:none}.cat-suggest div{padding:10px 12px;cursor:pointer;font-size:14px;border-bottom:1px solid #f1f5f9}.cat-suggest div:hover{background:#eef2ff}.cat-suggest .cat-new{color:#0a7d33;font-weight:700}.post-box textarea{width:100%;min-height:230px;font:14px/1.5 inherit;padding:10px;border:1px solid #cbd5e1;border-radius:10px;box-sizing:border-box}.post-row{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}.post-row .btn{flex:1;min-width:140px}.post-src{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0}.post-src button{padding:7px 12px;border-radius:99px;border:1px solid #cbd5e1;background:#fff;cursor:pointer}.post-src button.on{background:#0f172a;color:#fff;border-color:#0f172a}`;
+  document.head.appendChild(st);
+})();
+function hideCatSuggest(){$('catSuggest')?.classList.add('hidden')}
+function showCatSuggest(){
+  const box=$('catSuggest'),inp=$('productCategory');if(!box||!inp)return;
+  const q=inp.value.trim().toLowerCase();
+  const list=categoriesCache.filter(c=>!q||String(c.name).toLowerCase().includes(q));
+  let h=list.map(c=>`<div onmousedown="pickCat(this.dataset.n)" data-n="${esc(c.name)}">${esc(c.name)}</div>`).join('');
+  const exact=categoriesCache.some(c=>String(c.name).trim().toLowerCase()===q);
+  if(q&&!exact)h+=`<div class="cat-new" onmousedown="pickCat(this.dataset.n)" data-n="${esc(inp.value.trim())}">＋ Add new: ${esc(inp.value.trim())}</div>`;
+  if(!h){box.classList.add('hidden');return}
+  box.innerHTML=h;box.classList.remove('hidden')
+}
+function pickCat(n){const i=$('productCategory');if(i)i.value=n;hideCatSuggest()}
+
+const SITE_URL='https://gadgetbazarbd.github.io/';
+const POST_WA='8801320992683';
+let postIdx=-1,postSrc='fbgroup';
+const POST_SRCS={fbgroup:'Facebook Group',fbpage:'Facebook Page/Boost',story:'Story',tiktok:'TikTok'};
+function postFinal(p){return Math.round(Number(p.price||0)*(1-Number(p.discount||0)/100))}
+function postText(p,src){
+  const fin=postFinal(p),d=Number(p.discount||0);
+  let specs=p.specifications;if(typeof specs==='string'){try{specs=JSON.parse(specs)}catch(e){specs=[]}}
+  const feats=(Array.isArray(specs)?specs:[]).slice(0,5).map(x=>x&&typeof x==='object'?`✅ ${x.name}${x.value?': '+x.value:''}`:`✅ ${x}`);
+  const L=[`🔥 ${p.name}`];
+  if(p.brand)L.push(`Brand: ${p.brand}`);
+  L.push('',d>0?`💰 দাম: ৳${fin.toLocaleString('en-BD')} (৳${Number(p.price).toLocaleString('en-BD')} থেকে ${d}% ছাড়)`:`💰 দাম: ৳${fin.toLocaleString('en-BD')}`);
+  if(feats.length)L.push('',...feats);
+  if(p.warranty)L.push('',`🛡️ ওয়ারেন্টি: ${p.warranty}`);
+  if(Number(p.stock||0)>0&&Number(p.stock)<=5)L.push(`⚡ মাত্র ${p.stock}টি স্টক আছে`);
+  L.push('','🚚 সারা বাংলাদেশে ডেলিভারি | ক্যাশ অন ডেলিভারি',`🛒 অর্ডার: ${SITE_URL}?src=${src}`,`📲 WhatsApp: https://wa.me/${POST_WA}`);
+  return L.join('\n')
+}
+function openPostBuilder(i){
+  const p=productsCache[i];if(!p)return;postIdx=i;postSrc='fbgroup';
+  openModal('Post: '+p.name,`<div class="post-box">
+    <b>কোথায় পোস্ট করবেন?</b>
+    <div class="post-src" id="postSrcBtns">${Object.entries(POST_SRCS).map(([k,v])=>`<button type="button" data-k="${k}" class="${k===postSrc?'on':''}" onclick="setPostSrc('${k}')">${v}</button>`).join('')}</div>
+    <textarea id="postText">${esc(postText(p,postSrc))}</textarea>
+    <div class="post-row"><button class="btn primary" type="button" onclick="copyPostText()">📋 Copy Text</button></div>
+    <div class="post-row"><button class="btn muted" type="button" onclick="downloadPostImage('story')">⬇ Story (1080×1920)</button><button class="btn muted" type="button" onclick="downloadPostImage('square')">⬇ Post (1080×1080)</button></div>
+    <p id="postMsg" style="font-size:13px;color:#475569"></p></div>`)
+}
+function setPostSrc(k){
+  const p=productsCache[postIdx];if(!p)return;
+  const old=postSrc;postSrc=k;
+  const ta=$('postText');if(ta)ta.value=ta.value.split('?src='+old).join('?src='+k);
+  document.querySelectorAll('#postSrcBtns button').forEach(b=>b.classList.toggle('on',b.dataset.k===k))
+}
+async function copyPostText(){
+  const ta=$('postText');if(!ta)return;
+  try{await navigator.clipboard.writeText(ta.value)}catch(e){ta.select();document.execCommand('copy')}
+  if($('postMsg'))$('postMsg').textContent='✅ Copy হয়েছে — এখন Facebook/TikTok এ paste করুন।'
+}
+function wrapCanvasText(ctx,text,x,y,maxW,lh,maxLines){
+  const words=String(text).split(/\s+/);let line='',n=0;
+  for(const w of words){
+    const t=line?line+' '+w:w;
+    if(ctx.measureText(t).width>maxW&&line){ctx.fillText(line,x,y);y+=lh;line=w;if(++n>=maxLines-1)break}else line=t
+  }
+  ctx.fillText(line,x,y);return y+lh
+}
+function loadPostImg(url){
+  return new Promise(res=>{if(!url)return res(null);const im=new Image();im.crossOrigin='anonymous';im.onload=()=>res(im);im.onerror=()=>res(null);im.src=url})
+}
+async function downloadPostImage(kind){
+  const p=productsCache[postIdx];if(!p)return;
+  const W=1080,H=kind==='story'?1920:1080;
+  const c=document.createElement('canvas');c.width=W;c.height=H;const x=c.getContext('2d');
+  const g=x.createLinearGradient(0,0,0,H);g.addColorStop(0,'#0f172a');g.addColorStop(1,'#1e3a8a');x.fillStyle=g;x.fillRect(0,0,W,H);
+  const img=await loadPostImg(p.image);
+  const box=kind==='story'?820:560,bx=(W-box)/2,by=kind==='story'?250:70;
+  x.fillStyle='#fff';x.beginPath();x.roundRect(bx,by,box,box,36);x.fill();
+  if(img){const r=Math.min((box-40)/img.width,(box-40)/img.height),w=img.width*r,h=img.height*r;x.drawImage(img,bx+(box-w)/2,by+(box-h)/2,w,h)}
+  x.textAlign='center';x.fillStyle='#fbbf24';x.font='bold 40px sans-serif';x.fillText('GADGET BAZAR BD',W/2,kind==='story'?150:56);
+  let y=by+box+(kind==='story'?90:60);
+  x.fillStyle='#fff';x.font='bold 52px sans-serif';y=wrapCanvasText(x,p.name,W/2,y,W-140,62,2);
+  const fin=postFinal(p),d=Number(p.discount||0);
+  x.fillStyle='#22c55e';x.font='bold 88px sans-serif';x.fillText('৳'+fin.toLocaleString('en-BD'),W/2,y+60);y+=100;
+  if(d>0){x.fillStyle='#cbd5e1';x.font='36px sans-serif';x.fillText('৳'+Number(p.price).toLocaleString('en-BD')+'  •  '+d+'% OFF',W/2,y+10);y+=60}
+  x.fillStyle='#fbbf24';x.font='bold 38px sans-serif';
+  x.fillText('Order: gadgetbazarbd.github.io',W/2,H-(kind==='story'?150:80));
+  x.fillStyle='#fff';x.font='34px sans-serif';x.fillText('WhatsApp: +'+POST_WA,W/2,H-(kind==='story'?90:30));
+  let blob;
+  try{blob=await new Promise((r,j)=>c.toBlob(b=>b?r(b):j(new Error('x')),'image/jpeg',.92))}
+  catch(e){if($('postMsg'))$('postMsg').textContent='❌ ছবি তৈরি হয়নি (image CORS)। Screenshot নিন।';return}
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`${(p.name||'product').replace(/[^\w]+/g,'-')}-${kind}.jpg`;
+  document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),4000);
+  if($('postMsg'))$('postMsg').textContent=img?'✅ ছবি ডাউনলোড হয়েছে।':'⚠️ পণ্যের ছবি লোড হয়নি, শুধু লেখা সহ ছবি হয়েছে।'
+}
+window.openPostBuilder=openPostBuilder;window.setPostSrc=setPostSrc;window.copyPostText=copyPostText;window.downloadPostImage=downloadPostImage;
+window.showCatSuggest=showCatSuggest;window.hideCatSuggest=hideCatSuggest;window.pickCat=pickCat;
