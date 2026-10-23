@@ -604,10 +604,15 @@ async function legacyInsertOrder(o){
 async function submitOrderToSupabase(o){
  // The server looks up real prices, checks stock, applies the coupon and saves the order.
  const items=cart.map(item=>item.type==="combo"?{offer_id:String(item.offerId),qty:Number(item.qty)||1,is_combo:true}:{id:String(item.id),qty:Number(item.qty)||1});
- const {data,error}=await sb.rpc("place_order",{
+ let {data,error}=await sb.rpc("place_order",{
   p_name:o.customer.name,p_phone:o.customer.phone,p_district:o.customer.district,p_upazila:o.customer.area,p_address:o.customer.address,
-  p_note:o.note||null,p_items:items,p_payment_method:o.paymentMethod||"Cash on Delivery",p_transaction_id:o.transactionId||null,p_coupon:o.couponCode||null
+  p_note:o.note||null,p_items:items,p_payment_method:o.paymentMethod||"Cash on Delivery",p_transaction_id:o.transactionId||null,p_coupon:o.couponCode||null,...(gbSource()?{p_source:gbSource()}:{})
  });
+ if(error&&isMissingRpc(error)&&gbSource()){
+  // step-3 SQL (source tracking) not installed yet: retry without the source field
+  const r2=await sb.rpc("place_order",{p_name:o.customer.name,p_phone:o.customer.phone,p_district:o.customer.district,p_upazila:o.customer.area,p_address:o.customer.address,p_note:o.note||null,p_items:items,p_payment_method:o.paymentMethod||"Cash on Delivery",p_transaction_id:o.transactionId||null,p_coupon:o.couponCode||null});
+  data=r2.data;error=r2.error;
+ }
  if(error){if(isMissingRpc(error)){console.warn("place_order() not installed yet - using legacy insert");return legacyInsertOrder(o);}throw error;}
  if(data&&data.order_number){
   o.orderId=data.order_number;o.subtotal=Number(data.subtotal)||0;o.delivery=Number(data.delivery_charge)||0;o.total=Number(data.total)||0;o.discount=Number(data.discount)||0;
@@ -646,7 +651,7 @@ function initCustomerUI(){
    const p=getProduct(item.id);return p?{id:p.id,name:p.name,price:finalPrice(p),qty:item.qty}:null;
   }).filter(Boolean),subtotal:t.subtotal,delivery:t.delivery,total:t.total};
   try{await submitOrderToSupabase(o);}catch(err){console.error(err);if(err&&err.code==="P0001"){refreshStore();return alert(err.message);}return alert("ORDER ERROR\n\nMessage: "+(err.message||"Unknown")+"\nCode: "+(err.code||"N/A"));}
-  localStorage.setItem("gbbd_last_order",JSON.stringify(o));let orders=JSON.parse(localStorage.getItem("gbbd_orders")||"[]");orders.unshift(o);localStorage.setItem("gbbd_orders",JSON.stringify(orders));
+  localStorage.setItem("gbbd_last_order",JSON.stringify(o));try{gbTrack("Purchase",{value:Number(o.total)||0,ids:(o.items||[]).map(i=>String(i.id)),count:(o.items||[]).reduce((a,i)=>a+(Number(i.qty)||1),0),order:o.orderId})}catch(_){}let orders=JSON.parse(localStorage.getItem("gbbd_orders")||"[]");orders.unshift(o);localStorage.setItem("gbbd_orders",JSON.stringify(orders));
   cart=[];saveCart();appliedCoupon="";e.target.reset();selectedDistrict="";selectedUpazila="";if($("districtInput"))$("districtInput").value="";if($("upazilaInput")){$("upazilaInput").value="";$("upazilaInput").disabled=true;$("upazilaInput").placeholder="Select district first...";}$("transactionBox")?.classList.add("hidden");updateDeliveryInfo();closeCheckout();if($("successOrderId"))$("successOrderId").textContent=o.orderId;setupSuccessWhatsApp(o);$("successModal")?.classList.remove("hidden");
  });
 }
@@ -824,3 +829,43 @@ addEventListener("popstate",()=>{if(!location.hash)setView("home");});
 })();
 document.addEventListener("DOMContentLoaded",()=>{if(location.hash)applyView();else setView("home");});
 window.gbGo=gbGo;window.gbBack=gbBack;
+
+/* =========================================================
+   MARKETING: traffic source (?src=) + Facebook / TikTok Pixel
+   >>> Paste your Pixel IDs below (leave '' to keep a pixel off) <<<
+========================================================= */
+const PIXELS={facebook:"",tiktok:""};
+function gbSource(){try{return localStorage.getItem("gbbd_src")||""}catch(e){return ""}}
+(function(){try{const s=new URLSearchParams(location.search).get("src");if(s){const c=s.replace(/[^A-Za-z0-9_-]/g,"").slice(0,40);if(c)localStorage.setItem("gbbd_src",c)}}catch(e){}})();
+(function initPixels(){
+ try{
+  if(PIXELS.facebook&&!window.fbq){
+   !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version="2.0";n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,"script","https://connect.facebook.net/en_US/fbevents.js");
+   fbq("init",PIXELS.facebook);fbq("track","PageView");
+  }
+  if(PIXELS.tiktok&&!window.ttq){
+   !function(w,d,t){w.TiktokAnalyticsObject=t;var ttq=w[t]=w[t]||[];ttq.methods=["page","track","identify","instances","debug","on","off","once","ready","alias","group","enableCookie","disableCookie"];ttq.setAndDefer=function(t,e){t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}};for(var i=0;i<ttq.methods.length;i++)ttq.setAndDefer(ttq,ttq.methods[i]);ttq.load=function(e){var n="https://analytics.tiktok.com/i18n/pixel/events.js";ttq._i=ttq._i||{};ttq._i[e]=[];ttq._t=ttq._t||{};ttq._t[e]=+new Date;var o=d.createElement("script");o.type="text/javascript";o.async=!0;o.src=n+"?sdkid="+e+"&lib="+t;var a=d.getElementsByTagName("script")[0];a.parentNode.insertBefore(o,a)};ttq.load(PIXELS.tiktok);ttq.page()}(window,document,"ttq");
+  }
+ }catch(e){console.warn("pixel init failed",e)}
+})();
+function gbTrack(ev,d){
+ d=d||{};
+ try{
+  if(window.fbq){
+   const m={ViewContent:"ViewContent",AddToCart:"AddToCart",InitiateCheckout:"InitiateCheckout",Purchase:"Purchase"}[ev];
+   if(m)fbq("track",m,{value:d.value||0,currency:"BDT",content_ids:d.ids||[],content_type:"product",num_items:d.count||undefined});
+  }
+  if(window.ttq){
+   const m={ViewContent:"ViewContent",AddToCart:"AddToCart",InitiateCheckout:"InitiateCheckout",Purchase:"CompletePayment"}[ev];
+   if(m)ttq.track(m,{value:d.value||0,currency:"BDT",content_id:(d.ids||[])[0]||"",content_type:"product"});
+  }
+ }catch(e){}
+}
+(function(){
+ const price=id=>{try{const p=getProduct(id);return p?finalPrice(p):0}catch(e){return 0}};
+ const _add=window.addToCart;window.addToCart=function(id){const r=_add.apply(this,arguments);gbTrack("AddToCart",{value:price(id),ids:[String(id)]});return r};
+ const _buy=window.buyNow;window.buyNow=function(id){gbTrack("AddToCart",{value:price(id),ids:[String(id)]});return _buy.apply(this,arguments)};
+ const _co=window.openCheckout;window.openCheckout=function(){try{const t=totals();gbTrack("InitiateCheckout",{value:t.total,ids:cart.map(i=>String(i.id)),count:cart.length})}catch(e){}return _co.apply(this,arguments)};
+ let seen="";const _pg=window.handleProductPageRoute;
+ window.handleProductPageRoute=function(){const r=_pg.apply(this,arguments);try{const id=new URLSearchParams(location.search).get("product");if(id&&id!==seen&&getProduct(id)){seen=id;gbTrack("ViewContent",{value:price(id),ids:[id]})}}catch(e){}return r};
+})();

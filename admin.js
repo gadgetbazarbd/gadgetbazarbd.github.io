@@ -332,7 +332,7 @@ function orderRows(list){
     else if(s==='Processing')next=actionBtn(i,'Shipped','Shipped','primary');
     else if(s==='Shipped')next=actionBtn(i,'Delivered','Delivered','primary');
     const cancel=(s!=='Delivered'&&s!=='Cancelled')?actionBtn(i,'Cancelled','Cancel','danger'):'';
-    return `<tr><td><b>${esc(id)}</b><br><small>${esc(created)}</small></td><td>${esc(name)}</td><td>${esc(phone)}</td><td>${money(total)}</td><td>${esc(o.payment_method||o.paymentMethod||'COD')}${o.transaction_id?`<br><small>TXN: ${esc(o.transaction_id)}</small>`:''}</td><td><span class="pill ${statusClass(s)}">${esc(s)}</span></td><td class="actions"><button class="btn muted" onclick="viewOrder(${i})">View</button><button class="btn" style="background:#1fa855;color:#fff" onclick="whatsappOrder(${i})" title="Message customer on WhatsApp">WhatsApp</button>${next}${cancel}</td></tr>`
+    return `<tr><td><b>${esc(id)}</b><br><small>${esc(created)}</small>${o.source?`<br><small class="src-tag">📣 ${esc(o.source)}</small>`:''}</td><td>${esc(name)}</td><td>${esc(phone)}</td><td>${money(total)}</td><td>${esc(o.payment_method||o.paymentMethod||'COD')}${o.transaction_id?`<br><small>TXN: ${esc(o.transaction_id)}</small>`:''}</td><td><span class="pill ${statusClass(s)}">${esc(s)}</span></td><td class="actions"><button class="btn muted" onclick="viewOrder(${i})">View</button><button class="btn" style="background:#1fa855;color:#fff" onclick="whatsappOrder(${i})" title="Message customer on WhatsApp">WhatsApp</button>${next}${cancel}</td></tr>`
   }).join('');
 }
 function orders(){
@@ -378,7 +378,7 @@ function viewOrder(i){
   if(typeof items==='string'){try{items=JSON.parse(items)}catch{items=[]}}
   if(Array.isArray(items))itemHtml=items.map(x=>{const qty=Number(x.qty||x.quantity||1);const price=Number(x.price||x.unit_price||0);return `<div class="order-item"><span>${esc(x.name||x.title||'Product')} × ${qty}</span><b>${money(price*qty)}</b></div>`}).join('');
   const created=o.created_at?new Date(o.created_at).toLocaleString('en-BD'):'—';
-  openModal('Order '+id,`<div class="card"><b>Order Information</b><p><b>Order ID:</b> ${esc(id)}</p><p><b>Placed:</b> ${esc(created)}</p><p><b>Status:</b> <span class="pill ${statusClass(s)}">${esc(s)}</span></p><hr><b>Customer</b><p>${esc(name)} · ${esc(phone)}</p><p>${esc([district,upazila].filter(Boolean).join(', '))}</p><p>${esc(address||'—')}</p><hr><p><b>Payment:</b> ${esc(payment)}</p><p><b>Transaction ID:</b> ${esc(o.transaction_id||'—')}</p><p><b>Subtotal:</b> ${money(o.subtotal)}</p><p><b>Delivery:</b> ${money(delivery)}</p><p><b>Total:</b> <b>${money(total)}</b></p><p><b>Customer note:</b> ${esc(o.note||'—')}</p>${itemHtml?`<hr><b>Items</b><div class="order-items">${itemHtml}</div>`:'<hr><p>No item details saved with this order.</p>'}</div><div class="btn-row"><button class="btn" style="background:#1fa855;color:#fff" onclick="whatsappOrder(${i})">WhatsApp Customer</button>${s==='Pending'?actionBtn(i,'Confirmed','Confirm Order','primary'):''}${s==='Confirmed'?actionBtn(i,'Processing','Start Processing','primary'):''}${s==='Processing'?actionBtn(i,'Shipped','Mark Shipped','primary'):''}${s==='Shipped'?actionBtn(i,'Delivered','Mark Delivered','primary'):''}${s!=='Delivered'&&s!=='Cancelled'?actionBtn(i,'Cancelled','Cancel Order','danger'):''}</div>`);
+  openModal('Order '+id,`<div class="card"><b>Order Information</b><p><b>Order ID:</b> ${esc(id)}</p><p><b>Placed:</b> ${esc(created)}</p><p><b>Status:</b> <span class="pill ${statusClass(s)}">${esc(s)}</span></p><hr><b>Customer</b><p>${esc(name)} · ${esc(phone)}</p><p>${esc([district,upazila].filter(Boolean).join(', '))}</p><p>${esc(address||'—')}</p><hr><p><b>Payment:</b> ${esc(payment)}</p><p><b>Transaction ID:</b> ${esc(o.transaction_id||'—')}</p><p><b>Source:</b> ${esc(o.source||'—')}</p><p><b>Subtotal:</b> ${money(o.subtotal)}</p><p><b>Delivery:</b> ${money(delivery)}</p><p><b>Total:</b> <b>${money(total)}</b></p><p><b>Customer note:</b> ${esc(o.note||'—')}</p>${itemHtml?`<hr><b>Items</b><div class="order-items">${itemHtml}</div>`:'<hr><p>No item details saved with this order.</p>'}</div><div class="btn-row"><button class="btn" style="background:#1fa855;color:#fff" onclick="whatsappOrder(${i})">WhatsApp Customer</button>${s==='Pending'?actionBtn(i,'Confirmed','Confirm Order','primary'):''}${s==='Confirmed'?actionBtn(i,'Processing','Start Processing','primary'):''}${s==='Processing'?actionBtn(i,'Shipped','Mark Shipped','primary'):''}${s==='Shipped'?actionBtn(i,'Delivered','Mark Delivered','primary'):''}${s!=='Delivered'&&s!=='Cancelled'?actionBtn(i,'Cancelled','Cancel Order','danger'):''}</div>`);
 }
 /* WhatsApp helpers: the status is always changed in this panel (single source of truth);
    WhatsApp is only used to message the customer. */
@@ -1130,7 +1130,7 @@ function postText(p,src){
   if(feats.length)L.push('',...feats);
   if(p.warranty)L.push('',`🛡️ ওয়ারেন্টি: ${p.warranty}`);
   if(Number(p.stock||0)>0&&Number(p.stock)<=5)L.push(`⚡ মাত্র ${p.stock}টি স্টক আছে`);
-  L.push('','🚚 সারা বাংলাদেশে ডেলিভারি | ক্যাশ অন ডেলিভারি',`🛒 অর্ডার: ${SITE_URL}?src=${src}`,`📲 WhatsApp: https://wa.me/${POST_WA}`);
+  L.push('','🚚 সারা বাংলাদেশে ডেলিভারি | ক্যাশ অন ডেলিভারি',`🛒 অর্ডার করুন: ${SITE_URL}?product=${encodeURIComponent(p.id)}&src=${src}`,`📲 WhatsApp: https://wa.me/${POST_WA}`);
   return L.join('\n')
 }
 function openPostBuilder(i){
@@ -1146,7 +1146,7 @@ function openPostBuilder(i){
 function setPostSrc(k){
   const p=productsCache[postIdx];if(!p)return;
   const old=postSrc;postSrc=k;
-  const ta=$('postText');if(ta)ta.value=ta.value.split('?src='+old).join('?src='+k);
+  const ta=$('postText');if(ta)ta.value=ta.value.split('&src='+old).join('&src='+k);
   document.querySelectorAll('#postSrcBtns button').forEach(b=>b.classList.toggle('on',b.dataset.k===k))
 }
 async function copyPostText(){
