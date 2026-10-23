@@ -16,7 +16,7 @@
     rel="stylesheet"
   >
 
-  <link rel="stylesheet" href="style.css?v=gbbd-fixes-20261023b">
+  <link rel="stylesheet" href="style.css?v=gbbd-fixes-20261023c">
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
@@ -53,6 +53,7 @@
 <!-- Icon set (shared by the whole page) -->
 <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
   <defs>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/></symbol>
     <symbol id="i-cart" viewBox="0 0 24 24"><path d="M3 4h2l2.2 10.2a1 1 0 0 0 1 .8h8.6a1 1 0 0 0 1-.8L19 8H6.2"/><circle cx="9" cy="19" r="1.4"/><circle cx="17" cy="19" r="1.4"/></symbol>
     <symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13 2 4 14h6l-1 8 9-12h-6z"/></symbol>
     <symbol id="i-box" viewBox="0 0 24 24"><path d="M3 7.5 12 3l9 4.5v9L12 21l-9-4.5z"/><path d="M3 7.5 12 12l9-4.5M12 12v9"/></symbol>
@@ -180,6 +181,16 @@
 
     </div>
 
+  </section>
+
+  <!-- SEARCH -->
+  <section class="search-hero" aria-label="Search products">
+    <div class="search-box">
+      <svg class="ic" aria-hidden="true"><use href="#i-search"/></svg>
+      <input id="topSearch" type="search" placeholder="Search earbuds, charger, smartwatch..." autocomplete="off" enterkeyhint="search" aria-label="Search products">
+      <button id="topSearchClear" class="search-clear hidden" type="button" aria-label="Clear search">&times;</button>
+      <div id="searchSuggest" class="search-suggest hidden" role="listbox"></div>
+    </div>
   </section>
 
   <!-- MOBILE QUICK SHOP SHORTCUTS -->
@@ -633,7 +644,7 @@
 </footer>
 
 
-<script src="script.js?v=gbbd-fixes-20261023b"></script>
+<script src="script.js?v=gbbd-fixes-20261023c"></script>
 
 </body>
 </html>

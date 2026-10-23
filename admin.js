@@ -46,8 +46,35 @@ async function checkAdmin(){
 function showLogin(){$('login')?.classList.remove('hidden');$('app')?.classList.add('hidden')}
 function showApp(){$('login')?.classList.add('hidden');$('app')?.classList.remove('hidden')}
 
+/* Photos from phones are 3-8 MB. Shrink to max 1200px and WebP before upload so the shop loads fast. */
+async function prepareImage(file,maxSide=1200){
+  if(!file||!/^image\//.test(file.type)||/svg|gif/.test(file.type))return file;
+  try{
+    let bmp;
+    try{bmp=await createImageBitmap(file,{imageOrientation:'from-image'})}catch(e){bmp=await createImageBitmap(file)}
+    const scale=Math.min(1,maxSide/Math.max(bmp.width,bmp.height));
+    const w=Math.max(1,Math.round(bmp.width*scale)),h=Math.max(1,Math.round(bmp.height*scale));
+    const c=document.createElement('canvas');c.width=w;c.height=h;
+    const ctx=c.getContext('2d');ctx.drawImage(bmp,0,0,w,h);
+    let blob=await new Promise(res=>c.toBlob(res,'image/webp',0.82));
+    let ext='webp';
+    if(!blob||blob.type!=='image/webp'){
+      ctx.globalCompositeOperation='destination-over';ctx.fillStyle='#fff';ctx.fillRect(0,0,w,h);
+      blob=await new Promise(res=>c.toBlob(res,'image/jpeg',0.85));ext='jpg';
+    }
+    if(!blob||(scale===1&&blob.size>=file.size))return file;
+    return new File([blob],file.name.replace(/\.[^.]+$/,'')+'.'+ext,{type:blob.type});
+  }catch(e){console.warn('Image optimisation skipped',e);return file}
+}
+function previewProductImages(input){
+  const box=$('productImagePreview');if(!box)return;
+  const files=[...(input.files||[])];
+  box.innerHTML=files.map(f=>`<div style="display:inline-block;margin:6px 8px 0 0;text-align:center;font-size:11px"><img src="${URL.createObjectURL(f)}" alt="" style="width:72px;height:72px;object-fit:cover;border-radius:10px;display:block"><span>${(f.size/1048576).toFixed(1)} MB</span></div>`).join('')+(files.length?`<div style="font-size:12px;margin-top:6px;color:#64748b">Photos are automatically resized and compressed when you save.</div>`:'');
+}
 async function uploadImage(file,id){
   if(!file)return '';
+  if(file.size>25*1048576)throw new Error('Image is too large (max 25 MB): '+file.name);
+  file=await prepareImage(file);
   const ext=(file.name.split('.').pop()||'jpg').toLowerCase().replace(/[^a-z0-9]/g,'')||'jpg';
   const path=`products/${id}_${Date.now()}.${ext}`;
   const {error}=await sb.storage.from(BUCKET).upload(path,file,{upsert:true,contentType:file.type});
@@ -194,7 +221,7 @@ function productForm(p={}){
     <label class="full">Compatibility<input id="productCompatibility" value="${esc(p.compatibility||'')}" placeholder="Compatible devices / systems"></label>
     <label class="full">Full Description<textarea id="productDescription" rows="4" placeholder="Write the full product description...">${esc(p.description||'')}</textarea></label>
     <label class="full">Specifications (one per line: Feature: Value)<textarea id="productSpecifications" rows="5" placeholder="Bluetooth: 5.3&#10;Battery: 400mAh&#10;Charging: USB-C">${esc(specsText||'')}</textarea><small>Write one specification per line. You do not need to open Supabase Table Editor for each product.</small></label>
-    <label class="full">Product Images (select multiple)<input id="productImages" type="file" accept="image/*" multiple><small>Choose multiple photos. Existing photos are kept unless you remove them below.</small></label>
+    <label class="full">Product Images (select multiple)<input id="productImages" type="file" accept="image/*" multiple onchange="previewProductImages(this)"><small>Choose multiple photos. Existing photos are kept unless you remove them below.</small><div id="productImagePreview"></div></label>
     ${currentImages.length?`<div class="full admin-current-gallery"><strong>Saved images</strong><div class="admin-gallery-grid">${currentImages.map((src,i)=>`<label class="admin-gallery-item"><img src="${esc(src)}" alt="Saved product image ${i+1}"><span><input type="checkbox" class="remove-product-image" value="${esc(src)}"> Remove</span></label>`).join('')}</div></div>`:''}
     <label class="full admin-checkline"><input id="productIsDeal" type="checkbox" ${p.is_deal||Number(p.discount)>=70?'checked':''}> Show this product in the 70% OFF Deals page (it will also remain in Home and its category)</label>
   </div><div class="btn-row"><button class="btn muted" onclick="closeModal()">Cancel</button><button class="btn primary" id="saveProductBtn" onclick="saveProduct()">Save Product</button></div>`
@@ -369,11 +396,15 @@ function waMessage(o){
   }[s]||'';
   return head+tail;
 }
+function waLink(o){
+  const ph=waPhone(o.phone||o.customer_phone||o.customer?.phone);
+  return ph?`https://wa.me/${ph}?text=${encodeURIComponent(waMessage(o))}`:'';
+}
 function whatsappOrder(i){
   const o=ordersCache[i];if(!o)return;
-  const ph=waPhone(o.phone||o.customer_phone||o.customer?.phone);
-  if(!ph){alert('This order has no phone number.');return}
-  window.open(`https://wa.me/${ph}?text=${encodeURIComponent(waMessage(o))}`,'_blank','noopener');
+  const url=waLink(o);
+  if(!url){alert('This order has no phone number.');return}
+  window.open(url,'_blank','noopener');
 }
 function updateOrderBadge(){
   const n=ordersCache.filter(o=>(o.status||'Pending')==='Pending').length;
@@ -925,8 +956,10 @@ async function saveOffer(){
   const btn=$('saveOfferBtn');
   try{
     if(btn){btn.disabled=true;btn.textContent='Saving...'}
-    const file=$('offerCoverImage')?.files?.[0];
+    let file=$('offerCoverImage')?.files?.[0];
     if(file){
+      if(file.size>25*1048576)throw new Error('Image is too large (max 25 MB).');
+      file=await prepareImage(file);
       const path=`offers/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g,'_')}`;
       const {error:upErr}=await sb.storage.from(BUCKET).upload(path,file,{upsert:true,contentType:file.type});
       if(upErr)throw upErr;
