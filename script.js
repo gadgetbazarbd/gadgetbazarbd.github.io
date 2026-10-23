@@ -138,6 +138,8 @@ function updateDealsVisibility(){
  const has=storeOffers.length>0||products.some(p=>p.is_deal||Number(p.discount)>=70);
  $('dealZone')?.classList.toggle('hidden',!has);
  document.querySelectorAll('.needs-deals').forEach(el=>el.classList.toggle('hidden',!has));
+ const best=Math.max(0,...products.map(p=>Number(p.discount)||0),...storeOffers.map(o=>Number(o.discount_percent)||0));
+ const lab=$('dealsQuickLabel');if(lab)lab.textContent=best>=10?`Up to ${Math.floor(best)}% Off`:'Deals';
 }
 function dealTypes(){return [...new Set(storeOffers.map(o=>String(o.offer_type||'').trim()).filter(Boolean))];}
 function renderDealChips(){
@@ -325,8 +327,8 @@ function persistSavedIds(){
 }
 function updateSavedCounters(){
  const wc=wishlistIds.size,cc=compareIds.size;
- ["wishlistMenuCount","wishlistToolbarCount","wishlistHeroCount"].forEach(id=>{const el=$(id);if(el)el.textContent=String(wc)});
- ["compareMenuCount","compareToolbarCount","compareHeroCount"].forEach(id=>{const el=$(id);if(el)el.textContent=String(cc)});
+ ["wishlistMenuCount","wishlistToolbarCount","wishlistHeroCount","wishlistQuickCount"].forEach(id=>{const el=$(id);if(el){el.textContent=String(wc);el.classList.toggle("is-empty",!wc);}});
+ ["compareMenuCount","compareToolbarCount","compareHeroCount","compareQuickCount"].forEach(id=>{const el=$(id);if(el){el.textContent=String(cc);el.classList.toggle("is-empty",!cc);}});
 }
 function toggleWishlist(id){
  id=String(id);
@@ -438,11 +440,11 @@ function homeProductCard(p){
  const saved=wishlistIds.has(String(p.id)),compared=compareIds.has(String(p.id));
  return `<article class="product-card home-product-card"><div class="product-img">${productImg(p)}${disc?`<span class="home-discount-badge">${Math.round(Number(p.discount))}% OFF</span>`:""}<div class="home-card-tools"><button type="button" class="home-save-btn ${saved?'is-saved':''}" aria-label="${saved?'Remove from Wishlist':'Add to Wishlist'}" title="${saved?'Remove from Wishlist':'Add to Wishlist'}" onclick="toggleWishlist(${id})">${saved?'♥':'♡'}</button><button type="button" class="home-save-btn ${compared?'is-compared':''}" aria-label="${compared?'Remove from Compare':'Add to Compare'}" title="${compared?'Remove from Compare':'Add to Compare'}" onclick="toggleCompare(${id})">${compared?'✓':'⇄'}</button></div></div><div class="category">${esc(p.cat||"Gadget")}</div><h3>${esc(p.name)}</h3><div class="price">${money(finalPrice(p))} ${disc?`<del>${money(p.price)}</del>`:""}</div><div class="product-actions"><button class="view-btn" type="button" onclick="viewProductDetails(${id})">View Details</button><button class="add-btn" type="button" ${sold?"disabled":""} onclick="window.addToCart(${id})">${sold?"Out of Stock":"Add to Cart"}</button><button class="buy-btn" type="button" ${sold?"disabled":""} onclick="window.buyNow(${id})">${sold?"Out of Stock":"Buy Now"}</button></div></article>`;
 }
-function renderHomeProductGrid(id,list,emptyText){
+function renderHomeProductGrid(id,list,emptyText,limit=4){
  const grid=$(id);if(!grid)return;
  const unique=[],seen=new Set();
  (list||[]).forEach(p=>{const key=String(p.id);if(!seen.has(key)){seen.add(key);unique.push(p);}});
- grid.innerHTML=unique.length?unique.slice(0,4).map(homeProductCard).join(""):`<div class="showcase-empty">${esc(emptyText)}</div>`;
+ grid.innerHTML=unique.length?unique.slice(0,limit).map(homeProductCard).join(""):`<div class="showcase-empty">${esc(emptyText)}</div>`;
 }
 function renderHomepageShowcases(){
  const catGrid=$("homeCategoryGrid");
@@ -455,15 +457,15 @@ function renderHomepageShowcases(){
  }
  const available=products.filter(p=>Number(p.stock)>0);
  const featured=products.filter(p=>p.featured);
- renderHomeProductGrid("featuredProductsGrid",featured.length?featured:products,"Products will appear here when the store catalogue is available.");
+ renderHomeProductGrid("featuredProductsGrid",featured.length?featured:products,"Products will appear here when the store catalogue is available.",24);
  // The products query is ordered by created_at descending, so the first items are the latest additions.
- renderHomeProductGrid("newArrivalsGrid",products,"New arrivals will appear here when products are added.");
+ renderHomeProductGrid("newArrivalsGrid",products,"New arrivals will appear here when products are added.",24);
  // This store currently has no verified sales-count field; use admin-featured products first and label the section transparently.
  const topPicks=featured.length?featured:available.slice().sort((a,b)=>Number(b.stock)-Number(a.stock));
- renderHomeProductGrid("bestSellersGrid",topPicks,"Store favourites will appear here when products are available.");
+ renderHomeProductGrid("bestSellersGrid",topPicks,"Store favourites will appear here when products are available.",24);
 }
 
-function renderSmartRecommendations(){let old=$("smartRecommendations");if(old)old.remove();if(!products.length)return;let seed=products.find(p=>p.featured)||products[0];let picks=products.filter(p=>p.cat===seed.cat&&String(p.id)!==String(seed.id)&&p.stock>0).slice(0,3);if(!picks.length)picks=products.filter(p=>String(p.id)!==String(seed.id)&&p.stock>0).slice(0,3);if(!picks.length)return;let section=document.createElement("section");section.id="smartRecommendations";section.className="shop smart-recommendations";section.innerHTML=`<div class="section-head"><h2>Smart Picks For You</h2><span>Based on product category and availability</span></div><div class="products-grid">${picks.map(p=>`<article class="product-card"><div class="product-img">${p.image?`<img src="${esc(p.image)}" alt="${esc(p.name)}" style="width:100%;height:100%;object-fit:contain">`:imgPlaceholder()}</div><div class="category">${esc(p.cat)}</div><h3>${esc(p.name)}</h3><div class="price">${money(finalPrice(p))}</div><button class="add-btn" onclick="addToCart('${String(p.id).replace(/'/g,"\'")}')">Add to Cart</button></article>`).join("")}</div>`;$("products")?.insertAdjacentElement("afterend",section);}
+function renderSmartRecommendations(){let old=$("smartRecommendations");if(old)old.remove();if(!products.length)return;let seed=products.find(p=>p.featured)||products[0];let picks=products.filter(p=>p.cat===seed.cat&&String(p.id)!==String(seed.id)&&p.stock>0).slice(0,3);if(!picks.length)picks=products.filter(p=>String(p.id)!==String(seed.id)&&p.stock>0).slice(0,3);if(!picks.length)return;let section=document.createElement("section");section.id="smartRecommendations";section.dataset.v="home";section.className="shop smart-recommendations";section.innerHTML=`<div class="section-head"><h2>Smart Picks For You</h2><span>Based on product category and availability</span></div><div class="products-grid">${picks.map(p=>`<article class="product-card"><div class="product-img">${p.image?`<img src="${esc(p.image)}" alt="${esc(p.name)}" style="width:100%;height:100%;object-fit:contain">`:imgPlaceholder()}</div><div class="category">${esc(p.cat)}</div><h3>${esc(p.name)}</h3><div class="price">${money(finalPrice(p))}</div><button class="add-btn" onclick="addToCart('${String(p.id).replace(/'/g,"\'")}')">Add to Cart</button></article>`).join("")}</div>`;$("products")?.insertAdjacentElement("afterend",section);}
 function getProduct(id){return products.find(p=>String(p.id)===String(id));}
 function finalPrice(p){return p.discount>0?Math.max(0,p.price-p.price*p.discount/100):p.price;}
 function cartUnitPrice(item){if(item?.type==="combo"){const offer=getOffer(item.offerId);return offer?offerUnitPrice(offer):0;}const p=getProduct(item?.id);return p?finalPrice(p):0;}
@@ -705,9 +707,9 @@ function updateBottomBar(){
  else if($("cartDrawer")?.classList.contains("open"))active="cart";
  else if($("checkoutModal")&&!$("checkoutModal").classList.contains("hidden"))active="checkout";
  else{
-  const t=$("orderTracking");
-  if(t){const r=t.getBoundingClientRect();if(r.top<innerHeight*0.6&&r.bottom>innerHeight*0.2)active="track";}
-  if(!active&&window.scrollY<300)active="home";
+  const v=document.body.dataset.view||"home";
+  if(v==="track")active="track";
+  else if(v==="home"&&window.scrollY<300)active="home";
  }
  bar.querySelectorAll("[data-bar]").forEach(el=>{const on=el.dataset.bar===active;el.classList.toggle("is-active",on);if(on)el.setAttribute("aria-current","true");else el.removeAttribute("aria-current");});
 }
@@ -774,3 +776,51 @@ function setupSearch(){
 }
 document.addEventListener("DOMContentLoaded",setupSearch);
 window.clearSearch=clearSearch;
+
+/* ===== Simple page router: each button opens its own page (no long scrolling) =====
+   Pages are shown/hidden with CSS using body[data-view]; links are real #hashes, so the phone's Back button works. */
+const VIEW_BY_ID={shopCategories:"categories",newArrivals:"new-arrivals",bestSellers:"best-sellers",featuredProducts:"featured",orderTracking:"track",about:"about",policies:"policies",contact:"contact",products:"home",dealZone:"home"};
+const VIEW_TITLES={categories:"Categories","new-arrivals":"New Arrivals","best-sellers":"Best Sellers & Top Picks",featured:"Featured Products",track:"Track Your Order",about:"About Us",policies:"Our Policies",contact:"Contact Us"};
+let gbNavCount=0;
+function viewFromHash(){let id="";try{id=decodeURIComponent(location.hash.slice(1));}catch(e){}return VIEW_BY_ID[id]||"home";}
+function setView(v,scrollTarget){
+ document.body.dataset.view=v;
+ const t=$("pageHeadTitle");if(t)t.textContent=VIEW_TITLES[v]||"";
+ if(v==="home"&&scrollTarget){requestAnimationFrame(()=>scrollTarget.scrollIntoView({behavior:"smooth"}));}
+ else window.scrollTo(0,0);
+ updateBottomBar();
+}
+function applyView(){
+ const id=location.hash.slice(1);
+ setView(viewFromHash(),VIEW_BY_ID[id]==="home"?$(id):null);
+}
+function gbGo(view){
+ const id=Object.keys(VIEW_BY_ID).find(k=>VIEW_BY_ID[k]===view&&k!=="products"&&k!=="dealZone");
+ if(view==="home"){if(location.hash)history.pushState(null,"",location.pathname+location.search);setView("home");return;}
+ if(id){location.hash=id;}
+}
+function gbBack(){
+ if(gbNavCount>0)history.back();
+ else{history.replaceState(null,"",location.pathname+location.search);setView("home");}
+}
+addEventListener("hashchange",()=>{gbNavCount++;applyView();});
+addEventListener("popstate",()=>{if(!location.hash)setView("home");});
+// Any existing "scroll to this section" call opens the page that contains the section.
+(function(){
+ const original=Element.prototype.scrollIntoView;
+ Element.prototype.scrollIntoView=function(opts){
+  try{
+   const sec=this.closest&&this.closest("main > [data-v]");
+   if(sec&&sec.offsetParent===null&&!sec.classList.contains("hidden")&&sec.id&&VIEW_BY_ID[sec.id]){
+    const v=VIEW_BY_ID[sec.id];document.body.dataset.view=v;
+    if(location.hash.slice(1)!==sec.id){gbNavCount++;history.pushState(null,"","#"+sec.id);}
+    const t=$("pageHeadTitle");if(t)t.textContent=VIEW_TITLES[v]||"";
+    updateBottomBar();
+    if(v!=="home"){window.scrollTo(0,0);return;}
+   }
+  }catch(e){}
+  return original.call(this,opts);
+ };
+})();
+document.addEventListener("DOMContentLoaded",()=>{if(location.hash)applyView();else setView("home");});
+window.gbGo=gbGo;window.gbBack=gbBack;

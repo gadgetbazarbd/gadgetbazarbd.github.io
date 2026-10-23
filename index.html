@@ -16,7 +16,7 @@
     rel="stylesheet"
   >
 
-  <link rel="stylesheet" href="style.css?v=gbbd-fixes-20261023c">
+  <link rel="stylesheet" href="style.css?v=gbbd-fixes-20261023e">
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
@@ -48,12 +48,14 @@
   </style>
 </head>
 
-<body>
+<body data-view="home">
 
 <!-- Icon set (shared by the whole page) -->
 <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
   <defs>
     <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/></symbol>
+    <symbol id="i-heart" viewBox="0 0 24 24"><path d="M12 20.5s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.6a4.3 4.3 0 0 1 7.5 2.7c0 5.6-7.5 10.2-7.5 10.2z"/></symbol>
+    <symbol id="i-compare" viewBox="0 0 24 24"><path d="M4 8h14M14 4l4 4-4 4M20 16H6M10 12l-4 4 4 4"/></symbol>
     <symbol id="i-cart" viewBox="0 0 24 24"><path d="M3 4h2l2.2 10.2a1 1 0 0 0 1 .8h8.6a1 1 0 0 0 1-.8L19 8H6.2"/><circle cx="9" cy="19" r="1.4"/><circle cx="17" cy="19" r="1.4"/></symbol>
     <symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13 2 4 14h6l-1 8 9-12h-6z"/></symbol>
     <symbol id="i-box" viewBox="0 0 24 24"><path d="M3 7.5 12 3l9 4.5v9L12 21l-9-4.5z"/><path d="M3 7.5 12 12l9-4.5M12 12v9"/></symbol>
@@ -160,7 +162,13 @@
 <main>
 
   <!-- HERO -->
-  <section class="hero">
+  <!-- PAGE HEADER for sub pages (back button + title) -->
+  <div class="page-head" data-v="categories new-arrivals best-sellers featured track about policies contact">
+    <button type="button" class="page-back" onclick="gbBack()" aria-label="Back">&#8249;</button>
+    <h2 id="pageHeadTitle"></h2>
+  </div>
+
+  <section class="hero" data-v="home">
 
     <div class="hero-copy">
 
@@ -184,7 +192,7 @@
   </section>
 
   <!-- SEARCH -->
-  <section class="search-hero" aria-label="Search products">
+  <section class="search-hero" data-v="home" aria-label="Search products">
     <div class="search-box">
       <svg class="ic" aria-hidden="true"><use href="#i-search"/></svg>
       <input id="topSearch" type="search" placeholder="Search earbuds, charger, smartwatch..." autocomplete="off" enterkeyhint="search" aria-label="Search products">
@@ -194,14 +202,17 @@
   </section>
 
   <!-- MOBILE QUICK SHOP SHORTCUTS -->
-  <nav class="quick-shop-nav" aria-label="Quick shop">
-    <button type="button" onclick="document.getElementById('shopCategories').scrollIntoView({behavior:'smooth'})"><svg class="ic" aria-hidden="true"><use href="#i-grid"/></svg> Categories</button>
-    <a href="#bestSellers"><svg class="ic" aria-hidden="true"><use href="#i-star"/></svg> Best Sellers</a>
-    <a href="#newArrivals"><svg class="ic" aria-hidden="true"><use href="#i-sparkle"/></svg> New Arrivals</a>
-    <button class="quick-deals needs-deals hidden" type="button" onclick="openDealsPage()"><svg class="ic" aria-hidden="true"><use href="#i-percent"/></svg> Deals</button>
+  <nav class="round-nav" data-v="home" aria-label="Quick shop">
+    <a href="#shopCategories"><em class="rn c-blue"><svg class="ic" aria-hidden="true"><use href="#i-grid"/></svg></em><span>Categories</span></a>
+    <a href="#newArrivals"><em class="rn c-purple"><svg class="ic" aria-hidden="true"><use href="#i-sparkle"/></svg></em><span>New Arrivals</span></a>
+    <a href="#bestSellers"><em class="rn c-amber"><svg class="ic" aria-hidden="true"><use href="#i-star"/></svg></em><span>Best Sellers</span></a>
+    <button type="button" class="needs-deals hidden" onclick="openDealsPage()"><em class="rn c-red"><svg class="ic" aria-hidden="true"><use href="#i-percent"/></svg></em><span id="dealsQuickLabel">Deals</span></button>
+    <button type="button" onclick="showSavedProducts('wishlist')"><em class="rn c-pink"><svg class="ic" aria-hidden="true"><use href="#i-heart"/></svg><b id="wishlistQuickCount" class="rn-badge is-empty">0</b></em><span>Wishlist</span></button>
+    <button type="button" onclick="showSavedProducts('compare')"><em class="rn c-teal"><svg class="ic" aria-hidden="true"><use href="#i-compare"/></svg><b id="compareQuickCount" class="rn-badge is-empty">0</b></em><span>Compare</span></button>
+    <a href="#policies"><em class="rn c-slate"><svg class="ic" aria-hidden="true"><use href="#i-shield"/></svg></em><span>Policies</span></a>
   </nav>
 
-  <section class="category-showcase" id="shopCategories" aria-labelledby="shopCategoriesTitle">
+  <section class="category-showcase" data-v="categories" id="shopCategories" aria-labelledby="shopCategoriesTitle">
     <div class="showcase-heading">
       <div>
         <p class="eyebrow">FIND YOUR NEXT FAVOURITE</p>
@@ -215,7 +226,7 @@
     </div>
   </section>
 
-  <section class="home-products-section" id="featuredProducts" aria-labelledby="featuredProductsTitle">
+  <section class="home-products-section" data-v="featured" id="featuredProducts" aria-labelledby="featuredProductsTitle">
     <div class="showcase-heading">
       <div>
         <p class="eyebrow">HANDPICKED FOR YOU</p>
@@ -229,7 +240,7 @@
     </div>
   </section>
 
-  <section class="home-products-section" id="newArrivals" aria-labelledby="newArrivalsTitle">
+  <section class="home-products-section" data-v="new-arrivals" id="newArrivals" aria-labelledby="newArrivalsTitle">
     <div class="showcase-heading">
       <div>
         <p class="eyebrow">JUST ADDED TO THE STORE</p>
@@ -243,7 +254,7 @@
     </div>
   </section>
 
-  <section class="home-products-section" id="bestSellers" aria-labelledby="bestSellersTitle">
+  <section class="home-products-section" data-v="best-sellers" id="bestSellers" aria-labelledby="bestSellersTitle">
     <div class="showcase-heading">
       <div>
         <p class="eyebrow">STORE FAVOURITES</p>
@@ -258,7 +269,7 @@
   </section>
 
 
-  <section class="shop" id="products">
+  <section class="shop" data-v="home" id="products">
 
     <div class="toolbar">
       <input id="searchInput" type="search" placeholder="Search gadgets..." autocomplete="off">
@@ -305,14 +316,14 @@
   </section>
 
   <!-- DEALS ON THE HOME PAGE: one section, hidden until there is something to show -->
-  <section class="deal-zone hidden" id="dealZone" aria-labelledby="dealZoneTitle">
+  <section class="deal-zone hidden" data-v="home" id="dealZone" aria-labelledby="dealZoneTitle">
     <div class="deal-zone-head"><div><p class="eyebrow">LIMITED-TIME SAVINGS</p><h2 id="dealZoneTitle">Deals &amp; Offers</h2><p>Combos, flash sales and discounted gadgets, while stock lasts.</p></div><button class="deal-zone-tag deal-zone-all" type="button" onclick="openDealsPage()">View all deals <span aria-hidden="true">→</span></button></div>
     <div id="offersGrid" class="offers-grid"></div>
     <h3 class="deal-subhead hidden" id="dealProductsHead">Discounted products</h3>
     <div id="dealProductsGrid" class="offers-grid"></div>
   </section>
 
-  <section class="benefit-strip" aria-label="Shopping benefits">
+  <section class="benefit-strip" data-v="home" aria-label="Shopping benefits">
     <div class="benefit-item"><span class="benefit-icon"><svg class="ic" aria-hidden="true"><use href="#i-truck"/></svg></span><span><strong>Nationwide Delivery</strong><small id="deliverySummary">Delivery across Bangladesh</small></span></div>
     <div class="benefit-item"><span class="benefit-icon"><svg class="ic" aria-hidden="true"><use href="#i-lock"/></svg></span><span><strong>Easy Checkout</strong><small>Simple and secure order flow</small></span></div>
     <div class="benefit-item"><span class="benefit-icon"><svg class="ic" aria-hidden="true"><use href="#i-box"/></svg></span><span><strong>Order Tracking</strong><small>Check updates with your phone</small></span></div>
@@ -321,7 +332,7 @@
 
 
   <!-- ORDER TRACKING -->
-  <section class="tracking-section" id="orderTracking">
+  <section class="tracking-section" data-v="track" id="orderTracking">
 
     <div class="tracking-card">
 
@@ -347,7 +358,7 @@
 
 
   <!-- ABOUT, POLICIES -->
-  <section class="info-section" id="about" aria-labelledby="aboutTitle">
+  <section class="info-section" data-v="about" id="about" aria-labelledby="aboutTitle">
     <div class="info-inner">
       <p class="eyebrow">ABOUT US</p>
       <h2 id="aboutTitle">Gadget Bazar BD</h2>
@@ -355,7 +366,7 @@
     </div>
   </section>
 
-  <section class="info-section" id="policies" aria-labelledby="policiesTitle">
+  <section class="info-section" data-v="policies" id="policies" aria-labelledby="policiesTitle">
     <div class="info-inner">
       <p class="eyebrow">SHOP WITH CONFIDENCE</p>
       <h2 id="policiesTitle">Our Policies</h2>
@@ -399,7 +410,7 @@
   </section>
 
   <!-- CONTACT (filled from STORE_INFO in script.js; stays hidden until contact details are added) -->
-  <section class="info-section hidden" id="contact" aria-labelledby="contactTitle">
+  <section class="info-section hidden" data-v="contact" id="contact" aria-labelledby="contactTitle">
     <div class="info-inner">
       <p class="eyebrow">GET IN TOUCH</p>
       <h2 id="contactTitle">Contact Us</h2>
@@ -599,7 +610,7 @@
 
 <!-- FIXED BOTTOM BAR -->
 <nav class="bottom-bar" aria-label="Quick actions">
-  <a href="#" data-bar="home" onclick="window.scrollTo({top:0,behavior:'smooth'});return false;"><svg class="ic" aria-hidden="true"><use href="#i-home"/></svg><span>Home</span></a>
+  <a href="#" data-bar="home" onclick="gbGo('home');return false;"><svg class="ic" aria-hidden="true"><use href="#i-home"/></svg><span>Home</span></a>
   <button type="button" data-bar="categories" onclick="openMenu()" aria-label="Open categories menu"><svg class="ic" aria-hidden="true"><use href="#i-grid"/></svg><span>Categories</span></button>
   <a href="#orderTracking" data-bar="track" onclick="var e=document.getElementById('orderTracking');if(e){e.scrollIntoView({behavior:'smooth'});setTimeout(function(){var i=document.getElementById('trackPhone');if(i)i.focus();},500);}return false;"><svg class="ic" aria-hidden="true"><use href="#i-box"/></svg><span>Track</span></a>
   <button type="button" data-bar="cart" onclick="openCart()" aria-label="Open cart"><svg class="ic" aria-hidden="true"><use href="#i-cart"/></svg><span>Cart</span><em id="bottomCartCount" class="bb-badge">0</em></button>
@@ -644,7 +655,7 @@
 </footer>
 
 
-<script src="script.js?v=gbbd-fixes-20261023c"></script>
+<script src="script.js?v=gbbd-fixes-20261023e"></script>
 
 </body>
 </html>

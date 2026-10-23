@@ -706,3 +706,61 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{ou
 .product-card h3{min-height:2.7em}
 @media(min-width:700px){.products-grid .product-card .product-img{height:auto!important}}
 .search-box input[type=search]::-webkit-search-cancel-button,.search-box input[type=search]::-webkit-search-decoration{-webkit-appearance:none;appearance:none;display:none}
+
+/* ===== Pages (views) ===== 
+*/
+body[data-view="home"] main>[data-v]:not([data-v~="home"]),
+body[data-view="categories"] main>[data-v]:not([data-v~="categories"]),
+body[data-view="new-arrivals"] main>[data-v]:not([data-v~="new-arrivals"]),
+body[data-view="best-sellers"] main>[data-v]:not([data-v~="best-sellers"]),
+body[data-view="featured"] main>[data-v]:not([data-v~="featured"]),
+body[data-view="track"] main>[data-v]:not([data-v~="track"]),
+body[data-view="about"] main>[data-v]:not([data-v~="about"]),
+body[data-view="policies"] main>[data-v]:not([data-v~="policies"]),
+body[data-view="contact"] main>[data-v]:not([data-v~="contact"]){display:none!important}
+
+.page-head{position:sticky;top:74px;z-index:25;display:flex;align-items:center;gap:12px;height:54px;padding:0 14px;background:rgba(7,20,38,.96);backdrop-filter:blur(12px);border-bottom:1px solid rgba(137,184,224,.18)}
+.page-head h2{font-size:17px;margin:0}
+.page-back{width:38px;height:36px;border-radius:12px;border:1px solid #2b5275;background:#0b2038;color:#fff;font-size:24px;line-height:1;padding:0 0 3px}
+body[data-view="home"] .page-head{display:none!important}
+/* compact chip row */
+.quick-shop-nav{display:flex!important;gap:8px!important;overflow-x:auto;scrollbar-width:none;padding:0 14px!important;margin:12px auto 6px!important;max-width:1400px}
+.quick-shop-nav::-webkit-scrollbar{display:none}
+.quick-shop-nav a,.quick-shop-nav button{flex:none;flex-direction:row!important;min-height:38px!important;height:38px;padding:0 14px!important;gap:7px!important;font-size:12.5px!important;white-space:nowrap;border-radius:999px!important;overflow-wrap:normal!important}
+.quick-shop-nav .ic{width:16px!important;height:16px!important}
+/* the shop-area search box is replaced by the big search bar */
+#products .toolbar{grid-template-columns:1fr}
+#products .toolbar #searchInput{display:none}
+
+/* categories page only */
+body[data-view="home"] #shopCategories[data-v],body[data-view="new-arrivals"] #shopCategories[data-v],body[data-view="best-sellers"] #shopCategories[data-v],body[data-view="featured"] #shopCategories[data-v],body[data-view="track"] #shopCategories[data-v],body[data-view="about"] #shopCategories[data-v],body[data-view="policies"] #shopCategories[data-v],body[data-view="contact"] #shopCategories[data-v]{display:none!important}
+@media(min-width:700px){.hero{min-height:190px!important;padding-top:22px!important;padding-bottom:22px!important}.hero h1{font-size:42px!important;margin:8px 0!important}.hero p:not(.eyebrow){font-size:15px!important}}
+@media(max-width:700px){
+ .hero{padding:12px 16px 10px!important}
+ .hero .eyebrow,.hero p:not(.eyebrow){display:none!important}
+ .hero h1{font-size:25px!important;margin:0 0 8px!important}
+ .hero-actions{margin:0!important}
+ .hero-saved-actions{margin-top:8px!important}
+ #products .saved-tools{display:none}
+ #products.shop{padding-top:10px!important}
+ .search-hero{margin-top:8px!important}
+}
+
+/* ===== Round quick buttons (small, easy to tap) ===== */
+.round-nav{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding:6px 10px 8px;margin:6px auto 4px;max-width:1100px;justify-content:flex-start}
+.round-nav::-webkit-scrollbar{display:none}
+@media(min-width:760px){.round-nav{justify-content:center;gap:14px}}
+.round-nav a,.round-nav button{flex:none;width:66px;min-height:70px;padding:5px 2px;background:transparent;border:0;border-radius:14px;display:flex;flex-direction:column;align-items:center;gap:5px;color:#dbe8f5;text-decoration:none;font:600 10px/1.15 Poppins,Arial,sans-serif;text-align:center}
+.round-nav span{max-width:64px}
+.round-nav .rn{position:relative;width:42px;height:42px;border-radius:50%;display:grid;place-items:center;color:#fff;box-shadow:0 5px 14px rgba(0,0,0,.35)}
+.round-nav .rn .ic{width:20px;height:20px;color:#fff}
+.round-nav a:active,.round-nav button:active{background:rgba(37,183,255,.14);transform:scale(.94);box-shadow:none!important;border:0!important}
+.c-blue{background:#1e88e5}.c-purple{background:#8e44ad}.c-amber{background:#f39c12}.c-red{background:#e74c3c}.c-pink{background:#d6457f}.c-teal{background:#16a085}.c-slate{background:#4a5d73}
+.rn-badge{position:absolute;top:-3px;right:-5px;min-width:17px;height:17px;padding:0 4px;border-radius:99px;background:#fff;color:#0b2038;font-size:10px;font-weight:700;display:grid;place-items:center}
+.rn-badge.is-empty{display:none}
+/* one-line title; the old Wishlist/Compare buttons in the banner are replaced by the round buttons */
+.hero h1{white-space:nowrap!important;max-width:none!important;font-size:clamp(21px,6.3vw,40px)!important}
+.hero h1 span{display:inline!important}
+.hero-saved-actions{display:none!important}
+#products .saved-tools{display:none!important}
+@media(min-width:700px){.hero h1{font-size:40px!important}}
