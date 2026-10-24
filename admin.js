@@ -725,7 +725,9 @@ async function loadStoreSettings(){
     email:data?.email||'',
     address:data?.address||'',
     support_hours:data?.support_hours||'',
-    updated_at:data?.updated_at||null
+    updated_at:data?.updated_at||null,
+    theme:(data&&data.theme)||'ocean',
+    has_theme:!!data&&('theme' in data)
   };
   return storeSettingsCache;
 }
@@ -740,7 +742,7 @@ function settings(){
     <label class="full">Store Address<textarea id="storeAddress" rows="3" maxlength="500" placeholder="Store address">${esc(s.address||'')}</textarea></label>
     <label class="full">Support Hours<input id="storeHours" maxlength="160" value="${esc(s.support_hours||'')}" placeholder="Every day, 10 AM–8 PM"></label>
   </div><div class="btn-row"><button class="btn primary" id="saveStoreSettingsBtn" onclick="saveStoreSettings()">Save Store Settings</button></div>
-  ${s.updated_at?`<p><small>Last updated: ${esc(new Date(s.updated_at).toLocaleString('en-BD'))}</small></p>`:''}</div>`
+  ${s.updated_at?`<p><small>Last updated: ${esc(new Date(s.updated_at).toLocaleString('en-BD'))}</small></p>`:''}</div>${themeCard(s)}`
 }
 
 async function saveStoreSettings(){
@@ -1282,3 +1284,38 @@ async function deleteCoupon(i){
   try{const {error}=await sb.from('coupons').delete().eq('id',c.id);if(error)throw error;await refreshCoupons();render()}catch(e){showError(e)}
 }
 window.coupons=coupons;window.refreshCoupons=refreshCoupons;window.addCoupon=addCoupon;window.editCoupon=editCoupon;window.saveCoupon=saveCoupon;window.toggleCoupon=toggleCoupon;window.deleteCoupon=deleteCoupon;
+
+/* =========================================================
+   WEBSITE THEME (default colours shown to customers)
+========================================================= */
+const SITE_THEMES=[
+ ['ocean','Ocean Night (current)',1,'#06101f','#25b7ff'],['violet','Neon Violet',1,'#0d0a1f','#a78bfa'],['emerald','Emerald Trust',1,'#05140f','#34d399'],
+ ['sunset','Sunset Orange',1,'#140a06','#fb923c'],['gold','Black & Gold',1,'#0a0a0a','#e0b84a'],['slate','Pro Slate',1,'#0f1216','#38bdf8'],
+ ['light','Clean White & Blue',0,'#f3f7fc','#1877f2'],['rose','Soft Rose',0,'#fff5f7','#e11d74'],['daraz','Bold Red & White',0,'#f4f4f4','#e8343a'],['mint','Fresh Mint',0,'#effaf6','#0d9f7a']
+];
+let pendingTheme=null;
+function themeCard(s){
+  const cur=pendingTheme||s.theme||'ocean';
+  const tiles=SITE_THEMES.map(([k,n,d,bg,ac])=>`<button type="button" class="theme-tile ${k===cur?'on':''}" onclick="pickSiteTheme('${k}')"><span class="sw" style="background:${bg}"><i style="background:${ac}"></i></span><b>${esc(n)}</b><small>${d?'Dark':'Light'}</small></button>`).join('');
+  return `<style>.theme-tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;margin:12px 0}.theme-tile{display:flex;flex-direction:column;align-items:center;gap:6px;padding:12px 6px;border:2px solid #e2e8f0;border-radius:14px;background:#fff;cursor:pointer;font:inherit;color:inherit}.theme-tile.on{border-color:#2563eb;background:#eff6ff}.theme-tile .sw{width:52px;height:52px;border-radius:50%;border:2px solid #cbd5e1;position:relative;overflow:hidden;display:block}.theme-tile .sw i{position:absolute;right:0;bottom:0;width:60%;height:60%;border-top-left-radius:100%}.theme-tile b{font-size:12.5px;text-align:center}.theme-tile small{color:#64748b}</style>
+  <div class="card" style="margin-top:16px"><h3>🎨 Website Theme</h3><p>The colour set customers see by default. Customers can still change it for themselves with the 🎨 button on the website; their "Default" option always shows the theme you pick here.</p>
+  ${s.has_theme?'':`<p style="color:#b45309"><b>One-time setup needed:</b> run <code>6_theme.sql</code> in Supabase &gt; SQL Editor, then press Refresh.</p>`}
+  <div class="theme-tiles">${tiles}</div>
+  <div class="btn-row"><button class="btn primary" id="saveThemeBtn" onclick="saveSiteTheme()" ${s.has_theme?'':'disabled'}>Save Theme</button></div></div>`
+}
+function pickSiteTheme(k){pendingTheme=k;render()}
+async function saveSiteTheme(){
+  const s=storeSettingsCache||{};const theme=pendingTheme||s.theme||'ocean';
+  if(!SITE_THEMES.some(t=>t[0]===theme)){alert('Choose a theme first.');return}
+  const btn=$('saveThemeBtn');
+  try{
+    if(btn){btn.disabled=true;btn.textContent='Saving...'}
+    const payload={id:1,store_name:s.store_name||'Gadget Bazar BD',phone:s.phone||'',email:s.email||'',address:s.address||'',support_hours:s.support_hours||'',theme,updated_at:new Date().toISOString()};
+    const {error}=await sb.from('store_settings').upsert(payload,{onConflict:'id'});
+    if(error)throw error;
+    storeSettingsCache={...s,theme,updated_at:payload.updated_at};pendingTheme=null;
+    alert('Theme saved. Customers will see it the next time they open the website.');
+    render()
+  }catch(e){showError(e);if(btn){btn.disabled=false;btn.textContent='Save Theme'}}
+}
+window.themeCard=themeCard;window.pickSiteTheme=pickSiteTheme;window.saveSiteTheme=saveSiteTheme;

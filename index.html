@@ -16,6 +16,7 @@
   <meta property="og:image:height" content="630">
   <meta name="twitter:card" content="summary_large_image">
 
+  <script>try{var _u=localStorage.getItem("gbbd_theme"),_s=localStorage.getItem("gbbd_store_theme");document.documentElement.setAttribute("data-theme",(_u&&_u!=="default")?_u:(_s||"ocean"))}catch(e){document.documentElement.setAttribute("data-theme","ocean")}</script>
   <title>Gadget Bazar BD | Smart Gadgets & Accessories</title>
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -26,7 +27,7 @@
     rel="stylesheet"
   >
 
-  <link rel="stylesheet" href="style.css?v=gbbd-fixes-20261024b">
+  <link rel="stylesheet" href="style.css?v=gbbd-fixes-20261024c">
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
@@ -637,6 +638,9 @@
 <div id="fullProductPage" class="full-product-page hidden" aria-live="polite"></div>
 
 <!-- FIXED BOTTOM BAR -->
+<button class="theme-float" id="themeBtn" type="button" aria-label="সাইটের রঙ বদলান" title="সাইটের রঙ" onclick="openThemePicker()">🎨</button>
+<div class="theme-sheet hidden" id="themeSheet" onclick="if(event.target===this)closeThemePicker()"><div class="theme-card" role="dialog" aria-label="সাইটের রঙ" id="themeCard"></div></div>
+
 <nav class="bottom-bar" aria-label="Quick actions">
   <a href="#" data-bar="home" onclick="gbGo('home');return false;"><svg class="ic" aria-hidden="true"><use href="#i-home"/></svg><span>Home</span></a>
   <button type="button" data-bar="categories" onclick="openMenu()" aria-label="Open categories menu"><svg class="ic" aria-hidden="true"><use href="#i-grid"/></svg><span>Categories</span></button>
@@ -683,7 +687,7 @@
 </footer>
 
 
-<script src="script.js?v=gbbd-fixes-20261024b"></script>
+<script src="script.js?v=gbbd-fixes-20261024c"></script>
 
 </body>
 </html>

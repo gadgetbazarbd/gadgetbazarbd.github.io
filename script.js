@@ -283,6 +283,7 @@ async function loadStoreInfo(){
  try{
   const {data,error}=await sb.from("store_settings").select("*").limit(1).maybeSingle();
   if(error)throw error;
+  try{if(data&&GB_THEMES[data.theme])localStorage.setItem("gbbd_store_theme",data.theme);}catch(_){}gbApplyTheme();
   REMOTE_STORE=data?{phone:String(data.phone||"").trim(),email:String(data.email||"").trim(),address:String(data.address||"").trim(),hours:String(data.support_hours||"").trim()}:{};
  }catch(e){console.warn("store_settings not available, using STORE_INFO",e?.message||e);REMOTE_STORE={};}
  renderStoreInfo();
@@ -928,3 +929,33 @@ function saleTick(){
  _saleSig=sig;
 }
 setInterval(saleTick,1000);
+
+/* =========================================================
+   THEMES: the store default is chosen in Admin > Settings; customers can change it for themselves
+========================================================= */
+const GB_THEMES={ocean:["সাগর নীল",1,"#06101f","#25b7ff"],violet:["বেগুনি",1,"#0d0a1f","#a78bfa"],emerald:["সবুজ",1,"#05140f","#34d399"],sunset:["কমলা",1,"#140a06","#fb923c"],gold:["সোনালি",1,"#0a0a0a","#e0b84a"],light:["সাদা-নীল",0,"#f3f7fc","#1877f2"],rose:["গোলাপি",0,"#fff5f7","#e11d74"],daraz:["লাল-সাদা",0,"#f4f4f4","#e8343a"],mint:["পুদিনা",0,"#effaf6","#0d9f7a"],slate:["ধূসর",1,"#0f1216","#38bdf8"]};
+function gbStoreTheme(){try{const t=localStorage.getItem("gbbd_store_theme");return GB_THEMES[t]?t:"ocean"}catch(e){return "ocean"}}
+function gbUserTheme(){try{const t=localStorage.getItem("gbbd_theme");return GB_THEMES[t]?t:""}catch(e){return ""}}
+function gbEffectiveTheme(){return gbUserTheme()||gbStoreTheme();}
+function gbApplyTheme(){const t=gbEffectiveTheme();document.documentElement.setAttribute("data-theme",t);const m=document.querySelector('meta[name="theme-color"]');if(m)m.setAttribute("content",GB_THEMES[t][2]);}
+function gbSaveUserTheme(t){try{if(t)localStorage.setItem("gbbd_theme",t);else localStorage.removeItem("gbbd_theme");}catch(e){}gbApplyTheme();renderThemePicker();}
+function setThemeMode(mode){
+ const st=gbStoreTheme();
+ if(mode==="default")return gbSaveUserTheme("");
+ if(mode==="dark")return gbSaveUserTheme(GB_THEMES[st][1]?st:"ocean");
+ return gbSaveUserTheme(!GB_THEMES[st][1]?st:"light");
+}
+function renderThemePicker(){
+ const box=$("themeCard");if(!box)return;
+ const cur=gbEffectiveTheme(),user=gbUserTheme(),st=gbStoreTheme(),dark=GB_THEMES[cur][1];
+ const sw=(k,label,extra)=>{const t=GB_THEMES[k];return `<button type="button" class="theme-opt ${extra}" onclick="${k===st&&label==="ডিফল্ট"?"gbSaveUserTheme('')":`gbSaveUserTheme('${k}')`}"><span class="theme-sw" style="background:${t[2]}"><i style="background:${t[3]}"></i></span><span>${label}</span></button>`;};
+ box.innerHTML=`<div class="theme-head"><h3>🎨 সাইটের রঙ বেছে নিন</h3><button type="button" onclick="closeThemePicker()" aria-label="বন্ধ করুন">×</button></div>
+ <div class="theme-modes"><button type="button" class="${!user?"on":""}" onclick="setThemeMode('default')">↺ ডিফল্ট</button><button type="button" class="${user&&!dark?"on":""}" onclick="setThemeMode('light')">☀️ হালকা</button><button type="button" class="${user&&dark?"on":""}" onclick="setThemeMode('dark')">🌙 গাঢ়</button></div>
+ <div class="theme-grid">${sw(st,"ডিফল্ট",!user?"on":"")}${Object.keys(GB_THEMES).filter(k=>k!==st).map(k=>sw(k,GB_THEMES[k][0],user===k?"on":"")).join("")}</div>
+ <p class="theme-note">আপনার পছন্দ এই ফোনেই মনে থাকবে। "ডিফল্ট" মানে দোকানের নিজস্ব রঙ।</p>`;
+}
+function openThemePicker(){renderThemePicker();$("themeSheet")?.classList.remove("hidden");}
+function closeThemePicker(){$("themeSheet")?.classList.add("hidden");}
+window.openThemePicker=openThemePicker;window.closeThemePicker=closeThemePicker;window.setThemeMode=setThemeMode;window.gbSaveUserTheme=gbSaveUserTheme;
+document.addEventListener("keydown",e=>{if(e.key==="Escape")closeThemePicker();});
+gbApplyTheme();
