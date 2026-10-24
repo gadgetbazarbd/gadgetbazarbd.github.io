@@ -764,3 +764,7 @@ body[data-view="home"] #shopCategories[data-v],body[data-view="new-arrivals"] #s
 .hero-saved-actions{display:none!important}
 #products .saved-tools{display:none!important}
 @media(min-width:700px){.hero h1{font-size:40px!important}}
+
+/* Return policy list */
+.info-card .policy-list{margin:0 0 10px;padding:0 0 0 18px;color:#a9bfd5;font-size:12.5px;line-height:1.7}
+.info-card .policy-list li{margin:0 0 6px;display:list-item;list-style:decimal}

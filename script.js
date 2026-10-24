@@ -37,9 +37,9 @@ const STORE_INFO={
  hours:""       // Example: "Every day, 10 AM to 10 PM"
 };
 // Estimated delivery time per zone (shown at checkout and in Policies). Change to match your couriers.
-const DELIVERY_TIME={dhaka:"1–2 days",nearby:"2–3 days",outside:"3–5 days"};
+const DELIVERY_TIME={dhaka:"24 hours (max 36 hours)",nearby:"2–3 days",outside:"72 hours (max 5 days)"};
 // Returns window shown in Policies.
-const RETURN_WINDOW="3 days";
+const RETURN_WINDOW="7 days";
 
 function toast(msg){
  let t=$("gbToast"); if(!t){t=document.createElement("div");t.id="gbToast";t.className="gb-toast";document.body.appendChild(t);}
@@ -688,7 +688,7 @@ function renderPolicyInfo(){
  document.querySelectorAll("[data-time]").forEach(el=>{el.textContent=DELIVERY_TIME[el.dataset.time]||"";});
  document.querySelectorAll("[data-return-window]").forEach(el=>{el.textContent=RETURN_WINDOW;});
  const note=$("nearbyNote");if(note)note.textContent="Nearby Dhaka: "+NEARBY_DISTRICTS.join(", ")+".";
- const sum=$("deliverySummary");if(sum)sum.textContent=`Dhaka ${DELIVERY_TIME.dhaka} · Outside Dhaka ${DELIVERY_TIME.outside}`;
+ const sum=$("deliverySummary");if(sum)sum.textContent=`Dhaka within 24 hours · Outside Dhaka about 3 days`;
  const pay=$("paymentSummary");
  if(pay){const names=[];if(PAYMENT_SETTINGS.cod_enabled)names.push("Cash on Delivery");if(PAYMENT_SETTINGS.bkash_enabled&&PAYMENT_SETTINGS.bkash_number)names.push("bKash");if(PAYMENT_SETTINGS.nagad_enabled&&PAYMENT_SETTINGS.nagad_number)names.push("Nagad");pay.textContent=names.length?"Accepted: "+names.join(", ")+".":"Pay with the methods shown at checkout.";}
  const help=$("couponHelp");if(help)help.innerHTML=couponLines();
