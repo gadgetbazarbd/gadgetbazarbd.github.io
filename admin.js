@@ -197,6 +197,7 @@ function filterProducts(){
 
 function addProduct(){editingProductId=null;openModal('Add Product',productForm())}
 function editProduct(i){const p=productsCache[i];if(!p)return;editingProductId=p.id;openModal('Edit Product',productForm(p))}
+function saleDt(v){if(!v)return '';const d=new Date(v);if(isNaN(d))return '';return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,16)}
 function productForm(p={}){
   const opts=categoriesCache.map(c=>`<option value="${esc(c.name)}" ${p.category===c.name?'selected':''}>${esc(c.name)}</option>`).join('');
   let gallery=p.images??p.gallery??p.image_urls??[];
@@ -210,6 +211,9 @@ function productForm(p={}){
     <label>Category<span class="cat-wrap"><input id="productCategory" autocomplete="off" value="${esc(p.category||'')}" placeholder="Select or type a new category" onfocus="showCatSuggest()" oninput="showCatSuggest()" onblur="setTimeout(hideCatSuggest,180)"><div id="catSuggest" class="cat-suggest hidden"></div></span></label>
     <label>Price (৳)<input id="productPrice" type="number" min="0" value="${Number(p.price||0)}"></label>
     <label>Discount (%)<input id="productDiscount" type="number" min="0" max="100" value="${Number(p.discount||0)}"></label>
+    <label>Flash sale starts (optional)<input id="productSaleStart" type="datetime-local" value="${saleDt(p.sale_starts_at)}"></label>
+    <label>Flash sale ends (optional)<input id="productSaleEnd" type="datetime-local" value="${saleDt(p.sale_ends_at)}"></label>
+    <p class="hint" style="grid-column:1/-1;margin:-4px 0 4px;font-size:12px;color:#64748b">⚡ Set both times to run a timed Flash Sale. The Discount (%) above applies only inside this window; before and after it the full price is charged. Leave both blank for a normal always-on discount. (Run 5_flash_sale.sql once first.)</p>
     <label>Stock<input id="productStock" type="number" min="0" value="${Number(p.stock||0)}"></label>
     <label>Status<select id="productActive"><option value="true" ${p.active!==false?'selected':''}>Active</option><option value="false" ${p.active===false?'selected':''}>Inactive</option></select></label>
     <label>Brand<input id="productBrand" value="${esc(p.brand||'')}" placeholder="e.g. Xiaomi"></label>
@@ -266,6 +270,14 @@ async function saveProduct(){
       specifications,
       is_deal:!!$('productIsDeal')?.checked
     };
+    {
+      const sv=$('productSaleStart')?.value,ev=$('productSaleEnd')?.value;
+      if(sv&&ev&&new Date(ev)<=new Date(sv))throw new Error('Flash sale end time must be after the start time.');
+      if(sv||ev||old&&('sale_ends_at' in old)){
+        product.sale_starts_at=sv?new Date(sv).toISOString():null;
+        product.sale_ends_at=ev?new Date(ev).toISOString():null;
+      }
+    }
     if(category){
       const hit=categoriesCache.find(c=>String(c.name).trim().toLowerCase()===category.toLowerCase());
       if(hit){product.category=hit.name}
