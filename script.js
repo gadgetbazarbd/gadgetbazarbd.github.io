@@ -39,7 +39,7 @@ const STORE_INFO={
 // Estimated delivery time per zone (shown at checkout and in Policies). Change to match your couriers.
 const DELIVERY_TIME={dhaka:"24 hours (max 36 hours)",nearby:"2–3 days",outside:"72 hours (max 5 days)"};
 // Returns window shown in Policies.
-const RETURN_WINDOW="7 days";
+const RETURN_WINDOW="৭ দিনের";
 
 function toast(msg){
  let t=$("gbToast"); if(!t){t=document.createElement("div");t.id="gbToast";t.className="gb-toast";document.body.appendChild(t);}
