@@ -283,7 +283,7 @@ async function loadStoreInfo(){
  renderStoreInfo();
 }
 async function refreshStore(){
- try{await Promise.all([loadProducts(),loadStoreData(),loadCategories(),loadOffers(),loadStoreInfo()]);
+ try{await Promise.all([loadProducts(),loadStoreData(),loadCategories(),loadOffers(),loadStoreInfo(),loadCoupons()]);
   cart=cart.filter(x=>x.type!=="combo"||(getOffer(x.offerId)&&offerProducts(getOffer(x.offerId)).length>0));
   saveCart();renderProducts();renderHomepageShowcases();updateCart();renderOffers();renderPolicyInfo();setTimeout(setupLocationPickers,0);handleProductPageRoute();}
  catch(e){console.error(e);toast("Products could not be loaded");handleProductPageRoute(true);}
@@ -622,10 +622,28 @@ async function submitOrderToSupabase(o){
 }
 
 function couponLines(){return Object.entries(COUPONS).map(([code,c])=>`<li><b>${esc(code)}</b> ${c.type==="percent"?c.value+"% off":money(c.value)+" off"} on orders of ${money(c.min)} or more</li>`).join("");}
-function applyCoupon(){
+let couponsFromServer=false;
+async function loadCoupons(){
+ try{
+  const {data,error}=await sb.rpc("public_coupons");
+  if(error||!Array.isArray(data))return; // SQL step 4 not installed yet: keep the built-in coupons
+  const keep=appliedCoupon&&COUPONS[appliedCoupon]?{[appliedCoupon]:COUPONS[appliedCoupon]}:{};
+  Object.keys(COUPONS).forEach(k=>delete COUPONS[k]);
+  data.forEach(c=>{COUPONS[String(c.code).toUpperCase()]={type:c.type==="percent"?"percent":"flat",value:Number(c.value)||0,min:Number(c.min)||0}});
+  Object.assign(COUPONS,keep);couponsFromServer=true;
+ }catch(e){console.warn("coupon list unavailable",e)}
+}
+async function applyCoupon(){
  const input=$("couponCode");const code=String(input?.value||"").trim().toUpperCase();
  if(!code){appliedCoupon="";updateCart();return toast("Enter a coupon code")}
- const c=COUPONS[code];
+ let c=COUPONS[code];
+ if(!c&&couponsFromServer){
+  try{
+   const {data,error}=await sb.rpc("check_coupon",{p_code:code});
+   if(error)throw error;
+   c={type:data.type==="percent"?"percent":"flat",value:Number(data.value)||0,min:Number(data.min)||0};COUPONS[code]=c;
+  }catch(e){appliedCoupon="";updateCart();return toast(e&&e.code==="P0001"&&e.message?e.message:"Invalid coupon code")}
+ }
  if(!c){appliedCoupon="";updateCart();return toast("Invalid coupon code")}
  appliedCoupon=code;updateCart();
  const sub=totals().subtotal;

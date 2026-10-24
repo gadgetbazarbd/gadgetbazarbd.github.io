@@ -785,6 +785,7 @@ function go(section){
     customers:['Customers','Customer list'],
     categories:['Categories','Manage categories'],
     offers:['Offers & Deals','Manage promotions and schedules'],
+    coupons:['Coupons','Create and manage discount codes'],
     delivery:['Delivery','Delivery settings'],
     payments:['Payments','Payment settings'],
     settings:['Settings','Store settings']
@@ -794,13 +795,14 @@ function go(section){
   if($('pageTitle'))$('pageTitle').textContent=t[0];
   if($('pageSub'))$('pageSub').textContent=t[1];
 
-  render();
+  if(section==='coupons'){render();refreshCoupons().then(()=>{if(currentSection==='coupons')render()}).catch(()=>{});}
+  else render();
 
   if(window.innerWidth<=720)toggleSidebar(false);
 }
 function render(){
   const c=$('content');if(!c)return;
-  const map={dashboard,products,orders,customers,categories,offers,delivery,payments,settings};
+  const map={dashboard,products,orders,customers,categories,offers,coupons,delivery,payments,settings};
   c.innerHTML=(map[currentSection]||dashboard)();
   updateOrderBadge();
 }
@@ -1009,6 +1011,10 @@ async function deleteOffer(i){
 ========================================================= */
 
 document.addEventListener('DOMContentLoaded',()=>{
+  if(!document.querySelector('.nav[data-section="coupons"]')){
+    const ob=document.querySelector('.nav[data-section="offers"]');
+    if(ob){const nb=document.createElement('button');nb.className='nav';nb.dataset.section='coupons';nb.innerHTML='🎟 <span>Coupons</span>';ob.after(nb)}
+  }
   document.querySelectorAll('.nav[data-page],.nav[data-section],.subnav-item').forEach(btn=>{
     btn.addEventListener('click',()=>go(btn.dataset.page||btn.dataset.section))
   });
@@ -1192,3 +1198,75 @@ async function downloadPostImage(kind){
 }
 window.openPostBuilder=openPostBuilder;window.setPostSrc=setPostSrc;window.copyPostText=copyPostText;window.downloadPostImage=downloadPostImage;
 window.showCatSuggest=showCatSuggest;window.hideCatSuggest=hideCatSuggest;window.pickCat=pickCat;
+
+/* =========================================================
+   COUPONS
+========================================================= */
+let couponsCache=[],couponsError='';
+async function refreshCoupons(){
+  const {data,error}=await sb.from('coupons').select('*').order('created_at',{ascending:false});
+  if(error){couponsError=error.message||'Coupons table not found. Run 4_coupons.sql in Supabase.';couponsCache=[];return}
+  couponsError='';couponsCache=data||[]
+}
+function couponStatus(c){
+  const now=Date.now();
+  if(c.active===false)return ['Off','red'];
+  if(c.starts_at&&new Date(c.starts_at)>now)return ['Scheduled','yellow'];
+  if(c.expires_at&&new Date(c.expires_at)<=now)return ['Expired','red'];
+  if(c.max_uses!=null&&Number(c.used_count)>=Number(c.max_uses))return ['Used up','red'];
+  return ['Active','green']
+}
+function coupons(){
+  if(couponsError)return `<div class="section-head"><div><h3>Coupons</h3></div></div><div class="card"><b>Coupons are not set up yet.</b><p>Open Supabase &gt; SQL Editor, run the file <code>4_coupons.sql</code> once, then press Refresh.</p><p><small>${esc(couponsError)}</small></p><button class="btn muted" onclick="refreshCoupons().then(render)">↻ Refresh</button></div>`;
+  const rows=couponsCache.map((c,i)=>{
+    const [st,cls]=couponStatus(c);
+    const val=c.type==='percent'?Number(c.value)+'% off':money(c.value)+' off';
+    return `<tr><td><b>${esc(String(c.code).toUpperCase())}</b>${c.note?`<br><small>${esc(c.note)}</small>`:''}</td><td>${val}</td><td>${money(c.min_order)}</td><td>${Number(c.used_count||0)}${c.max_uses!=null?' / '+Number(c.max_uses):''}</td><td>${c.expires_at?esc(new Date(c.expires_at).toLocaleDateString('en-BD')):'No end'}</td><td>${c.show_public?'Shown':'Hidden'}</td><td><span class="pill ${cls}">${st}</span></td><td class="actions"><button class="btn muted" onclick="toggleCoupon(${i})">${c.active!==false?'Turn off':'Turn on'}</button><button class="btn muted" onclick="editCoupon(${i})">Edit</button><button class="btn danger" onclick="deleteCoupon(${i})">Delete</button></td></tr>`
+  }).join('')||`<tr><td colspan="8" class="empty">No coupons yet</td></tr>`;
+  return `<div class="section-head"><div><h3>Coupons</h3><p>Discount codes customers type at checkout. The server checks every code, so prices cannot be changed from the browser.</p></div><div class="toolbar"><button class="btn primary" onclick="addCoupon()">＋ New Coupon</button><button class="btn muted" onclick="refreshCoupons().then(render)">↻ Refresh</button></div></div>
+  <div class="table-wrap"><table class="table"><thead><tr><th>Code</th><th>Discount</th><th>Min order</th><th>Used</th><th>Ends</th><th>On website</th><th>Status</th><th>Actions</th></tr></thead><tbody>${rows}</tbody></table></div>
+  <p class="orders-count" style="margin-top:12px"><small>"Shown" coupons are listed to every visitor in the Offers/Policies box. "Hidden" ones work only for people who know the code (good for group-specific codes).</small></p>`
+}
+let editingCouponId=null;
+function couponForm(c={}){
+  const d=v=>v?new Date(new Date(v).getTime()-new Date(v).getTimezoneOffset()*60000).toISOString().slice(0,16):'';
+  return `<div class="form-grid">
+    <label>Code<input id="couponCodeIn" value="${esc(c.code||'')}" placeholder="FBGROUP10" style="text-transform:uppercase" maxlength="24"></label>
+    <label>Type<select id="couponType"><option value="percent" ${c.type!=='flat'?'selected':''}>Percent (%)</option><option value="flat" ${c.type==='flat'?'selected':''}>Fixed amount (৳)</option></select></label>
+    <label>Value<input id="couponValue" type="number" min="1" value="${Number(c.value||10)}"></label>
+    <label>Minimum order (৳)<input id="couponMin" type="number" min="0" value="${Number(c.min_order||0)}"></label>
+    <label>Max uses (blank = unlimited)<input id="couponMax" type="number" min="1" value="${c.max_uses??''}"></label>
+    <label>Starts (optional)<input id="couponStart" type="datetime-local" value="${d(c.starts_at)}"></label>
+    <label>Ends (optional)<input id="couponEnd" type="datetime-local" value="${d(c.expires_at)}"></label>
+    <label>Show on website<select id="couponPublic"><option value="true" ${c.show_public!==false?'selected':''}>Shown to everyone</option><option value="false" ${c.show_public===false?'selected':''}>Hidden (code only)</option></select></label>
+    <label>Note (only you see it)<input id="couponNote" value="${esc(c.note||'')}" placeholder="Facebook group offer"></label>
+  </div><div class="modal-actions"><button class="btn primary" id="saveCouponBtn" onclick="saveCoupon()">Save Coupon</button></div>`
+}
+function addCoupon(){editingCouponId=null;openModal('New Coupon',couponForm())}
+function editCoupon(i){const c=couponsCache[i];if(!c)return;editingCouponId=c.id;openModal('Edit Coupon',couponForm(c))}
+async function saveCoupon(){
+  const code=($('couponCodeIn')?.value||'').trim().toUpperCase().replace(/[^A-Z0-9_-]/g,'');
+  const type=$('couponType')?.value==='flat'?'flat':'percent',value=Number($('couponValue')?.value);
+  const min=Number($('couponMin')?.value||0),mx=$('couponMax')?.value;
+  if(!code){alert('Enter a coupon code (letters and numbers).');return}
+  if(!Number.isFinite(value)||value<=0||(type==='percent'&&value>100)){alert(type==='percent'?'Percent must be between 1 and 100.':'Enter an amount greater than 0.');return}
+  if(!Number.isFinite(min)||min<0){alert('Minimum order must be 0 or more.');return}
+  const tv=id=>{const v=$(id)?.value;return v?new Date(v).toISOString():null};
+  const row={code,type,value,min_order:min,max_uses:mx?Math.max(1,parseInt(mx,10)):null,starts_at:tv('couponStart'),expires_at:tv('couponEnd'),show_public:$('couponPublic')?.value!=='false',note:$('couponNote')?.value.trim()||null};
+  try{
+    const btn=$('saveCouponBtn');if(btn){btn.disabled=true;btn.textContent='Saving...'}
+    const q=editingCouponId?sb.from('coupons').update(row).eq('id',editingCouponId):sb.from('coupons').insert(row);
+    const {error}=await q;
+    if(error){if(/duplicate|23505/i.test((error.code||'')+(error.message||'')))throw new Error('This coupon code already exists.');throw error}
+    await refreshCoupons();closeModal();render()
+  }catch(e){showError(e);const btn=$('saveCouponBtn');if(btn){btn.disabled=false;btn.textContent='Save Coupon'}}
+}
+async function toggleCoupon(i){
+  const c=couponsCache[i];if(!c)return;
+  try{const {error}=await sb.from('coupons').update({active:c.active===false}).eq('id',c.id);if(error)throw error;await refreshCoupons();render()}catch(e){showError(e)}
+}
+async function deleteCoupon(i){
+  const c=couponsCache[i];if(!c||!confirm(`Delete coupon ${c.code}?`))return;
+  try{const {error}=await sb.from('coupons').delete().eq('id',c.id);if(error)throw error;await refreshCoupons();render()}catch(e){showError(e)}
+}
+window.coupons=coupons;window.refreshCoupons=refreshCoupons;window.addCoupon=addCoupon;window.editCoupon=editCoupon;window.saveCoupon=saveCoupon;window.toggleCoupon=toggleCoupon;window.deleteCoupon=deleteCoupon;
