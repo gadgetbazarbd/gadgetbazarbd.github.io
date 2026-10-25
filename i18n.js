@@ -178,6 +178,8 @@ function start(){
   syncButtons();
 }
 function syncButtons(){
+  document.querySelectorAll(".gb-lang-label").forEach(function(e){e.textContent=lang==="bn"?"ভাষা":"Lang"});
+  document.querySelectorAll(".gb-install-label").forEach(function(e){e.textContent=lang==="bn"?"অ্যাপ":"App"});
   document.querySelectorAll("[data-lang-btn]").forEach(function(b){b.classList.toggle("on",b.getAttribute("data-lang-btn")===lang)});
 }
 window.gbSetLang=function(l){
@@ -186,6 +188,7 @@ window.gbSetLang=function(l){
   busy=true;try{walk(document.body)}finally{busy=false}
   syncButtons();
 };
+window.gbToggleLang=function(){window.gbSetLang(lang==="bn"?"en":"bn");try{if(window.toast)toast(lang==="bn"?"ভাষা: বাংলা":"Language: English")}catch(e){}};
 window.gbT=t;window.gbLang=function(){return lang};
 /* alerts / confirms are translated too */
 var _al=window.alert,_cf=window.confirm;

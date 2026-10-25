@@ -951,7 +951,6 @@ function renderThemePicker(){
  const cur=gbEffectiveTheme(),user=gbUserTheme(),st=gbStoreTheme(),dark=GB_THEMES[cur][1];
  const sw=(k,label,extra)=>{const t=GB_THEMES[k];return `<button type="button" class="theme-opt ${extra}" onclick="${k===st&&label==="ডিফল্ট"?"gbSaveUserTheme('')":`gbSaveUserTheme('${k}')`}"><span class="theme-sw" style="background:${t[2]}"><i style="background:${t[3]}"></i></span><span>${label}</span></button>`;};
  box.innerHTML=`<div class="theme-head"><h3>🎨 সাইটের রঙ বেছে নিন</h3><button type="button" onclick="closeThemePicker()" aria-label="বন্ধ করুন">×</button></div>
- <div class="lang-row" data-no-i18n><span>🌐 ভাষা / Language</span><button type="button" data-lang-btn="bn" onclick="gbSetLang('bn')">বাংলা</button><button type="button" data-lang-btn="en" onclick="gbSetLang('en')">English</button></div>
  <div class="theme-modes"><button type="button" class="${!user?"on":""}" onclick="setThemeMode('default')">↺ ডিফল্ট</button><button type="button" class="${user&&!dark?"on":""}" onclick="setThemeMode('light')">☀️ হালকা</button><button type="button" class="${user&&dark?"on":""}" onclick="setThemeMode('dark')">🌙 গাঢ়</button></div>
  <div class="theme-grid">${sw(st,"ডিফল্ট",!user?"on":"")}${Object.keys(GB_THEMES).filter(k=>k!==st).map(k=>sw(k,GB_THEMES[k][0],user===k?"on":"")).join("")}</div>
  <p class="theme-note">আপনার পছন্দ এই ফোনেই মনে থাকবে। "ডিফল্ট" মানে দোকানের নিজস্ব রঙ।</p>`;

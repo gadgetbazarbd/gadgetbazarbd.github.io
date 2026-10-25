@@ -943,3 +943,12 @@ html[data-theme="light"] .install-card,html[data-theme="rose"] .install-card,htm
 .lang-row button{flex:1;padding:8px;border-radius:10px;border:1px solid rgba(120,160,200,.4);background:rgba(120,160,200,.08);color:inherit;font:700 13px inherit;cursor:pointer}
 .lang-row button.on{background:#16a8ff;border-color:#16a8ff;color:#fff}
 .theme-card .lang-row{padding:0 0 10px}
+
+/* header language button + drawer mini buttons */
+.header-lang-btn{gap:5px;font-weight:700}.header-lang-btn .gb-lang-label{font-size:12px}
+.side-menu .drawer-head{display:flex;align-items:center;gap:8px}
+.side-menu .drawer-head strong{flex:0 1 auto}
+.drawer-mini{display:flex;gap:6px;margin-left:auto;margin-right:4px}
+.drawer-mini button{border:1px solid rgba(120,160,200,.4);background:rgba(120,160,200,.1);color:inherit;border-radius:999px;padding:6px 9px;font:600 11px/1 inherit;cursor:pointer;white-space:nowrap}
+.drawer-mini button:active{transform:scale(.96)}
+@media(max-width:360px){.drawer-mini b{display:none}}
