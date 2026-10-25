@@ -218,6 +218,7 @@ function productForm(p={}){
     <p class="hint" style="grid-column:1/-1;margin:-4px 0 4px;font-size:12px;color:#64748b">⚡ Set both times to run a timed Flash Sale. The Discount (%) above applies only inside this window; before and after it the full price is charged. Leave both blank for a normal always-on discount. (Run 5_flash_sale.sql once first.)</p>
     <label>Buying price ৳ (private)<input id="productCost" type="number" min="0" step="any" value="${costOf(p.id)||''}" placeholder="what you paid"><small>Only you can see this. Used for profit reports.</small></label>
     <label>Stock<input id="productStock" type="number" min="0" value="${Number(p.stock||0)}"></label>
+    <label style="grid-column:1/-1">Variants — colour / size (optional)<textarea id="productVariants" rows="4" placeholder="One per line:  Name | Stock | Price (optional)&#10;Black | 5&#10;White | 3 | 1200&#10;Size L | 10">${esc(variantsToText(p.variants))}</textarea><small>If you add variants, the total Stock is calculated automatically from them. Customers see these only when <b>Settings &gt; Product variants</b> is ON. Leave empty for a normal product.</small></label>
     <label>Status<select id="productActive"><option value="true" ${p.active!==false?'selected':''}>Active</option><option value="false" ${p.active===false?'selected':''}>Inactive</option></select></label>
     <label>Brand<input id="productBrand" value="${esc(p.brand||'')}" placeholder="e.g. Xiaomi"></label>
     <label>Model<input id="productModel" value="${esc(p.model||'')}" placeholder="e.g. Redmi Buds"></label>
@@ -233,6 +234,8 @@ function productForm(p={}){
     <label class="full admin-checkline"><input id="productIsDeal" type="checkbox" ${p.is_deal||Number(p.discount)>=70?'checked':''}> Show this product in the 70% OFF Deals page (it will also remain in Home and its category)</label>
   </div><div class="btn-row"><button class="btn muted" onclick="closeModal()">Cancel</button><button class="btn primary" id="saveProductBtn" onclick="saveProduct()">Save Product</button></div>`
 }
+function variantsToText(v){if(typeof v==='string'){try{v=JSON.parse(v)}catch(e){v=[]}}if(!Array.isArray(v))return'';return v.map(x=>[x.name,Number(x.stock)||0,Number(x.price)>0?Number(x.price):''].join(' | ').replace(/ \| $/,'')).join('\n');}
+function parseVariants(t){const out=[];const seen=new Set();for(const line of String(t||'').split(/\r?\n/)){const l=line.trim();if(!l)continue;const [n,st,pr]=l.split('|').map(x=>x.trim());if(!n)continue;const stock=Math.max(0,Math.floor(Number(st||0)));const price=Number(pr||0);if(!Number.isFinite(stock)||(pr&&!(price>=0)))throw new Error('Variant line is not valid: "'+l+'". Use: Name | Stock | Price(optional)');if(seen.has(n.toLowerCase()))throw new Error('Variant name repeated: '+n);seen.add(n.toLowerCase());const v={name:n,stock};if(price>0)v.price=price;out.push(v);}return out;}
 async function saveProduct(){
   const name=$('productName')?.value.trim(),category=$('productCategory')?.value.trim();
   const priceRaw=$('productPrice')?.value ?? '0',discountRaw=$('productDiscount')?.value ?? '0',stockRaw=$('productStock')?.value ?? '0';
@@ -273,6 +276,13 @@ async function saveProduct(){
       specifications,
       is_deal:!!$('productIsDeal')?.checked
     };
+    {
+      const vars=parseVariants($('productVariants')?.value);
+      if(vars.length||(old&&('variants' in old))){
+        product.variants=vars;
+        if(vars.length)product.stock=vars.reduce((a,v)=>a+v.stock,0);
+      }
+    }
     {
       const sv=$('productSaleStart')?.value,ev=$('productSaleEnd')?.value;
       if(sv&&ev&&new Date(ev)<=new Date(sv))throw new Error('Flash sale end time must be after the start time.');
@@ -736,7 +746,9 @@ async function loadStoreSettings(){
     col_picker:!!(data&&data.col_picker),
     show_tracking:!!(data&&data.show_tracking),
     has_tracking:!!data&&('show_tracking' in data),
-    has_cols:!!data&&('col_picker' in data)
+    has_cols:!!data&&('col_picker' in data),
+    variants_on:!!(data&&data.variants_on),
+    has_variants:!!data&&('variants_on' in data)
   };
   return storeSettingsCache;
 }
@@ -751,7 +763,7 @@ function settings(){
     <label class="full">Store Address<textarea id="storeAddress" rows="3" maxlength="500" placeholder="Store address">${esc(s.address||'')}</textarea></label>
     <label class="full">Support Hours<input id="storeHours" maxlength="160" value="${esc(s.support_hours||'')}" placeholder="Every day, 10 AM–8 PM"></label>
   </div><div class="btn-row"><button class="btn primary" id="saveStoreSettingsBtn" onclick="saveStoreSettings()">Save Store Settings</button></div>
-  ${s.updated_at?`<p><small>Last updated: ${esc(new Date(s.updated_at).toLocaleString('en-BD'))}</small></p>`:''}</div>${themeCard(s)}${colsCard(s)}${trackingCard(s)}`
+  ${s.updated_at?`<p><small>Last updated: ${esc(new Date(s.updated_at).toLocaleString('en-BD'))}</small></p>`:''}</div>${themeCard(s)}${colsCard(s)}${variantsCard(s)}${trackingCard(s)}`
 }
 
 async function saveStoreSettings(){
@@ -1440,6 +1452,25 @@ function colsCard(s){
   <label style="display:flex;gap:8px;align-items:center;font-weight:700"><input id="colsToggle" type="checkbox" ${s.col_picker?'checked':''} ${s.has_cols?'':'disabled'}> Show columns picker to customers</label>
   <div class="btn-row"><button class="btn primary" id="saveColsBtn" onclick="saveColsSetting()" ${s.has_cols?'':'disabled'}>Save</button></div></div>`
 }
+function variantsCard(s){
+  return `<div class="card" style="margin-top:16px"><h3>🎨 Product variants (colour / size)</h3>
+  <p>When ON, products that have variants (added in the product form) show option buttons; the customer must pick one before adding to cart, and stock is tracked per option. When OFF, the website works exactly as before and variants are ignored.</p>
+  ${s.has_variants?'':'<p style="color:#b45309"><b>One-time setup needed:</b> run <code>10_variants.sql</code> in Supabase &gt; SQL Editor, then press Refresh.</p>'}
+  <label style="display:flex;gap:8px;align-items:center;font-weight:700"><input id="variantsToggle" type="checkbox" ${s.variants_on?'checked':''} ${s.has_variants?'':'disabled'}> Enable product variants for customers</label>
+  <div class="btn-row"><button class="btn primary" id="saveVariantsBtn" onclick="saveVariantsSetting()" ${s.has_variants?'':'disabled'}>Save</button></div></div>`
+}
+async function saveVariantsSetting(){
+  const s=storeSettingsCache||{};const on=!!$('variantsToggle')?.checked;const btn=$('saveVariantsBtn');
+  try{
+    if(btn){btn.disabled=true;btn.textContent='Saving...'}
+    const {error}=await sb.from('store_settings').upsert({id:1,store_name:s.store_name||'Gadget Bazar BD',variants_on:on,updated_at:new Date().toISOString()},{onConflict:'id'});
+    if(error)throw error;
+    storeSettingsCache={...s,variants_on:on};
+    alert(on?'Product variants are now ON for customers.':'Product variants are OFF. The website works as before.');
+    render()
+  }catch(e){showError(e);if(btn){btn.disabled=false;btn.textContent='Save'}}
+}
+window.saveVariantsSetting=saveVariantsSetting;
 async function saveColsSetting(){
   const s=storeSettingsCache||{};const on=!!$('colsToggle')?.checked;const btn=$('saveColsBtn');
   try{

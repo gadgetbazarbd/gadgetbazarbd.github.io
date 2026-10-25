@@ -991,3 +991,14 @@ html[data-theme="light"] .install-card,html[data-theme="rose"] .install-card,htm
 .drawer-mini button{white-space:nowrap}
 .field-note{display:block;font-size:11px;opacity:.65;margin-top:4px}
 .tracking-courier{margin:8px 0;padding:8px 10px;border-radius:10px;background:rgba(37,183,255,.1);font-size:12px;line-height:1.7}.tracking-courier .link-btn{margin-left:6px;text-decoration:underline;background:none;border:0;color:inherit;cursor:pointer}
+
+/* product variants */
+.variant-box{margin:12px 0}
+.variant-title{font-weight:700;font-size:13px;margin-bottom:6px}
+.variant-chips{display:flex;flex-wrap:wrap;gap:8px}
+.variant-chip{border:1.5px solid rgba(148,163,184,.45);background:rgba(148,163,184,.14);color:inherit;border-radius:999px;padding:7px 14px;font-size:13px;font-weight:600;cursor:pointer;display:inline-flex;flex-direction:column;align-items:center;line-height:1.2}
+.variant-chip.active{border-color:#38bdf8;background:rgba(56,189,248,.22);color:inherit;box-shadow:0 0 0 2px rgba(37,99,235,.15)}
+.variant-chip:disabled{opacity:.45;cursor:not-allowed;text-decoration:line-through}
+.variant-chip .vc-sub{font-size:10px;font-weight:500;opacity:.75;text-decoration:none}
+.variant-note{display:block;margin-top:6px;color:#64748b;font-size:12px}
+.cart-variant{font-weight:600;color:#38bdf8}
