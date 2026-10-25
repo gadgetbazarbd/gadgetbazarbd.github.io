@@ -996,3 +996,26 @@ async function gbInstall(){
 }
 function closeInstallHelp(){$("installSheet")?.classList.add("hidden");}
 window.gbInstall=gbInstall;window.closeInstallHelp=closeInstallHelp;
+
+
+/* ===== Incomplete-order capture: when a valid phone is typed at checkout, remember name + cart so the shop can follow up ===== */
+(function(){
+ let timer=null,last="";
+ function lines(){
+  return cart.map(x=>{
+   if(x.type==="combo"){const o=typeof getOffer==="function"?getOffer(x.offerId):null;return{name:(o&&o.title)||"Combo",qty:x.qty,price:0}}
+   const p=getProduct(x.id);return p?{name:p.name,qty:x.qty,price:finalPrice(p)}:null}).filter(Boolean);
+ }
+ function send(){
+  const f=$("checkoutForm");if(!f||!cart.length)return;
+  const phone=String(f.elements.phone?.value||"").trim(),digits=phone.replace(/\D/g,"");
+  if(!/^(?:88)?01\d{9}$/.test(digits))return;
+  const name=String(f.elements.name?.value||"").trim(),key=digits+"|"+name+"|"+cart.length+"|"+cart.reduce((a,x)=>a+x.qty,0);
+  if(key===last)return;last=key;
+  const t=typeof totals==="function"?totals():{total:0};
+  sb.rpc("save_incomplete",{p_name:name,p_phone:phone,p_items:lines(),p_total:Number(t.total)||0}).then(()=>{},()=>{});
+ }
+ function schedule(){clearTimeout(timer);timer=setTimeout(send,1200)}
+ function init(){const f=$("checkoutForm");if(!f)return;["input","change","blur"].forEach(ev=>f.addEventListener(ev,e=>{if(e.target&&(e.target.name==="phone"||e.target.name==="name"))schedule()},true))}
+ if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init);else init();
+})();

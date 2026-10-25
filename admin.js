@@ -113,6 +113,7 @@ async function loadCloud(){
 
   productsCache=p.data||[];
   await loadCosts();
+  await loadProtect();
   ordersCache=o.data||[];
   categoriesCache=c.data||[];
   deliverySettingsCache=d.data?.[0]||null;
@@ -347,7 +348,7 @@ function orderRows(list){
     else if(s==='Processing')next=actionBtn(i,'Shipped','Shipped','primary');
     else if(s==='Shipped')next=actionBtn(i,'Delivered','Delivered','primary');
     const cancel=(s!=='Delivered'&&s!=='Cancelled')?actionBtn(i,'Cancelled','Cancel','danger'):'';
-    return `<tr><td><b>${esc(id)}</b><br><small>${esc(created)}</small>${o.source?`<br><small class="src-tag">📣 ${esc(o.source)}</small>`:''}</td><td>${esc(name)}</td><td>${esc(phone)}</td><td>${money(total)}</td><td>${esc(o.payment_method||o.paymentMethod||'COD')}${o.transaction_id?`<br><small>TXN: ${esc(o.transaction_id)}</small>`:''}</td><td><span class="pill ${statusClass(s)}">${esc(s)}</span></td><td class="actions"><button class="btn muted" onclick="viewOrder(${i})">View</button><button class="btn" style="background:#1fa855;color:#fff" onclick="whatsappOrder(${i})" title="Message customer on WhatsApp">WhatsApp</button>${next}${cancel}</td></tr>`
+    return `<tr><td><b>${esc(id)}</b><br><small>${esc(created)}</small>${o.source?`<br><small class="src-tag">📣 ${esc(o.source)}</small>`:''}</td><td>${esc(name)}${riskBadge(o)}</td><td>${esc(phone)}</td><td>${money(total)}</td><td>${esc(o.payment_method||o.paymentMethod||'COD')}${o.transaction_id?`<br><small>TXN: ${esc(o.transaction_id)}</small>`:''}</td><td><span class="pill ${statusClass(s)}">${esc(s)}</span></td><td class="actions"><button class="btn muted" onclick="viewOrder(${i})">View</button><button class="btn" style="background:#1fa855;color:#fff" onclick="whatsappOrder(${i})" title="Message customer on WhatsApp">WhatsApp</button>${next}${cancel}</td></tr>`
   }).join('');
 }
 function orders(){
@@ -393,7 +394,7 @@ function viewOrder(i){
   if(typeof items==='string'){try{items=JSON.parse(items)}catch{items=[]}}
   if(Array.isArray(items))itemHtml=items.map(x=>{const qty=Number(x.qty||x.quantity||1);const price=Number(x.price||x.unit_price||0);return `<div class="order-item"><span>${esc(x.name||x.title||'Product')} × ${qty}</span><b>${money(price*qty)}</b></div>`}).join('');
   const created=o.created_at?new Date(o.created_at).toLocaleString('en-BD'):'—';
-  openModal('Order '+id,`<div class="card"><b>Order Information</b><p><b>Order ID:</b> ${esc(id)}</p><p><b>Placed:</b> ${esc(created)}</p><p><b>Status:</b> <span class="pill ${statusClass(s)}">${esc(s)}</span></p><hr><b>Customer</b><p>${esc(name)} · ${esc(phone)}</p><p>${esc([district,upazila].filter(Boolean).join(', '))}</p><p>${esc(address||'—')}</p><hr><p><b>Payment:</b> ${esc(payment)}</p><p><b>Transaction ID:</b> ${esc(o.transaction_id||'—')}</p><p><b>Source:</b> ${esc(o.source||'—')}</p><p><b>Subtotal:</b> ${money(o.subtotal)}</p><p><b>Delivery:</b> ${money(delivery)}</p><p><b>Total:</b> <b>${money(total)}</b></p><p><b>Customer note:</b> ${esc(o.note||'—')}</p>${itemHtml?`<hr><b>Items</b><div class="order-items">${itemHtml}</div>`:'<hr><p>No item details saved with this order.</p>'}</div><div class="btn-row"><button class="btn" style="background:#1fa855;color:#fff" onclick="whatsappOrder(${i})">WhatsApp Customer</button>${s==='Pending'?actionBtn(i,'Confirmed','Confirm Order','primary'):''}${s==='Confirmed'?actionBtn(i,'Processing','Start Processing','primary'):''}${s==='Processing'?actionBtn(i,'Shipped','Mark Shipped','primary'):''}${s==='Shipped'?actionBtn(i,'Delivered','Mark Delivered','primary'):''}${s!=='Delivered'&&s!=='Cancelled'?actionBtn(i,'Cancelled','Cancel Order','danger'):''}</div>`);
+  openModal('Order '+id,`<div class="card"><b>Order Information</b><p><b>Order ID:</b> ${esc(id)}</p><p><b>Placed:</b> ${esc(created)}</p><p><b>Status:</b> <span class="pill ${statusClass(s)}">${esc(s)}</span></p><hr><b>Customer</b><p>${esc(name)} · ${esc(phone)}</p><p>${esc([district,upazila].filter(Boolean).join(', '))}</p><p>${esc(address||'—')}</p><hr><p><b>Payment:</b> ${esc(payment)}</p><p><b>Transaction ID:</b> ${esc(o.transaction_id||'—')}</p><p><b>Source:</b> ${esc(o.source||'—')}</p><p><b>Subtotal:</b> ${money(o.subtotal)}</p><p><b>Delivery:</b> ${money(delivery)}</p><p><b>Total:</b> <b>${money(total)}</b></p><p><b>Customer note:</b> ${esc(o.note||'—')}</p>${itemHtml?`<hr><b>Items</b><div class="order-items">${itemHtml}</div>`:'<hr><p>No item details saved with this order.</p>'}</div><div class="btn-row">${blockBtn(o)}<button class="btn" style="background:#1fa855;color:#fff" onclick="whatsappOrder(${i})">WhatsApp Customer</button>${s==='Pending'?actionBtn(i,'Confirmed','Confirm Order','primary'):''}${s==='Confirmed'?actionBtn(i,'Processing','Start Processing','primary'):''}${s==='Processing'?actionBtn(i,'Shipped','Mark Shipped','primary'):''}${s==='Shipped'?actionBtn(i,'Delivered','Mark Delivered','primary'):''}${s!=='Delivered'&&s!=='Cancelled'?actionBtn(i,'Cancelled','Cancel Order','danger'):''}</div>`);
 }
 /* WhatsApp helpers: the status is always changed in this panel (single source of truth);
    WhatsApp is only used to message the customer. */
@@ -806,6 +807,8 @@ function go(section){
     offers:['Offers & Deals','Manage promotions and schedules'],
     coupons:['Coupons','Create and manage discount codes'],
     reports:['Reports','Profit, sales and trending products'],
+    leads:['Incomplete orders','People who started checkout but did not order'],
+    blocked:['Blocked numbers','Numbers that cannot place orders'],
     delivery:['Delivery','Delivery settings'],
     payments:['Payments','Payment settings'],
     settings:['Settings','Store settings']
@@ -822,7 +825,7 @@ function go(section){
 }
 function render(){
   const c=$('content');if(!c)return;
-  const map={dashboard,products,orders,customers,categories,offers,coupons,reports,delivery,payments,settings};
+  const map={dashboard,products,orders,customers,categories,offers,coupons,reports,leads:leadsPage,blocked:blockedPage,delivery,payments,settings};
   c.innerHTML=(map[currentSection]||dashboard)();
   updateOrderBadge();
 }
@@ -1031,6 +1034,10 @@ async function deleteOffer(i){
 ========================================================= */
 
 document.addEventListener('DOMContentLoaded',()=>{
+  if(!document.querySelector('.nav[data-section="leads"]')){
+    const ob=document.querySelector('.nav[data-section="orders"]');
+    if(ob){const a=document.createElement('button');a.className='nav';a.dataset.section='leads';a.innerHTML='🛒 <span>Incomplete orders</span>';ob.after(a);const b=document.createElement('button');b.className='nav';b.dataset.section='blocked';b.innerHTML='🚫 <span>Blocked numbers</span>';a.after(b)}
+  }
   if(!document.querySelector('.nav[data-section="reports"]')){
     const db=document.querySelector('.nav[data-section="dashboard"]');
     if(db){const nb=document.createElement('button');nb.className='nav';nb.dataset.section='reports';nb.innerHTML='📈 <span>Reports</span>';db.after(nb)}
@@ -1400,13 +1407,15 @@ function reports(){
   ordersCache.filter(valid).forEach(o=>{if(!o.created_at)return;const d=dhakaDay(o.created_at);if(dm[d]){const m=orderMetrics(o);dm[d].n++;dm[d].sales+=m.sales;dm[d].profit+=m.profit}});
   const maxS=Math.max(1,...days.map(d=>dm[d].sales));
   const missing=productsCache.filter(p=>p.active!==false&&costsCache[String(p.id)]==null).length;
+  const exps=expensesCache.filter(e=>expInRange(e.day,today,ymNow));
+  const expTotal=exps.reduce((a,e)=>a+Number(e.amount||0),0);
   const stk=productsCache.reduce((s,p)=>s+(costsCache[String(p.id)]||0)*Number(p.stock||0),0);
   return `<div class="section-head"><div><h3>Reports</h3><p>Profit, sales and trending products</p></div><button class="btn muted" onclick="refreshDashboard()">↻ Refresh</button></div>
   ${costsReady?'':'<div class="card" style="border-color:#f59e0b;margin-bottom:12px"><b>One-time setup:</b> run <code>7_reports.sql</code> in Supabase &gt; SQL Editor, then press Refresh. Until then, profit uses 0 as buying price.</div>'}
   <div class="filters" style="align-items:center">${Object.entries(ranges).map(([k,n])=>`<button class="btn ${reportRange===k?'primary':'muted'}" onclick="setReport('${k}')">${n}</button>`).join('')}
    <label style="font-size:12px;display:flex;gap:6px;align-items:center;margin-left:6px"><input type="checkbox" ${reportDelivered?'checked':''} onchange="setReport(null,this.checked)"> Delivered orders only</label></div>
   <div class="stats-grid">${stat('▤','Orders',list.length)}${stat('৳','Sales (excl. delivery)',money(sales))}${stat('⬇','Buying cost',money(cost))}${stat('✓','Profit',`<span style="color:${profit>=0?'#15803d':'#b91c1c'}">${money(profit)}</span>`)}
-   ${stat('%','Profit margin',margin+'%')}${stat('◉','Items sold',qty)}${stat('∅','Avg order',money(avg))}${stat('▣','Stock value (at buy price)',money(stk))}</div>
+   ${stat('📣','Ad / courier / other costs',money(expTotal))}${stat('★','Net profit (after costs)',`<span style="color:${profit-expTotal>=0?'#15803d':'#b91c1c'}">${money(profit-expTotal)}</span>`)}${stat('%','Profit margin',margin+'%')}${stat('◉','Items sold',qty)}${stat('∅','Avg order',money(avg))}${stat('▣','Stock value (at buy price)',money(stk))}</div>
   ${missing?`<p style="font-size:12px;color:#b45309">⚠ ${missing} active product(s) have no buying price yet — profit for them counts as 100%. Add it in Products &gt; Edit.</p>`:''}
   <div class="section-head" style="margin-top:18px"><div><h3>🔥 Trending products</h3><p>Most sold in the selected period</p></div></div>
   <div class="table-wrap"><table class="table"><thead><tr><th>#</th><th>Product</th><th>Sold</th><th>Sales</th><th>Profit</th></tr></thead><tbody>
@@ -1414,6 +1423,7 @@ function reports(){
   <div class="section-head" style="margin-top:18px"><div><h3>Last 14 days</h3><p>Orders, sales and profit per day</p></div></div>
   <div class="table-wrap"><table class="table"><thead><tr><th>Date</th><th>Orders</th><th>Sales</th><th></th><th>Profit</th></tr></thead><tbody>
   ${days.slice().reverse().map(d=>`<tr><td>${d}</td><td>${dm[d].n}</td><td>${money(dm[d].sales)}</td><td style="min-width:120px"><div style="height:8px;border-radius:4px;background:#2563eb;width:${Math.round(dm[d].sales/maxS*100)}%"></div></td><td style="color:${dm[d].profit>=0?'#15803d':'#b91c1c'}">${money(dm[d].profit)}</td></tr>`).join('')}</tbody></table></div>
+  ${expenseCard(exps)}
   <p style="font-size:12px;color:#7c8799;margin-top:10px">Profit = sales (after coupon, without delivery charge) − buying price. Cancelled orders are never counted. Buying prices are private: only you can read them.</p>`;
 }
 
@@ -1439,3 +1449,96 @@ async function saveColsSetting(){
   }catch(e){showError(e);if(btn){btn.disabled=false;btn.textContent='Save'}}
 }
 window.reports=reports;window.setReport=setReport;window.saveColsSetting=saveColsSetting;window.colsCard=colsCard;
+
+
+/* =========================================================
+   FAKE-ORDER PROTECTION, EXPENSES, INCOMPLETE ORDERS
+========================================================= */
+let blockedCache=[],expensesCache=[],leadsCache=[],protectReady=true;
+function phoneKey(v){return String(v||'').replace(/\D/g,'').slice(-10)}
+async function loadProtect(){
+  try{
+    const [b,e,l]=await Promise.all([
+      sb.from('blocked_phones').select('*').order('created_at',{ascending:false}),
+      sb.from('expenses').select('*').order('day',{ascending:false}).limit(500),
+      sb.from('incomplete_orders').select('*').order('updated_at',{ascending:false}).limit(300)]);
+    if(b.error)throw b.error;if(e.error)throw e.error;if(l.error)throw l.error;
+    blockedCache=b.data||[];expensesCache=e.data||[];leadsCache=l.data||[];protectReady=true;
+  }catch(err){protectReady=false;console.warn('8_protect.sql not run yet:',err?.message||err)}
+}
+function setupNote(){return protectReady?'':'<div class="card" style="border-color:#f59e0b;margin-bottom:12px"><b>One-time setup:</b> run <code>8_protect.sql</code> in Supabase &gt; SQL Editor, then press Refresh.</div>'}
+function isBlocked(v){const k=phoneKey(v);return !!k&&blockedCache.some(b=>b.phone_key===k)}
+function riskBadge(o){
+  const ph=o.phone||o.customer_phone||'';const k=phoneKey(ph);if(!k)return '';
+  let out='';
+  if(isBlocked(ph))out+=' <span class="pill red">🚫 Blocked</span>';
+  const mine=ordersCache.filter(x=>x!==o&&phoneKey(x.phone||x.customer_phone)===k);
+  const canc=mine.filter(x=>(x.status||'')==='Cancelled').length,del=mine.filter(x=>(x.status||'')==='Delivered').length;
+  if(canc>0)out+=` <span class="pill yellow" title="Earlier orders from this number">⚠ ${canc} cancelled before</span>`;
+  else if(del>0)out+=` <span class="pill green" title="Earlier orders from this number">✓ ${del} delivered before</span>`;
+  return out?'<br>'+out:'';
+}
+function blockBtn(o){
+  const ph=o.phone||o.customer_phone||'';if(!phoneKey(ph))return '';
+  return isBlocked(ph)?`<button class="btn muted" onclick="unblockNumber('${phoneKey(ph)}')">Unblock number</button>`:`<button class="btn danger" onclick="blockNumber('${esc(ph)}')">🚫 Block number</button>`;
+}
+async function blockNumber(ph,reason){
+  const k=phoneKey(ph);if(k.length<10){alert('Enter a valid phone number.');return}
+  if(reason===undefined){reason=prompt('Why block '+ph+'? (optional, only you see this)','Fake / repeated cancelled orders');if(reason===null)return}
+  try{
+    const {error}=await sb.from('blocked_phones').upsert({phone_key:k,phone:String(ph).trim(),reason:reason||''},{onConflict:'phone_key'});
+    if(error)throw error;await loadProtect();closeModal();render();
+    alert('Blocked. This number can no longer place orders.');
+  }catch(e){showError(e)}
+}
+async function unblockNumber(k){
+  if(!confirm('Allow this number to order again?'))return;
+  try{const {error}=await sb.from('blocked_phones').delete().eq('phone_key',k);if(error)throw error;await loadProtect();closeModal();render()}catch(e){showError(e)}
+}
+function blockedPage(){
+  return `<div class="section-head"><div><h3>Blocked numbers</h3><p>Orders from these numbers are refused by the server</p></div><button class="btn muted" onclick="loadProtect().then(render)">↻ Refresh</button></div>${setupNote()}
+  <div class="card"><div class="filters"><input class="input" id="blkPhone" placeholder="01XXXXXXXXX" inputmode="tel"><input class="input" id="blkReason" placeholder="Reason (optional)"><button class="btn danger" onclick="blockNumber($('blkPhone').value,$('blkReason').value)">🚫 Block</button></div></div>
+  <div class="table-wrap" style="margin-top:12px"><table class="table"><thead><tr><th>Number</th><th>Reason</th><th>Date</th><th></th></tr></thead><tbody>
+  ${blockedCache.length?blockedCache.map(b=>`<tr><td><b>${esc(b.phone||b.phone_key)}</b></td><td>${esc(b.reason||'—')}</td><td>${esc(new Date(b.created_at).toLocaleDateString('en-BD'))}</td><td><button class="btn muted" onclick="unblockNumber('${esc(b.phone_key)}')">Unblock</button></td></tr>`).join(''):'<tr><td colspan="4" class="empty">No blocked numbers</td></tr>'}</tbody></table></div>`;
+}
+/* incomplete orders */
+function leadMsg(l){
+  const items=(Array.isArray(l.items)?l.items:[]).map(i=>`${i.name||'পণ্য'} x${i.qty||1}`).join(', ');
+  return `আসসালামু আলাইকুম ${l.name||''}, Gadget Bazar BD থেকে বলছি। আপনি ${items||'কিছু পণ্য'} অর্ডার করতে চেয়েছিলেন। কোনো সাহায্য লাগলে বলুন, আমরা এখনই অর্ডারটা কনফার্ম করে দিই। 😊`;
+}
+function leadsPage(){
+  const rows=leadsCache.map((l,i)=>{
+    const items=(Array.isArray(l.items)?l.items:[]).map(x=>`${esc(x.name||'')} ×${Number(x.qty||1)}`).join('<br>');
+    const ph=waPhone(l.phone);
+    return `<tr><td><b>${esc(l.name||'—')}</b><br><small>${esc(l.phone||'')}</small></td><td>${items||'—'}</td><td>${money(l.total)}</td><td><small>${esc(new Date(l.updated_at).toLocaleString('en-BD'))}</small></td><td>${l.contacted?'<span class="pill green">Contacted</span>':'<span class="pill yellow">New</span>'}</td>
+    <td class="actions">${ph?`<a class="btn" style="background:#1fa855;color:#fff;text-decoration:none;display:inline-block" target="_blank" rel="noopener" href="https://wa.me/${ph}?text=${encodeURIComponent(leadMsg(l))}" onclick="markLead(${i},true)">WhatsApp</a>`:''}<button class="btn muted" onclick="markLead(${i},${!l.contacted})">${l.contacted?'Mark new':'Mark contacted'}</button><button class="btn danger" onclick="deleteLead(${i})">Delete</button></td></tr>`}).join('');
+  return `<div class="section-head"><div><h3>Incomplete orders</h3><p>Customers who typed their phone at checkout but did not place the order. A lead disappears automatically once they order.</p></div><button class="btn muted" onclick="loadProtect().then(render)">↻ Refresh</button></div>${setupNote()}
+  <div class="table-wrap"><table class="table"><thead><tr><th>Customer</th><th>Cart</th><th>Total</th><th>Last seen</th><th>Status</th><th>Actions</th></tr></thead><tbody>${rows||'<tr><td colspan="6" class="empty">No incomplete orders right now</td></tr>'}</tbody></table></div>`;
+}
+async function markLead(i,v){const l=leadsCache[i];if(!l)return;try{const {error}=await sb.from('incomplete_orders').update({contacted:!!v}).eq('phone_key',l.phone_key);if(error)throw error;l.contacted=!!v;setTimeout(render,200)}catch(e){showError(e)}}
+async function deleteLead(i){const l=leadsCache[i];if(!l||!confirm('Delete this lead?'))return;try{const {error}=await sb.from('incomplete_orders').delete().eq('phone_key',l.phone_key);if(error)throw error;leadsCache.splice(i,1);render()}catch(e){showError(e)}}
+/* expenses (inside Reports) */
+function expInRange(day,today,ymNow){
+  if(!day)return false;
+  if(reportRange==='today')return day===today;
+  if(reportRange==='week')return (new Date(today)-new Date(day))/864e5<7&&day<=today;
+  if(reportRange==='month')return String(day).slice(0,7)===ymNow;
+  return true;
+}
+const EXP_KINDS={ads:'📣 Ads (Facebook/TikTok)',courier:'🚚 Courier',other:'Other'};
+function expenseCard(list){
+  return `<div class="section-head" style="margin-top:18px"><div><h3>Costs (ads, courier, other)</h3><p>Add your daily spending. It is subtracted from profit above.</p></div></div>${setupNote()}
+  <div class="card"><div class="filters"><input class="input" id="expDay" type="date" value="${dhakaDay(new Date())}"><select class="select" id="expKind">${Object.entries(EXP_KINDS).map(([k,n])=>`<option value="${k}">${n}</option>`).join('')}</select><input class="input" id="expAmt" type="number" min="0" placeholder="Amount ৳"><input class="input" id="expNote" placeholder="Note (optional)"><button class="btn primary" onclick="addExpense()">＋ Add cost</button></div></div>
+  <div class="table-wrap" style="margin-top:12px"><table class="table"><thead><tr><th>Date</th><th>Type</th><th>Amount</th><th>Note</th><th></th></tr></thead><tbody>
+  ${list.length?list.map(e=>`<tr><td>${esc(e.day)}</td><td>${esc(EXP_KINDS[e.kind]||e.kind)}</td><td><b>${money(e.amount)}</b></td><td>${esc(e.note||'')}</td><td><button class="btn danger" onclick="deleteExpense(${e.id})">Delete</button></td></tr>`).join(''):'<tr><td colspan="5" class="empty">No costs added in this period</td></tr>'}</tbody></table></div>`;
+}
+async function addExpense(){
+  const amount=Number($('expAmt')?.value);if(!Number.isFinite(amount)||amount<=0){alert('Enter the amount.');return}
+  try{
+    const {error}=await sb.from('expenses').insert({day:$('expDay').value||dhakaDay(new Date()),kind:$('expKind').value,amount,note:($('expNote').value||'').trim()});
+    if(error)throw error;await loadProtect();render();
+  }catch(e){showError(e)}
+}
+async function deleteExpense(id){if(!confirm('Delete this cost?'))return;try{const {error}=await sb.from('expenses').delete().eq('id',id);if(error)throw error;await loadProtect();render()}catch(e){showError(e)}}
+window.blocked=blockedPage;window.leads=leadsPage;
+window.blockNumber=blockNumber;window.unblockNumber=unblockNumber;window.markLead=markLead;window.deleteLead=deleteLead;window.addExpense=addExpense;window.deleteExpense=deleteExpense;window.loadProtect=loadProtect;
