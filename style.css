@@ -990,3 +990,4 @@ html[data-theme="light"] .install-card,html[data-theme="rose"] .install-card,htm
 .header-lang-btn .gb-lang-label{font-size:9.5px!important}
 .drawer-mini button{white-space:nowrap}
 .field-note{display:block;font-size:11px;opacity:.65;margin-top:4px}
+.tracking-courier{margin:8px 0;padding:8px 10px;border-radius:10px;background:rgba(37,183,255,.1);font-size:12px;line-height:1.7}.tracking-courier .link-btn{margin-left:6px;text-decoration:underline;background:none;border:0;color:inherit;cursor:pointer}

@@ -394,7 +394,7 @@ function viewOrder(i){
   if(typeof items==='string'){try{items=JSON.parse(items)}catch{items=[]}}
   if(Array.isArray(items))itemHtml=items.map(x=>{const qty=Number(x.qty||x.quantity||1);const price=Number(x.price||x.unit_price||0);return `<div class="order-item"><span>${esc(x.name||x.title||'Product')} × ${qty}</span><b>${money(price*qty)}</b></div>`}).join('');
   const created=o.created_at?new Date(o.created_at).toLocaleString('en-BD'):'—';
-  openModal('Order '+id,`<div class="card"><b>Order Information</b><p><b>Order ID:</b> ${esc(id)}</p><p><b>Placed:</b> ${esc(created)}</p><p><b>Status:</b> <span class="pill ${statusClass(s)}">${esc(s)}</span></p><hr><b>Customer</b><p>${esc(name)} · ${esc(phone)}</p><p>${esc([district,upazila].filter(Boolean).join(', '))}</p><p>${esc(address||'—')}</p><hr><p><b>Payment:</b> ${esc(payment)}</p><p><b>Transaction ID:</b> ${esc(o.transaction_id||'—')}</p><p><b>Source:</b> ${esc(o.source||'—')}</p><p><b>Subtotal:</b> ${money(o.subtotal)}</p><p><b>Delivery:</b> ${money(delivery)}</p><p><b>Total:</b> <b>${money(total)}</b></p><p><b>Customer note:</b> ${esc(o.note||'—')}</p>${itemHtml?`<hr><b>Items</b><div class="order-items">${itemHtml}</div>`:'<hr><p>No item details saved with this order.</p>'}</div><div class="btn-row">${blockBtn(o)}<button class="btn" style="background:#1fa855;color:#fff" onclick="whatsappOrder(${i})">WhatsApp Customer</button>${s==='Pending'?actionBtn(i,'Confirmed','Confirm Order','primary'):''}${s==='Confirmed'?actionBtn(i,'Processing','Start Processing','primary'):''}${s==='Processing'?actionBtn(i,'Shipped','Mark Shipped','primary'):''}${s==='Shipped'?actionBtn(i,'Delivered','Mark Delivered','primary'):''}${s!=='Delivered'&&s!=='Cancelled'?actionBtn(i,'Cancelled','Cancel Order','danger'):''}</div>`);
+  openModal('Order '+id,`<div class="card"><b>Order Information</b><p><b>Order ID:</b> ${esc(id)}</p><p><b>Placed:</b> ${esc(created)}</p><p><b>Status:</b> <span class="pill ${statusClass(s)}">${esc(s)}</span></p><hr><b>Customer</b><p>${esc(name)} · ${esc(phone)}</p><p>${esc([district,upazila].filter(Boolean).join(', '))}</p><p>${esc(address||'—')}</p><hr><p><b>Payment:</b> ${esc(payment)}</p><p><b>Transaction ID:</b> ${esc(o.transaction_id||'—')}</p><p><b>Source:</b> ${esc(o.source||'—')}</p><p><b>Subtotal:</b> ${money(o.subtotal)}</p><p><b>Delivery:</b> ${money(delivery)}</p><p><b>Total:</b> <b>${money(total)}</b></p><p><b>Customer note:</b> ${esc(o.note||'—')}</p>${itemHtml?`<hr><b>Items</b><div class="order-items">${itemHtml}</div>`:'<hr><p>No item details saved with this order.</p>'}${courierBox(i,o)}</div><div class="btn-row">${blockBtn(o)}<button class="btn" style="background:#1fa855;color:#fff" onclick="whatsappOrder(${i})">WhatsApp Customer</button>${s==='Pending'?actionBtn(i,'Confirmed','Confirm Order','primary'):''}${s==='Confirmed'?actionBtn(i,'Processing','Start Processing','primary'):''}${s==='Processing'?actionBtn(i,'Shipped','Mark Shipped','primary'):''}${s==='Shipped'?actionBtn(i,'Delivered','Mark Delivered','primary'):''}${s!=='Delivered'&&s!=='Cancelled'?actionBtn(i,'Cancelled','Cancel Order','danger'):''}</div>`);
 }
 /* WhatsApp helpers: the status is always changed in this panel (single source of truth);
    WhatsApp is only used to message the customer. */
@@ -421,7 +421,8 @@ function waMessage(o){
     Delivered:'আপনার অর্ডারটি ডেলিভারি হয়েছে। আমাদের থেকে কেনার জন্য ধন্যবাদ!',
     Cancelled:'দুঃখিত, আপনার অর্ডারটি বাতিল করা হয়েছে। কোনো প্রশ্ন থাকলে জানাবেন।'
   }[s]||'';
-  return head+tail;
+  const trk=(o.tracking_no&&(s==='Shipped'||s==='Processing'))?`\nকুরিয়ার: ${o.courier||'—'}\nট্র্যাকিং নম্বর: ${o.tracking_no}`:'';
+  return head+tail+trk;
 }
 function waLink(o){
   const ph=waPhone(o.phone||o.customer_phone||o.customer?.phone);
@@ -733,6 +734,8 @@ async function loadStoreSettings(){
     theme:(data&&data.theme)||'ocean',
     has_theme:!!data&&('theme' in data),
     col_picker:!!(data&&data.col_picker),
+    show_tracking:!!(data&&data.show_tracking),
+    has_tracking:!!data&&('show_tracking' in data),
     has_cols:!!data&&('col_picker' in data)
   };
   return storeSettingsCache;
@@ -748,7 +751,7 @@ function settings(){
     <label class="full">Store Address<textarea id="storeAddress" rows="3" maxlength="500" placeholder="Store address">${esc(s.address||'')}</textarea></label>
     <label class="full">Support Hours<input id="storeHours" maxlength="160" value="${esc(s.support_hours||'')}" placeholder="Every day, 10 AM–8 PM"></label>
   </div><div class="btn-row"><button class="btn primary" id="saveStoreSettingsBtn" onclick="saveStoreSettings()">Save Store Settings</button></div>
-  ${s.updated_at?`<p><small>Last updated: ${esc(new Date(s.updated_at).toLocaleString('en-BD'))}</small></p>`:''}</div>${themeCard(s)}${colsCard(s)}`
+  ${s.updated_at?`<p><small>Last updated: ${esc(new Date(s.updated_at).toLocaleString('en-BD'))}</small></p>`:''}</div>${themeCard(s)}${colsCard(s)}${trackingCard(s)}`
 }
 
 async function saveStoreSettings(){
@@ -1542,3 +1545,45 @@ async function addExpense(){
 async function deleteExpense(id){if(!confirm('Delete this cost?'))return;try{const {error}=await sb.from('expenses').delete().eq('id',id);if(error)throw error;await loadProtect();render()}catch(e){showError(e)}}
 window.blocked=blockedPage;window.leads=leadsPage;
 window.blockNumber=blockNumber;window.unblockNumber=unblockNumber;window.markLead=markLead;window.deleteLead=deleteLead;window.addExpense=addExpense;window.deleteExpense=deleteExpense;window.loadProtect=loadProtect;
+
+
+/* =========================================================
+   COURIER & TRACKING NUMBER (shown to customers only when the admin switch is ON)
+========================================================= */
+const COURIERS=['Steadfast','Pathao','RedX','Paperfly','eCourier','SA Paribahan','Sundarban','Other'];
+function courierBox(i,o){
+  const cur=o.courier||'';
+  return `<hr><b>🚚 Courier &amp; tracking</b><div class="form-grid" style="margin-top:8px"><label>Courier<select id="courierSel"><option value="">— none —</option>${COURIERS.map(c=>`<option ${cur===c?'selected':''}>${c}</option>`).join('')}${cur&&!COURIERS.includes(cur)?`<option selected>${esc(cur)}</option>`:''}</select></label><label>Tracking / consignment no.<input id="trackNo" value="${esc(o.tracking_no||'')}" placeholder="e.g. 12345678"></label></div><div class="btn-row"><button class="btn primary" onclick="saveCourier(${i})">Save courier info</button></div>`;
+}
+async function saveCourier(i){
+  const o=ordersCache[i];if(!o)return;
+  const courier=($('courierSel')?.value||'').trim(),tracking_no=($('trackNo')?.value||'').trim().slice(0,60);
+  try{
+    const {error}=await sb.from('orders').update({courier:courier||null,tracking_no:tracking_no||null,updated_at:new Date().toISOString()}).eq('id',o.id);
+    if(error)throw error;
+    o.courier=courier||null;o.tracking_no=tracking_no||null;
+    alert('Courier info saved.');
+  }catch(e){
+    if(/courier|tracking_no|column/i.test(e?.message||''))alert('One-time setup needed: run 9_tracking.sql in Supabase > SQL Editor, then try again.');
+    else showError(e)
+  }
+}
+function trackingCard(s){
+  return `<div class="card" style="margin-top:16px"><h3>🚚 Parcel tracking for customers</h3>
+  <p>When ON, customers who track their order with their phone number also see the courier name and tracking number you saved on the order. When OFF, they see nothing (the website never even receives it). You can switch it any time.</p>
+  ${s.has_tracking?'':'<p style="color:#b45309"><b>One-time setup needed:</b> run <code>9_tracking.sql</code> in Supabase &gt; SQL Editor, then press Refresh.</p>'}
+  <label style="display:flex;gap:8px;align-items:center;font-weight:700"><input id="trackToggle" type="checkbox" ${s.show_tracking?'checked':''} ${s.has_tracking?'':'disabled'}> Show courier &amp; tracking number to customers</label>
+  <div class="btn-row"><button class="btn primary" id="saveTrackBtn" onclick="saveTrackingSetting()" ${s.has_tracking?'':'disabled'}>Save</button></div></div>`
+}
+async function saveTrackingSetting(){
+  const s=storeSettingsCache||{};const on=!!$('trackToggle')?.checked;const btn=$('saveTrackBtn');
+  try{
+    if(btn){btn.disabled=true;btn.textContent='Saving...'}
+    const {error}=await sb.from('store_settings').upsert({id:1,store_name:s.store_name||'Gadget Bazar BD',show_tracking:on,updated_at:new Date().toISOString()},{onConflict:'id'});
+    if(error)throw error;
+    storeSettingsCache={...s,show_tracking:on};
+    alert(on?'Customers can now see courier & tracking number.':'Tracking info is now hidden from customers.');
+    render()
+  }catch(e){showError(e);if(btn){btn.disabled=false;btn.textContent='Save'}}
+}
+window.courierBox=courierBox;window.saveCourier=saveCourier;window.trackingCard=trackingCard;window.saveTrackingSetting=saveTrackingSetting;
