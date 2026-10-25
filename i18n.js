@@ -178,8 +178,8 @@ function start(){
   syncButtons();
 }
 function syncButtons(){
-  document.querySelectorAll(".gb-lang-label").forEach(function(e){e.textContent="ভাষা"});
-  document.querySelectorAll(".gb-install-label").forEach(function(e){e.textContent="অ্যাপ"});
+  document.querySelectorAll(".gb-lang-label").forEach(function(e){e.textContent=lang==="bn"?"ভাষা":"Language"});
+  document.querySelectorAll(".gb-install-label").forEach(function(e){e.textContent=lang==="bn"?"অ্যাপ":"App"});
   document.querySelectorAll("[data-lang-btn]").forEach(function(b){b.classList.toggle("on",b.getAttribute("data-lang-btn")===lang)});
 }
 window.gbSetLang=function(l){

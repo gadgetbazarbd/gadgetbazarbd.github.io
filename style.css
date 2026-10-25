@@ -980,3 +980,12 @@ html[data-theme="light"] .install-card,html[data-theme="rose"] .install-card,htm
 .drawer-mini button b{font-size:9px;font-weight:700}
 .drawer-mini{gap:5px}
 @media(max-width:360px){.drawer-mini b{display:block!important}}
+
+/* cart: summary + Checkout sit right under the products (never pushed off-screen) */
+.cart-drawer .cart-items{flex:0 1 auto!important;max-height:calc(100dvh - 400px);min-height:60px;overflow-y:auto}
+.cart-drawer .cart-summary{margin-top:12px;flex:0 0 auto}
+.cart-drawer{overflow:hidden}
+/* "Language" label fits the header button */
+.header-lang-btn{width:auto!important;min-width:46px!important;padding:0 6px!important}
+.header-lang-btn .gb-lang-label{font-size:9.5px!important}
+.drawer-mini button{white-space:nowrap}
