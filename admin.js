@@ -112,6 +112,7 @@ async function loadCloud(){
   if(d.error)throw d.error;
 
   productsCache=p.data||[];
+  await loadCosts();
   ordersCache=o.data||[];
   categoriesCache=c.data||[];
   deliverySettingsCache=d.data?.[0]||null;
@@ -177,11 +178,11 @@ function stat(icon,label,value){return `<div class="stat-card"><div class="stat-
 function products(){
   return `<div class="section-head"><div><h3>Products</h3><p>Manage your product catalog</p></div><div class="toolbar"><button class="btn primary" onclick="addProduct()">＋ Add Product</button><button class="btn muted" onclick="refreshProducts().then(render).catch(showError)">↻ Refresh</button></div></div>
   <div class="filters"><div class="search-wrap"><input class="input" id="productSearch" placeholder="Search products..." oninput="filterProducts()"></div><select class="select" id="productCategoryFilter" onchange="filterProducts()"><option value="">All Categories</option>${categoriesCache.map(c=>`<option value="${esc(c.name)}">${esc(c.name)}</option>`).join('')}</select><select class="select" id="productStockFilter" onchange="filterProducts()"><option value="">All Stock</option><option value="in">In Stock</option><option value="out">Out of Stock</option></select></div>
-  <div class="table-wrap"><table class="table"><thead><tr><th>Image</th><th>Product</th><th>Category</th><th>Price</th><th>Stock</th><th>Status</th><th>Actions</th></tr></thead><tbody id="productRows">${productRows(productsCache)}</tbody></table></div>`
+  <div class="table-wrap"><table class="table"><thead><tr><th>Image</th><th>Product</th><th>Category</th><th>Price</th><th>Buy → Profit</th><th>Stock</th><th>Status</th><th>Actions</th></tr></thead><tbody id="productRows">${productRows(productsCache)}</tbody></table></div>`
 }
 function productRows(list){
-  if(!list.length)return `<tr><td colspan="7" class="empty">No products found</td></tr>`;
-  return list.map(p=>`<tr><td>${p.image?`<img class="thumb" src="${esc(p.image)}" alt="">`:'—'}</td><td><b>${esc(p.name)}</b></td><td>${esc(p.category||'—')}</td><td>${money(p.price)}</td><td>${Number(p.stock||0)}</td><td><span class="pill ${p.active!==false?'green':'red'}">${p.active!==false?'Active':'Inactive'}</span></td><td class="actions"><button class="btn primary" onclick="openPostBuilder(${productsCache.indexOf(p)})">📣 Post</button><button class="btn muted" onclick="editProduct(${productsCache.indexOf(p)})">Edit</button><button class="btn danger" onclick="deleteProduct(${productsCache.indexOf(p)})">Delete</button></td></tr>`).join('')
+  if(!list.length)return `<tr><td colspan="8" class="empty">No products found</td></tr>`;
+  return list.map(p=>`<tr><td>${p.image?`<img class="thumb" src="${esc(p.image)}" alt="">`:'—'}</td><td><b>${esc(p.name)}</b></td><td>${esc(p.category||'—')}</td><td>${money(p.price)}</td><td>${marginCell(p)}</td><td>${Number(p.stock||0)}</td><td><span class="pill ${p.active!==false?'green':'red'}">${p.active!==false?'Active':'Inactive'}</span></td><td class="actions"><button class="btn primary" onclick="openPostBuilder(${productsCache.indexOf(p)})">📣 Post</button><button class="btn muted" onclick="editProduct(${productsCache.indexOf(p)})">Edit</button><button class="btn danger" onclick="deleteProduct(${productsCache.indexOf(p)})">Delete</button></td></tr>`).join('')
 }
 function filterProducts(){
   const q=($('productSearch')?.value||'').toLowerCase().trim();
@@ -214,6 +215,7 @@ function productForm(p={}){
     <label>Flash sale starts (optional)<input id="productSaleStart" type="datetime-local" value="${saleDt(p.sale_starts_at)}"></label>
     <label>Flash sale ends (optional)<input id="productSaleEnd" type="datetime-local" value="${saleDt(p.sale_ends_at)}"></label>
     <p class="hint" style="grid-column:1/-1;margin:-4px 0 4px;font-size:12px;color:#64748b">⚡ Set both times to run a timed Flash Sale. The Discount (%) above applies only inside this window; before and after it the full price is charged. Leave both blank for a normal always-on discount. (Run 5_flash_sale.sql once first.)</p>
+    <label>Buying price ৳ (private)<input id="productCost" type="number" min="0" step="any" value="${costOf(p.id)||''}" placeholder="what you paid"><small>Only you can see this. Used for profit reports.</small></label>
     <label>Stock<input id="productStock" type="number" min="0" value="${Number(p.stock||0)}"></label>
     <label>Status<select id="productActive"><option value="true" ${p.active!==false?'selected':''}>Active</option><option value="false" ${p.active===false?'selected':''}>Inactive</option></select></label>
     <label>Brand<input id="productBrand" value="${esc(p.brand||'')}" placeholder="e.g. Xiaomi"></label>
@@ -290,6 +292,7 @@ async function saveProduct(){
       }
     }
     const {error}=await sb.from('products').upsert(product,{onConflict:'id'});
+    if(!error)await saveCost(id,$('productCost')?.value);
     if(error)throw error;
     await refreshProducts();closeModal();render();
     alert(isEdit?'Product updated successfully.':'Product added successfully.');
@@ -727,7 +730,9 @@ async function loadStoreSettings(){
     support_hours:data?.support_hours||'',
     updated_at:data?.updated_at||null,
     theme:(data&&data.theme)||'ocean',
-    has_theme:!!data&&('theme' in data)
+    has_theme:!!data&&('theme' in data),
+    col_picker:!!(data&&data.col_picker),
+    has_cols:!!data&&('col_picker' in data)
   };
   return storeSettingsCache;
 }
@@ -742,7 +747,7 @@ function settings(){
     <label class="full">Store Address<textarea id="storeAddress" rows="3" maxlength="500" placeholder="Store address">${esc(s.address||'')}</textarea></label>
     <label class="full">Support Hours<input id="storeHours" maxlength="160" value="${esc(s.support_hours||'')}" placeholder="Every day, 10 AM–8 PM"></label>
   </div><div class="btn-row"><button class="btn primary" id="saveStoreSettingsBtn" onclick="saveStoreSettings()">Save Store Settings</button></div>
-  ${s.updated_at?`<p><small>Last updated: ${esc(new Date(s.updated_at).toLocaleString('en-BD'))}</small></p>`:''}</div>${themeCard(s)}`
+  ${s.updated_at?`<p><small>Last updated: ${esc(new Date(s.updated_at).toLocaleString('en-BD'))}</small></p>`:''}</div>${themeCard(s)}${colsCard(s)}`
 }
 
 async function saveStoreSettings(){
@@ -800,6 +805,7 @@ function go(section){
     categories:['Categories','Manage categories'],
     offers:['Offers & Deals','Manage promotions and schedules'],
     coupons:['Coupons','Create and manage discount codes'],
+    reports:['Reports','Profit, sales and trending products'],
     delivery:['Delivery','Delivery settings'],
     payments:['Payments','Payment settings'],
     settings:['Settings','Store settings']
@@ -816,7 +822,7 @@ function go(section){
 }
 function render(){
   const c=$('content');if(!c)return;
-  const map={dashboard,products,orders,customers,categories,offers,coupons,delivery,payments,settings};
+  const map={dashboard,products,orders,customers,categories,offers,coupons,reports,delivery,payments,settings};
   c.innerHTML=(map[currentSection]||dashboard)();
   updateOrderBadge();
 }
@@ -1025,6 +1031,10 @@ async function deleteOffer(i){
 ========================================================= */
 
 document.addEventListener('DOMContentLoaded',()=>{
+  if(!document.querySelector('.nav[data-section="reports"]')){
+    const db=document.querySelector('.nav[data-section="dashboard"]');
+    if(db){const nb=document.createElement('button');nb.className='nav';nb.dataset.section='reports';nb.innerHTML='📈 <span>Reports</span>';db.after(nb)}
+  }
   if(!document.querySelector('.nav[data-section="coupons"]')){
     const ob=document.querySelector('.nav[data-section="offers"]');
     if(ob){const nb=document.createElement('button');nb.className='nav';nb.dataset.section='coupons';nb.innerHTML='🎟 <span>Coupons</span>';ob.after(nb)}
@@ -1319,3 +1329,113 @@ async function saveSiteTheme(){
   }catch(e){showError(e);if(btn){btn.disabled=false;btn.textContent='Save Theme'}}
 }
 window.themeCard=themeCard;window.pickSiteTheme=pickSiteTheme;window.saveSiteTheme=saveSiteTheme;
+
+
+/* =========================================================
+   PRIVATE BUYING PRICE + PROFIT REPORTS
+========================================================= */
+let costsCache={},costsReady=true;
+async function loadCosts(){
+  try{
+    const {data,error}=await sb.from('product_costs').select('*');
+    if(error)throw error;
+    costsCache={};(data||[]).forEach(r=>costsCache[String(r.product_id)]=Number(r.cost||0));costsReady=true;
+  }catch(e){costsReady=false;console.warn('product_costs not ready (run 7_reports.sql):',e?.message||e)}
+}
+function costOf(id){const v=costsCache[String(id)];return v==null?'':v}
+async function saveCost(id,raw){
+  const txt=String(raw??'').trim();
+  if(!costsReady)return;
+  if(txt===''){await sb.from('product_costs').delete().eq('product_id',String(id));delete costsCache[String(id)];return}
+  const cost=Number(txt);if(!Number.isFinite(cost)||cost<0)return;
+  const {error}=await sb.from('product_costs').upsert({product_id:String(id),cost,updated_at:new Date().toISOString()},{onConflict:'product_id'});
+  if(error)throw error;costsCache[String(id)]=cost;
+}
+function sellPrice(p){const d=Number(p.discount||0);return d>0?Math.max(0,Number(p.price||0)-Number(p.price||0)*d/100):Number(p.price||0)}
+function marginCell(p){
+  const c=costsCache[String(p.id)];
+  if(c==null)return '<small style="color:#94a3b8">— set buying price</small>';
+  const profit=sellPrice(p)-c,pct=sellPrice(p)>0?Math.round(profit/sellPrice(p)*100):0;
+  return `<small>Buy ${money(c)}</small><br><b style="color:${profit>=0?'#15803d':'#b91c1c'}">${profit>=0?'+':''}${money(profit)} (${pct}%)</b>`;
+}
+function orderItemsArr(o){let it=o.items;if(typeof it==='string'){try{it=JSON.parse(it)}catch(e){it=[]}}return Array.isArray(it)?it:[]}
+function unitCost(o,id){const v=o.item_costs&&o.item_costs[String(id)];if(v!=null)return Number(v);const c=costsCache[String(id)];return c==null?0:Number(c)}
+function itemCost(o,it){
+  const q=Number(it.qty||it.quantity||1);
+  if(it.is_combo&&Array.isArray(it.products))return it.products.reduce((s,p)=>s+unitCost(o,p.id),0)*q;
+  return unitCost(o,it.id)*q;
+}
+function orderMetrics(o){
+  const items=orderItemsArr(o);
+  const sales=Number(o.total??0)-Number(o.delivery_charge??o.delivery_fee??0);
+  const cost=o.cost_total!=null?Number(o.cost_total):items.reduce((s,it)=>s+itemCost(o,it),0);
+  return {sales,cost,profit:sales-cost,items};
+}
+function dhakaDay(d){return new Date(d).toLocaleDateString('en-CA',{timeZone:'Asia/Dhaka'})}
+let reportRange='month',reportDelivered=false;
+function setReport(r,d){if(r)reportRange=r;if(typeof d==='boolean')reportDelivered=d;render()}
+function reports(){
+  const now=new Date(),today=dhakaDay(now);
+  const ranges={today:'Today',week:'Last 7 days',month:'This month',all:'All time'};
+  const ymNow=today.slice(0,7);
+  const inRange=o=>{
+    if(!o.created_at)return false;const day=dhakaDay(o.created_at);
+    if(reportRange==='today')return day===today;
+    if(reportRange==='week')return (new Date(today)-new Date(day))/864e5<7&&day<=today;
+    if(reportRange==='month')return day.slice(0,7)===ymNow;
+    return true;
+  };
+  const valid=o=>{const s=o.status||'Pending';return reportDelivered?s==='Delivered':s!=='Cancelled'};
+  const list=ordersCache.filter(o=>valid(o)&&inRange(o));
+  let sales=0,cost=0,profit=0,qty=0;const prod={};
+  list.forEach(o=>{const m=orderMetrics(o);sales+=m.sales;cost+=m.cost;profit+=m.profit;
+    m.items.forEach(it=>{const q=Number(it.qty||it.quantity||1),nm=it.name||'Product';qty+=q;
+      const k=String(it.id||nm),r=prod[k]||(prod[k]={name:nm,qty:0,sales:0,cost:0});
+      r.qty+=q;r.sales+=Number(it.price||0)*q;r.cost+=itemCost(o,it)})});
+  const margin=sales>0?Math.round(profit/sales*100):0,avg=list.length?Math.round(sales/list.length):0;
+  const trend=Object.values(prod).sort((a,b)=>b.qty-a.qty||b.sales-a.sales).slice(0,10);
+  // last 14 days
+  const days=[];for(let i=13;i>=0;i--){const d=new Date(now.getTime()-i*864e5);days.push(dhakaDay(d))}
+  const dm={};days.forEach(d=>dm[d]={n:0,sales:0,profit:0});
+  ordersCache.filter(valid).forEach(o=>{if(!o.created_at)return;const d=dhakaDay(o.created_at);if(dm[d]){const m=orderMetrics(o);dm[d].n++;dm[d].sales+=m.sales;dm[d].profit+=m.profit}});
+  const maxS=Math.max(1,...days.map(d=>dm[d].sales));
+  const missing=productsCache.filter(p=>p.active!==false&&costsCache[String(p.id)]==null).length;
+  const stk=productsCache.reduce((s,p)=>s+(costsCache[String(p.id)]||0)*Number(p.stock||0),0);
+  return `<div class="section-head"><div><h3>Reports</h3><p>Profit, sales and trending products</p></div><button class="btn muted" onclick="refreshDashboard()">↻ Refresh</button></div>
+  ${costsReady?'':'<div class="card" style="border-color:#f59e0b;margin-bottom:12px"><b>One-time setup:</b> run <code>7_reports.sql</code> in Supabase &gt; SQL Editor, then press Refresh. Until then, profit uses 0 as buying price.</div>'}
+  <div class="filters" style="align-items:center">${Object.entries(ranges).map(([k,n])=>`<button class="btn ${reportRange===k?'primary':'muted'}" onclick="setReport('${k}')">${n}</button>`).join('')}
+   <label style="font-size:12px;display:flex;gap:6px;align-items:center;margin-left:6px"><input type="checkbox" ${reportDelivered?'checked':''} onchange="setReport(null,this.checked)"> Delivered orders only</label></div>
+  <div class="stats-grid">${stat('▤','Orders',list.length)}${stat('৳','Sales (excl. delivery)',money(sales))}${stat('⬇','Buying cost',money(cost))}${stat('✓','Profit',`<span style="color:${profit>=0?'#15803d':'#b91c1c'}">${money(profit)}</span>`)}
+   ${stat('%','Profit margin',margin+'%')}${stat('◉','Items sold',qty)}${stat('∅','Avg order',money(avg))}${stat('▣','Stock value (at buy price)',money(stk))}</div>
+  ${missing?`<p style="font-size:12px;color:#b45309">⚠ ${missing} active product(s) have no buying price yet — profit for them counts as 100%. Add it in Products &gt; Edit.</p>`:''}
+  <div class="section-head" style="margin-top:18px"><div><h3>🔥 Trending products</h3><p>Most sold in the selected period</p></div></div>
+  <div class="table-wrap"><table class="table"><thead><tr><th>#</th><th>Product</th><th>Sold</th><th>Sales</th><th>Profit</th></tr></thead><tbody>
+  ${trend.length?trend.map((r,i)=>`<tr><td>${i+1}</td><td><b>${esc(r.name)}</b></td><td>${r.qty}</td><td>${money(r.sales)}</td><td style="color:${r.sales-r.cost>=0?'#15803d':'#b91c1c'}"><b>${money(r.sales-r.cost)}</b></td></tr>`).join(''):'<tr><td colspan="5" class="empty">No sales in this period</td></tr>'}</tbody></table></div>
+  <div class="section-head" style="margin-top:18px"><div><h3>Last 14 days</h3><p>Orders, sales and profit per day</p></div></div>
+  <div class="table-wrap"><table class="table"><thead><tr><th>Date</th><th>Orders</th><th>Sales</th><th></th><th>Profit</th></tr></thead><tbody>
+  ${days.slice().reverse().map(d=>`<tr><td>${d}</td><td>${dm[d].n}</td><td>${money(dm[d].sales)}</td><td style="min-width:120px"><div style="height:8px;border-radius:4px;background:#2563eb;width:${Math.round(dm[d].sales/maxS*100)}%"></div></td><td style="color:${dm[d].profit>=0?'#15803d':'#b91c1c'}">${money(dm[d].profit)}</td></tr>`).join('')}</tbody></table></div>
+  <p style="font-size:12px;color:#7c8799;margin-top:10px">Profit = sales (after coupon, without delivery charge) − buying price. Cancelled orders are never counted. Buying prices are private: only you can read them.</p>`;
+}
+
+/* =========================================================
+   PRODUCT COLUMN PICKER (customer site) ON/OFF
+========================================================= */
+function colsCard(s){
+  return `<div class="card" style="margin-top:16px"><h3>▦ Product columns picker</h3>
+  <p>When ON, customers see a 1 / 2 / 3 / 4 / 5 buttons row above the products and can choose how many products to see per row (their choice is remembered). When OFF, the website looks exactly as before.</p>
+  ${s.has_cols?'':'<p style="color:#b45309"><b>One-time setup needed:</b> run <code>7_reports.sql</code> in Supabase &gt; SQL Editor, then press Refresh.</p>'}
+  <label style="display:flex;gap:8px;align-items:center;font-weight:700"><input id="colsToggle" type="checkbox" ${s.col_picker?'checked':''} ${s.has_cols?'':'disabled'}> Show columns picker to customers</label>
+  <div class="btn-row"><button class="btn primary" id="saveColsBtn" onclick="saveColsSetting()" ${s.has_cols?'':'disabled'}>Save</button></div></div>`
+}
+async function saveColsSetting(){
+  const s=storeSettingsCache||{};const on=!!$('colsToggle')?.checked;const btn=$('saveColsBtn');
+  try{
+    if(btn){btn.disabled=true;btn.textContent='Saving...'}
+    const {error}=await sb.from('store_settings').upsert({id:1,store_name:s.store_name||'Gadget Bazar BD',col_picker:on,updated_at:new Date().toISOString()},{onConflict:'id'});
+    if(error)throw error;
+    storeSettingsCache={...s,col_picker:on};
+    alert(on?'Columns picker is now ON for customers.':'Columns picker is OFF. The website looks as before.');
+    render()
+  }catch(e){showError(e);if(btn){btn.disabled=false;btn.textContent='Save'}}
+}
+window.reports=reports;window.setReport=setReport;window.saveColsSetting=saveColsSetting;window.colsCard=colsCard;

@@ -284,6 +284,7 @@ async function loadStoreInfo(){
   const {data,error}=await sb.from("store_settings").select("*").limit(1).maybeSingle();
   if(error)throw error;
   try{if(data&&GB_THEMES[data.theme])localStorage.setItem("gbbd_store_theme",data.theme);}catch(_){}gbApplyTheme();
+  try{window.gbColsEnabled(!!(data&&data.col_picker));}catch(_){}
   REMOTE_STORE=data?{phone:String(data.phone||"").trim(),email:String(data.email||"").trim(),address:String(data.address||"").trim(),hours:String(data.support_hours||"").trim()}:{};
  }catch(e){console.warn("store_settings not available, using STORE_INFO",e?.message||e);REMOTE_STORE={};}
  renderStoreInfo();
@@ -950,6 +951,7 @@ function renderThemePicker(){
  const cur=gbEffectiveTheme(),user=gbUserTheme(),st=gbStoreTheme(),dark=GB_THEMES[cur][1];
  const sw=(k,label,extra)=>{const t=GB_THEMES[k];return `<button type="button" class="theme-opt ${extra}" onclick="${k===st&&label==="ডিফল্ট"?"gbSaveUserTheme('')":`gbSaveUserTheme('${k}')`}"><span class="theme-sw" style="background:${t[2]}"><i style="background:${t[3]}"></i></span><span>${label}</span></button>`;};
  box.innerHTML=`<div class="theme-head"><h3>🎨 সাইটের রঙ বেছে নিন</h3><button type="button" onclick="closeThemePicker()" aria-label="বন্ধ করুন">×</button></div>
+ <div class="lang-row" data-no-i18n><span>🌐 ভাষা / Language</span><button type="button" data-lang-btn="bn" onclick="gbSetLang('bn')">বাংলা</button><button type="button" data-lang-btn="en" onclick="gbSetLang('en')">English</button></div>
  <div class="theme-modes"><button type="button" class="${!user?"on":""}" onclick="setThemeMode('default')">↺ ডিফল্ট</button><button type="button" class="${user&&!dark?"on":""}" onclick="setThemeMode('light')">☀️ হালকা</button><button type="button" class="${user&&dark?"on":""}" onclick="setThemeMode('dark')">🌙 গাঢ়</button></div>
  <div class="theme-grid">${sw(st,"ডিফল্ট",!user?"on":"")}${Object.keys(GB_THEMES).filter(k=>k!==st).map(k=>sw(k,GB_THEMES[k][0],user===k?"on":"")).join("")}</div>
  <p class="theme-note">আপনার পছন্দ এই ফোনেই মনে থাকবে। "ডিফল্ট" মানে দোকানের নিজস্ব রঙ।</p>`;
@@ -959,3 +961,39 @@ function closeThemePicker(){$("themeSheet")?.classList.add("hidden");}
 window.openThemePicker=openThemePicker;window.closeThemePicker=closeThemePicker;window.setThemeMode=setThemeMode;window.gbSaveUserTheme=gbSaveUserTheme;
 document.addEventListener("keydown",e=>{if(e.key==="Escape")closeThemePicker();});
 gbApplyTheme();
+
+/* ===== Product columns picker (shown only when the admin switches it on) ===== */
+(function(){
+ const KEY="gbbd_cols",ON="gbbd_cols_on";
+ let enabled=false;try{enabled=localStorage.getItem(ON)==="1"}catch(e){}
+ function saved(){try{const v=localStorage.getItem(KEY);return /^[1-5]$/.test(v||"")?v:""}catch(e){return""}}
+ function apply(){
+  const r=document.documentElement,n=enabled?saved():"";
+  r.classList.toggle("cols-on",enabled);
+  if(n)r.setAttribute("data-cols",n);else r.removeAttribute("data-cols");
+  document.querySelectorAll(".col-picker button").forEach(b=>b.classList.toggle("on",b.dataset.cols===n));
+ }
+ window.gbSetCols=function(n){try{localStorage.setItem(KEY,String(n))}catch(e){}apply()};
+ window.gbColsEnabled=function(on){enabled=!!on;try{localStorage.setItem(ON,on?"1":"0")}catch(e){}apply()};
+ function init(){document.querySelectorAll(".col-picker button").forEach(b=>b.addEventListener("click",()=>window.gbSetCols(b.dataset.cols)));apply()}
+ if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init);else init();
+ apply();
+})();
+
+/* ===== Add to Home Screen (PWA) ===== */
+let _gbInstallEvt=null;
+window.addEventListener("beforeinstallprompt",e=>{e.preventDefault();_gbInstallEvt=e;});
+window.addEventListener("appinstalled",()=>{_gbInstallEvt=null;try{toast("Installed!")}catch(_){}});
+if("serviceWorker" in navigator)window.addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}));
+function gbIsStandalone(){return window.matchMedia("(display-mode: standalone)").matches||navigator.standalone===true;}
+async function gbInstall(){
+ if(gbIsStandalone()){toast("Already installed");return;}
+ if(_gbInstallEvt){const ev=_gbInstallEvt;_gbInstallEvt=null;ev.prompt();try{await ev.userChoice}catch(_){}return;}
+ const ios=/iphone|ipad|ipod/i.test(navigator.userAgent);
+ const steps=ios?["Tap the Share button at the bottom of Safari.","Scroll down and tap “Add to Home Screen”.","Tap “Add”. The Gadget Bazar BD icon will appear on your phone."]
+  :["Tap the ⋮ menu at the top-right of Chrome.","Tap “Add to Home screen” (or “Install app”).","Tap “Add”. The Gadget Bazar BD icon will appear on your phone."];
+ $("installSteps").innerHTML="<ol>"+steps.map(s=>"<li>"+esc(s)+"</li>").join("")+"</ol>";
+ $("installSheet")?.classList.remove("hidden");
+}
+function closeInstallHelp(){$("installSheet")?.classList.add("hidden");}
+window.gbInstall=gbInstall;window.closeInstallHelp=closeInstallHelp;

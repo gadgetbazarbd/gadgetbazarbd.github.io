@@ -4,6 +4,12 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#071426">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <link rel="icon" type="image/png" href="icon-192.png">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Gadget Bazar">
   <meta name="description" content="Shop smart gadgets, mobile accessories, audio, wearables, RGB lighting and home electronics at Gadget Bazar BD.">
 
   <meta property="og:type" content="website">
@@ -27,7 +33,7 @@
     rel="stylesheet"
   >
 
-  <link rel="stylesheet" href="style.css?v=gbbd-fixes-20261024c">
+  <link rel="stylesheet" href="style.css?v=gbbd-fixes-20261025a">
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
@@ -165,6 +171,9 @@
   <button class="menu-item persistent-menu" data-persistent-menu="1" type="button" onclick="showSavedProducts('compare');closeMenu()">⇄ Compare Products <span class="menu-count" id="compareMenuCount">0</span></button>
   <button class="menu-item persistent-menu deals-menu-item needs-deals hidden" data-persistent-menu="1" type="button" onclick="openDealsPage();closeMenu()"><svg class="ic" aria-hidden="true"><use href="#i-tag"/></svg> Deals &amp; Offers</button>
 
+  <div class="lang-row" data-no-i18n><span>🌐 ভাষা / Language</span><button type="button" data-lang-btn="bn" onclick="gbSetLang('bn')">বাংলা</button><button type="button" data-lang-btn="en" onclick="gbSetLang('en')">English</button></div>
+  <button class="menu-item persistent-menu" data-persistent-menu="1" id="installMenuBtn" type="button" onclick="gbInstall();closeMenu()">📲 Add to Home Screen</button>
+
   <div class="menu-label">Shop by category</div>
 
 </aside>
@@ -249,6 +258,7 @@
       </div>
       <button class="showcase-link" type="button" onclick="showAllProducts()">Explore shop <span aria-hidden="true">→</span></button>
     </div>
+    <div class="col-picker" role="group" aria-label="Products per row"><span class="col-picker-label" data-i18n="cols">Columns</span><button type="button" data-cols="1" aria-label="1 column"><i></i>1</button><button type="button" data-cols="2" aria-label="2 columns"><i></i><i></i>2</button><button type="button" data-cols="3" aria-label="3 columns"><i></i><i></i><i></i>3</button><button type="button" data-cols="4" aria-label="4 columns"><i></i><i></i><i></i><i></i>4</button><button type="button" data-cols="5" aria-label="5 columns"><i></i><i></i><i></i><i></i><i></i>5</button></div>
     <div class="products-grid home-products-grid" id="featuredProductsGrid" aria-live="polite">
       <div class="showcase-empty">Loading featured products…</div>
     </div>
@@ -261,6 +271,7 @@
       <p class="flash-sub">সেল শেষ হতে বাকি</p>
       <div class="sale-boxes big" id="flashBoxes" data-sale-boxes="0"></div>
     </div>
+    <div class="col-picker" role="group" aria-label="Products per row"><span class="col-picker-label" data-i18n="cols">Columns</span><button type="button" data-cols="1" aria-label="1 column"><i></i>1</button><button type="button" data-cols="2" aria-label="2 columns"><i></i><i></i>2</button><button type="button" data-cols="3" aria-label="3 columns"><i></i><i></i><i></i>3</button><button type="button" data-cols="4" aria-label="4 columns"><i></i><i></i><i></i><i></i>4</button><button type="button" data-cols="5" aria-label="5 columns"><i></i><i></i><i></i><i></i><i></i>5</button></div>
     <div class="products-grid home-products-grid" id="flashSaleGrid" aria-live="polite"></div>
   </section>
 
@@ -273,6 +284,7 @@
       </div>
       <button class="showcase-link" type="button" onclick="showAllProducts()">View all <span aria-hidden="true">→</span></button>
     </div>
+    <div class="col-picker" role="group" aria-label="Products per row"><span class="col-picker-label" data-i18n="cols">Columns</span><button type="button" data-cols="1" aria-label="1 column"><i></i>1</button><button type="button" data-cols="2" aria-label="2 columns"><i></i><i></i>2</button><button type="button" data-cols="3" aria-label="3 columns"><i></i><i></i><i></i>3</button><button type="button" data-cols="4" aria-label="4 columns"><i></i><i></i><i></i><i></i>4</button><button type="button" data-cols="5" aria-label="5 columns"><i></i><i></i><i></i><i></i><i></i>5</button></div>
     <div class="products-grid home-products-grid" id="newArrivalsGrid" aria-live="polite">
       <div class="showcase-empty">Loading new arrivals…</div>
     </div>
@@ -287,6 +299,7 @@
       </div>
       <button class="showcase-link" type="button" onclick="showAllProducts()">Browse collection <span aria-hidden="true">→</span></button>
     </div>
+    <div class="col-picker" role="group" aria-label="Products per row"><span class="col-picker-label" data-i18n="cols">Columns</span><button type="button" data-cols="1" aria-label="1 column"><i></i>1</button><button type="button" data-cols="2" aria-label="2 columns"><i></i><i></i>2</button><button type="button" data-cols="3" aria-label="3 columns"><i></i><i></i><i></i>3</button><button type="button" data-cols="4" aria-label="4 columns"><i></i><i></i><i></i><i></i>4</button><button type="button" data-cols="5" aria-label="5 columns"><i></i><i></i><i></i><i></i><i></i>5</button></div>
     <div class="products-grid home-products-grid" id="bestSellersGrid" aria-live="polite">
       <div class="showcase-empty">Loading store favourites…</div>
     </div>
@@ -317,6 +330,7 @@
       <div id="savedPanelContent" class="saved-panel-content"></div>
     </section>
 
+    <div class="col-picker" role="group" aria-label="Products per row"><span class="col-picker-label" data-i18n="cols">Columns</span><button type="button" data-cols="1" aria-label="1 column"><i></i>1</button><button type="button" data-cols="2" aria-label="2 columns"><i></i><i></i>2</button><button type="button" data-cols="3" aria-label="3 columns"><i></i><i></i><i></i>3</button><button type="button" data-cols="4" aria-label="4 columns"><i></i><i></i><i></i><i></i>4</button><button type="button" data-cols="5" aria-label="5 columns"><i></i><i></i><i></i><i></i><i></i>5</button></div>
     <div class="section-head">
       <h2 id="sectionTitle">All Products</h2>
       <span id="productCount"></span>
@@ -639,6 +653,7 @@
 
 <!-- FIXED BOTTOM BAR -->
 <button class="theme-float" id="themeBtn" type="button" aria-label="সাইটের রঙ বদলান" title="সাইটের রঙ" onclick="openThemePicker()">🎨</button>
+<div class="install-sheet hidden" id="installSheet" onclick="if(event.target===this)closeInstallHelp()"><div class="install-card" id="installCard"><button type="button" class="install-x" onclick="closeInstallHelp()" aria-label="Close">✕</button><h3>📲 Add to Home Screen</h3><div id="installSteps"></div><button type="button" class="primary full" onclick="closeInstallHelp()">OK</button></div></div>
 <div class="theme-sheet hidden" id="themeSheet" onclick="if(event.target===this)closeThemePicker()"><div class="theme-card" role="dialog" aria-label="সাইটের রঙ" id="themeCard"></div></div>
 
 <nav class="bottom-bar" aria-label="Quick actions">
@@ -687,7 +702,8 @@
 </footer>
 
 
-<script src="script.js?v=gbbd-fixes-20261024c"></script>
+<script src="script.js?v=gbbd-fixes-20261025a"></script>
+<script src="i18n.js?v=gbbd-fixes-20261025a"></script>
 
 </body>
 </html>
