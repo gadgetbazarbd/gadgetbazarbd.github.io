@@ -177,7 +177,7 @@ function stat(icon,label,value){return `<div class="stat-card"><div class="stat-
 ========================================================= */
 
 function products(){
-  return `<div class="section-head"><div><h3>Products</h3><p>Manage your product catalog</p></div><div class="toolbar"><button class="btn primary" onclick="addProduct()">＋ Add Product</button><button class="btn muted" onclick="refreshProducts().then(render).catch(showError)">↻ Refresh</button></div></div>
+  return `<div class="section-head"><div><h3>Products</h3><p>Manage your product catalog</p></div><div class="toolbar"><button class="btn primary" onclick="addProduct()">＋ Add Product</button><button class="btn muted" onclick="csvImportOpen()">⬆ CSV Import</button><button class="btn muted" onclick="csvExport()">⬇ CSV Export</button><button class="btn muted" onclick="refreshProducts().then(render).catch(showError)">↻ Refresh</button></div></div>
   <div class="filters"><div class="search-wrap"><input class="input" id="productSearch" placeholder="Search products..." oninput="filterProducts()"></div><select class="select" id="productCategoryFilter" onchange="filterProducts()"><option value="">All Categories</option>${categoriesCache.map(c=>`<option value="${esc(c.name)}">${esc(c.name)}</option>`).join('')}</select><select class="select" id="productStockFilter" onchange="filterProducts()"><option value="">All Stock</option><option value="in">In Stock</option><option value="out">Out of Stock</option></select></div>
   <div class="table-wrap"><table class="table"><thead><tr><th>Image</th><th>Product</th><th>Category</th><th>Price</th><th>Buy → Profit</th><th>Stock</th><th>Status</th><th>Actions</th></tr></thead><tbody id="productRows">${productRows(productsCache)}</tbody></table></div>`
 }
@@ -312,6 +312,94 @@ async function saveProduct(){
     const btn=$('saveProductBtn');if(btn){btn.disabled=false;btn.textContent='Save Product'}
   }
 }
+/* ---- CSV import / export ---- */
+const CSV_COLS=['name','category','price','discount','stock','buying_price','brand','description'];
+function csvParse(text){
+  text=String(text||'').replace(/^﻿/,'');const rows=[];let row=[],cur='',q=false;
+  const first=text.split(/\r?\n/,1)[0]||'';const sep=(first.split(';').length>first.split(',').length)?';':',';
+  for(let i=0;i<text.length;i++){const c=text[i];
+    if(q){if(c==='"'){if(text[i+1]==='"'){cur+='"';i++}else q=false}else cur+=c}
+    else if(c==='"')q=true;else if(c===sep){row.push(cur);cur=''}
+    else if(c==='\n'||c==='\r'){if(c==='\r'&&text[i+1]==='\n')i++;row.push(cur);cur='';if(row.some(x=>x.trim()!==''))rows.push(row);row=[]}
+    else cur+=c}
+  row.push(cur);if(row.some(x=>x.trim()!==''))rows.push(row);return rows;
+}
+function csvCell(v){v=String(v??'');return /[",\n\r]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v}
+function csvExport(){
+  const lines=[CSV_COLS.join(',')];
+  productsCache.forEach(p=>lines.push([p.name,p.category,p.price,p.discount||0,p.stock,costOf(p.id),p.brand||'',p.description||''].map(csvCell).join(',')));
+  const blob=new Blob(['﻿'+lines.join('\r\n')],{type:'text/csv;charset=utf-8'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='products-'+new Date().toISOString().slice(0,10)+'.csv';document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},500);
+}
+function csvTemplate(){
+  const t='name,category,price,discount,stock,buying_price,brand,description\r\nTWS Earbuds,Audio,1200,10,10,800,Xiaomi,Good sound\r\nSmart Watch,Watch,2500,0,5,1900,,\r\n';
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['﻿'+t],{type:'text/csv;charset=utf-8'}));a.download='products-template.csv';document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},500);
+}
+let csvPlan=[];
+function csvImportOpen(){
+  csvPlan=[];
+  openModal('CSV Import',`<div style="display:grid;gap:12px">
+  <p>Excel / Google Sheets-এ এই কলামগুলো রাখুন: <code>${CSV_COLS.join(', ')}</code>। শুধু <b>name</b> বাধ্যতামূলক।</p>
+  <ul style="margin:0 0 0 18px;font-size:13px;color:#475569"><li>একই নামের পণ্য আগে থেকে থাকলে শুধু যে ঘরগুলো ভরা আছে সেগুলো আপডেট হবে (ছবি, ভ্যারিয়েন্ট অক্ষত থাকবে)।</li><li>নতুন নামের পণ্য নতুন করে যোগ হবে, ছবি পরে Edit-এ দিন।</li><li>ক্যাটাগরি না থাকলে নিজে তৈরি হবে।</li></ul>
+  <div class="btn-row"><button class="btn muted" onclick="csvTemplate()">⬇ Sample file</button></div>
+  <input type="file" id="csvFile" accept=".csv,text/csv" onchange="csvPreview(this.files[0])">
+  <div id="csvPreview"></div></div>`);
+}
+async function csvPreview(file){
+  const box=$('csvPreview');if(!file||!box)return;
+  const rows=csvParse(await file.text());
+  if(rows.length<2){box.innerHTML='<p style="color:#b91c1c">ফাইলে কোনো সারি পাওয়া যায়নি।</p>';return}
+  const head=rows[0].map(h=>h.trim().toLowerCase().replace(/[\s-]+/g,'_'));
+  const alias={product:'name',product_name:'name',title:'name',cat:'category',buy_price:'buying_price',cost:'buying_price',buying:'buying_price',quantity:'stock',qty:'stock',discount_percent:'discount',desc:'description'};
+  const idx={};head.forEach((h,i)=>{const k=alias[h]||h;if(CSV_COLS.includes(k)&&!(k in idx))idx[k]=i});
+  if(!('name' in idx)){box.innerHTML='<p style="color:#b91c1c">"name" কলাম পাওয়া যায়নি।</p>';return}
+  const byName=new Map(productsCache.map(p=>[String(p.name).trim().toLowerCase(),p]));
+  csvPlan=[];const bad=[];
+  rows.slice(1).forEach((r,n)=>{
+    const g=k=>k in idx?String(r[idx[k]]??'').trim():'';
+    const name=g('name');if(!name)return;
+    const rec={name};let err='';
+    ['price','discount','stock','buying_price'].forEach(k=>{const v=g(k);if(v==='')return;const x=Number(v.replace(/,/g,''));if(!Number.isFinite(x)||x<0||(k==='discount'&&x>100))err=k+' ঠিক নয় ("'+v+'")';else rec[k]=x});
+    ['category','brand','description'].forEach(k=>{const v=g(k);if(v!=='')rec[k]=v});
+    if(err){bad.push(`লাইন ${n+2} (${name}): ${err}`);return}
+    const old=byName.get(name.toLowerCase());rec.old=old||null;
+    if(!old&&rec.price==null){bad.push(`লাইন ${n+2} (${name}): নতুন পণ্যে price দিতে হবে`);return}
+    csvPlan.push(rec)});
+  const nu=csvPlan.filter(x=>!x.old).length,up=csvPlan.length-nu;
+  box.innerHTML=`<p><b>${nu}</b>টি নতুন, <b>${up}</b>টি আপডেট${bad.length?`, <span style="color:#b91c1c">${bad.length}টি ভুল (বাদ যাবে)</span>`:''}</p>
+  ${bad.length?`<div style="font-size:12px;color:#b91c1c;max-height:90px;overflow:auto">${bad.map(esc).join('<br>')}</div>`:''}
+  <div style="max-height:180px;overflow:auto;font-size:12px;border:1px solid #e2e8f0;border-radius:8px;padding:6px">${csvPlan.slice(0,60).map(x=>`${x.old?'✏️':'🆕'} ${esc(x.name)}${x.price!=null?' · ৳'+x.price:''}${x.stock!=null?' · স্টক '+x.stock:''}`).join('<br>')}${csvPlan.length>60?'<br>...':''}</div>
+  <div class="btn-row"><button class="btn primary" id="csvGoBtn" onclick="csvImportRun()" ${csvPlan.length?'':'disabled'}>Import ${csvPlan.length}টি পণ্য</button></div>`;
+}
+async function csvImportRun(){
+  const btn=$('csvGoBtn');if(btn){btn.disabled=true;btn.textContent='Importing...'}
+  let done=0;const fails=[];
+  try{
+    const have=new Set(categoriesCache.map(c=>String(c.name).trim().toLowerCase()));
+    for(const c of [...new Set(csvPlan.map(x=>x.category).filter(Boolean))]){
+      const hit=categoriesCache.find(k=>String(k.name).trim().toLowerCase()===c.toLowerCase());
+      if(hit){csvPlan.forEach(x=>{if(x.category&&x.category.toLowerCase()===c.toLowerCase())x.category=hit.name});continue}
+      const slug=c.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')||('cat-'+Date.now());
+      const {error}=await sb.from('categories').insert({name:c,slug});
+      if(error&&!/duplicate|23505/i.test((error.code||'')+(error.message||'')))throw error;
+    }
+    for(const x of csvPlan){
+      try{
+        const id=x.old?x.old.id:crypto.randomUUID();
+        const row={id,name:x.old?x.old.name:x.name};
+        ['category','price','discount','stock','brand','description'].forEach(k=>{if(x[k]!=null)row[k]=x[k]});
+        if(!x.old){row.active=true;row.image='';row.images=[];row.stock=row.stock??0;row.discount=row.discount??0;row.category=row.category||'Other'}
+        const {error}=await sb.from('products').upsert(row,{onConflict:'id'});
+        if(error)throw error;
+        if(x.buying_price!=null)await saveCost(id,String(x.buying_price));
+        done++;
+      }catch(e){fails.push(x.name+': '+(e.message||e))}
+    }
+    await refreshProducts();closeModal();render();
+    alert(done+'টি পণ্য import হয়েছে.'+(fails.length?'\nব্যর্থ ('+fails.length+'):\n'+fails.slice(0,8).join('\n'):''));
+  }catch(e){showError(e);if(btn){btn.disabled=false;btn.textContent='Import'}}
+}
+window.csvImportOpen=csvImportOpen;window.csvExport=csvExport;window.csvTemplate=csvTemplate;window.csvPreview=csvPreview;window.csvImportRun=csvImportRun;
 async function deleteProduct(i){
   const p=productsCache[i];if(!p)return;
   if(!confirm(`Delete "${p.name}"?`))return;
