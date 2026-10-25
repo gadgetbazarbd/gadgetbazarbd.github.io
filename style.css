@@ -952,3 +952,31 @@ html[data-theme="light"] .install-card,html[data-theme="rose"] .install-card,htm
 .drawer-mini button{border:1px solid rgba(120,160,200,.4);background:rgba(120,160,200,.1);color:inherit;border-radius:999px;padding:6px 9px;font:600 11px/1 inherit;cursor:pointer;white-space:nowrap}
 .drawer-mini button:active{transform:scale(.96)}
 @media(max-width:360px){.drawer-mini b{display:none}}
+
+/* cart & menu drawers: fit the visible screen so Checkout is never pushed below the browser bar */
+.cart-drawer,.side-menu{top:0;bottom:0;height:auto!important;max-height:100dvh;overflow-y:auto}
+.cart-drawer{padding-bottom:calc(34px + env(safe-area-inset-bottom))!important;overflow:hidden}
+.side-menu{padding-bottom:calc(40px + env(safe-area-inset-bottom))!important}
+.cart-drawer .cart-items{min-height:0}
+.cart-drawer .cart-summary{padding-bottom:6px}
+/* smaller header language button: icon over text */
+.header-lang-btn{flex-direction:column;gap:1px!important;min-height:40px!important;min-width:44px;padding:0 7px!important;line-height:1}
+.header-lang-btn>span:first-child{font-size:14px!important}
+.header-lang-btn .gb-lang-label{font-size:10px!important;font-weight:700}
+.drawer-mini button{padding:5px 8px;font-size:10px}
+.drawer-mini button b{font-weight:700}
+
+/* cart/menu: fit the visible screen on phones (browser bars no longer hide the Checkout button) */
+.cart-drawer,.side-menu{height:100vh;height:100dvh!important;max-height:100dvh}
+.cart-drawer{padding-bottom:calc(70px + env(safe-area-inset-bottom))!important}
+.cart-drawer .cart-summary{padding-bottom:4px}
+.side-menu{overflow-y:auto;padding-bottom:calc(60px + env(safe-area-inset-bottom))}
+
+/* language + app buttons: small, stacked icon over label */
+.header-lang-btn{flex-direction:column!important;gap:1px!important;width:46px!important;min-width:0!important;height:42px!important;padding:0!important;line-height:1}
+.header-lang-btn>span:first-child{font-size:15px!important}
+.header-lang-btn .gb-lang-label{font-size:10px!important;font-weight:700}
+.drawer-mini button{display:inline-flex;flex-direction:column;align-items:center;gap:1px;border-radius:10px!important;padding:4px 8px!important;font-size:9px!important;line-height:1.1}
+.drawer-mini button b{font-size:9px;font-weight:700}
+.drawer-mini{gap:5px}
+@media(max-width:360px){.drawer-mini b{display:block!important}}
