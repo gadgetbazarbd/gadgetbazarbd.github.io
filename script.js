@@ -618,7 +618,7 @@ async function setupLocationPickers(){
  document.addEventListener("click",e=>{if(!e.target.closest(".search-select")){$("districtSuggestions")?.classList.add("hidden");$("upazilaSuggestions")?.classList.add("hidden");}});
 }
 
-function makeOrderId(){return"GBBD-"+Date.now().toString().slice(-8);}
+function makeOrderId(){return"PB-"+Date.now().toString().slice(-8);}
 function isMissingRpc(err){return !!err&&(err.code==="PGRST202"||err.code==="42883"||/could not find the function|schema cache/i.test(String(err.message||"")));}
 async function legacyInsertOrder(o){
  // Used only until "1_place_order.sql" has been run in Supabase. Prices are NOT verified by the server in this mode.
