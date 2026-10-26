@@ -33,7 +33,7 @@
     rel="stylesheet"
   >
 
-  <link rel="stylesheet" href="style.css?v=gbbd-fixes-20261026d">
+  <link rel="stylesheet" href="style.css?v=gbbd-fixes-20261026e">
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
@@ -66,6 +66,7 @@
 </head>
 
 <body data-view="home">
+<script>/* open the right page on the very first paint (no flash of the shop) */(function(){var m={shopCategories:"categories",newArrivals:"new-arrivals",bestSellers:"best-sellers",featuredProducts:"featured",orderTracking:"track",about:"about",policies:"policies",contact:"contact",flashSale:"flash"};try{var h=decodeURIComponent(location.hash.slice(1));if(m[h])document.body.setAttribute("data-view",m[h]);}catch(e){}})();</script>
 
 <!-- Icon set (shared by the whole page) -->
 <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
@@ -400,7 +401,7 @@
     </div>
   </section>
 
-  <section class="info-section" data-v="policies" id="policies" aria-labelledby="policiesTitle">
+  <section class="info-section" data-v="policies home" id="policies" aria-labelledby="policiesTitle">
     <div class="info-inner">
       <p class="eyebrow">SHOP WITH CONFIDENCE</p>
       <h2 id="policiesTitle">Our Policies</h2>
@@ -700,8 +701,8 @@
 </footer>
 
 
-<script src="script.js?v=gbbd-fixes-20261026d"></script>
-<script src="i18n.js?v=gbbd-fixes-20261026d"></script>
+<script src="script.js?v=gbbd-fixes-20261026e"></script>
+<script src="i18n.js?v=gbbd-fixes-20261026e"></script>
 
 </body>
 </html>

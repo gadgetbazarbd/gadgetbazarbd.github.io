@@ -899,6 +899,15 @@ function gbBack(){
  else{history.replaceState(null,"",location.pathname+location.search);setView("home");}
 }
 addEventListener("hashchange",()=>{gbNavCount++;applyView();});
+// Open the page instantly on tap (before the browser jumps), so the shop never flashes first.
+document.addEventListener("click",e=>{
+ const a=e.target.closest&&e.target.closest('a[href^="#"]');if(!a||e.defaultPrevented||e.metaKey||e.ctrlKey||e.shiftKey)return;
+ const id=decodeURIComponent((a.getAttribute("href")||"").slice(1));
+ if(!id||!VIEW_BY_ID[id]||VIEW_BY_ID[id]==="home")return;
+ e.preventDefault();
+ if(location.hash.slice(1)!==id){gbNavCount++;history.pushState(null,"","#"+id);}
+ setView(VIEW_BY_ID[id]);
+},true);
 addEventListener("popstate",()=>{if(!location.hash)setView("home");});
 // Any existing "scroll to this section" call opens the page that contains the section.
 (function(){
