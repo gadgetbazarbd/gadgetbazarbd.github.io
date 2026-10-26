@@ -300,6 +300,7 @@ async function loadStoreInfo(){
   try{if(data&&GB_THEMES[data.theme])localStorage.setItem("gbbd_store_theme",data.theme);}catch(_){}gbApplyTheme();
   try{window.gbColsEnabled(!!(data&&data.col_picker));}catch(_){}
   GB_VARS_ON=!!(data&&data.variants_on);
+  POLICIES=gbParsePol(data&&data.policies);
   REMOTE_STORE=data?{phone:String(data.phone||"").trim(),email:String(data.email||"").trim(),address:String(data.address||"").trim(),hours:String(data.support_hours||"").trim()}:{};
  }catch(e){console.warn("store_settings not available, using STORE_INFO",e?.message||e);REMOTE_STORE={};}
  renderStoreInfo();
@@ -511,7 +512,7 @@ function totals(){
 function updateDeliveryInfo(){
  let b=$("deliveryInfo");if(!b)return;
  if(!selectedDistrict)b.textContent="Select your district to calculate delivery charge.";
- else{let k=selectedDistrict==="Dhaka"?"dhaka":NEARBY_DISTRICTS.includes(selectedDistrict)?"nearby":"outside";let z={dhaka:"Dhaka",nearby:"Nearby Dhaka",outside:"Outside Dhaka"}[k];b.textContent=`Delivery: ${money(getDeliveryFee())} • ${z} • Usually ${DELIVERY_TIME[k]}`;}
+ else{let k=selectedDistrict==="Dhaka"?"dhaka":NEARBY_DISTRICTS.includes(selectedDistrict)?"nearby":"outside";let z={dhaka:"Dhaka",nearby:"Nearby Dhaka",outside:"Outside Dhaka"}[k];b.textContent=`Delivery: ${money(getDeliveryFee())} • ${z}${(POLICIES&&POLICIES.cards&&POLICIES.cards.delivery&&POLICIES.cards.delivery.show_time===false)?"":` • Usually ${DELIVERY_TIME[k]}`}`;}
  updateCart();
 }
 function updateCart(){
@@ -707,7 +708,54 @@ async function trackOrdersByPhone(){
 }
 
 /* Policies, delivery fees and contact details shown on the page */
+
+/* ---- Policies editable / hideable from Admin > Policies ---- */
+let POLICIES=null;
+function gbParsePol(v){if(typeof v==="string"){try{v=JSON.parse(v)}catch(e){v=null}}return v&&typeof v==="object"?v:null;}
+function polBodyHtml(text){
+ const out=[];let list=null;
+ String(text||"").split(/\r?\n/).forEach(l=>{const t=l.trim();if(!t)return;
+  if(/^[-•]\s+/.test(t)){if(!list){list=[];out.push(list)}list.push(t.replace(/^[-•]\s+/,""))}
+  else{list=null;out.push(t)}});
+ return out.map(x=>Array.isArray(x)?`<ul class="policy-list">${x.map(i=>`<li>${esc(i)}</li>`).join("")}</ul>`:`<p>${esc(x)}</p>`).join("");
+}
+function applyPolicies(){
+ const P=POLICIES||{},cards=P.cards||{},map={warranty:"policyWarranty",returns:"policyReturns",delivery:"policyDelivery",payment:"policyPayment"};
+ let visible=0;
+ Object.keys(map).forEach(k=>{
+  const el=$(map[k]);if(!el)return;const c=cards[k]||{};
+  if(!el.dataset.def)el.dataset.def=el.innerHTML;
+  el.innerHTML=el.dataset.def;
+  const off=c.show===false;el.classList.toggle("hidden",off);if(off)return;visible++;
+  if(c.title)el.querySelector("h3").textContent=c.title;
+  if(k==="delivery"){
+   const t=c.times||{};["dhaka","nearby","outside"].forEach(z=>{if(t[z]){DELIVERY_TIME[z]=t[z];DELIVERY_TIME_BN[z]=t[z];}});
+   el.querySelectorAll(".info-list li b").forEach(b=>{
+    const fee=b.querySelector("[data-fee]"),tm=b.querySelector("[data-time]");
+    if(c.show_fee===false&&fee)fee.remove();if(c.show_time===false&&tm)tm.remove();
+    if(c.show_fee===false||c.show_time===false)[...b.childNodes].forEach(n=>{if(n.nodeType===3)n.remove()});
+    if(!b.children.length)b.remove();
+   });
+   const note=el.querySelector("#nearbyNote");if(note&&c.show_note===false)note.remove();
+  }else if(c.body){
+   [...el.children].forEach(ch=>{if(!ch.classList.contains("info-icon")&&ch.tagName!=="H3")ch.remove();});
+   el.insertAdjacentHTML("beforeend",polBodyHtml(c.body));
+  }
+ });
+ const grid=document.querySelector("#policies .info-grid");
+ if(grid){grid.querySelectorAll("[data-extra]").forEach(x=>x.remove());
+  (Array.isArray(P.extra)?P.extra:[]).forEach(x=>{if(!x||x.show===false||!(x.title||x.body))return;visible++;
+   grid.insertAdjacentHTML("beforeend",`<article class="info-card" data-extra="1"><span class="info-icon"><svg class="ic" aria-hidden="true"><use href="#i-shield"/></svg></span><h3>${esc(x.title||"")}</h3>${polBodyHtml(x.body)}</article>`);});}
+ const hideAll=P.section===false||visible===0;
+ $("policies")?.classList.toggle("hidden",hideAll);
+ document.querySelectorAll('a[href="#policies"]').forEach(a=>a.classList.toggle("hidden",hideAll));
+ const sum=$("deliverySummary");
+ if(sum){const d=cards.delivery||{};
+  if(d.show_time===false)sum.textContent="";
+  else if(d.times&&(d.times.dhaka||d.times.outside))sum.textContent=`ঢাকা: ${d.times.dhaka||DELIVERY_TIME_BN.dhaka} · ঢাকার বাইরে: ${d.times.outside||DELIVERY_TIME_BN.outside}`;}
+}
 function renderPolicyInfo(){
+ try{applyPolicies();}catch(e){console.warn("policies",e)}
  document.querySelectorAll("[data-fee]").forEach(el=>{el.textContent=money(DELIVERY_SETTINGS[el.dataset.fee]);});
  document.querySelectorAll("[data-time]").forEach(el=>{el.textContent=DELIVERY_TIME_BN[el.dataset.time]||DELIVERY_TIME[el.dataset.time]||"";});
  document.querySelectorAll("[data-return-window]").forEach(el=>{el.textContent=RETURN_WINDOW;});

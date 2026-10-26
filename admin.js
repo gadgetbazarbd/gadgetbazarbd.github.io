@@ -12,6 +12,7 @@ const ADMIN_UID='9aa2e054-a19a-4f86-aaf7-25f13e720722';
 
 let productsCache=[];
 let ordersCache=[];
+const selOrders=new Set();
 let categoriesCache=[];
 let offersCache=[];
 let editingOfferId=null;
@@ -446,7 +447,8 @@ function orderRows(list){
     else if(s==='Processing')next=actionBtn(i,'Shipped','Shipped','primary');
     else if(s==='Shipped')next=actionBtn(i,'Delivered','Delivered','primary');
     const cancel=(s!=='Delivered'&&s!=='Cancelled')?actionBtn(i,'Cancelled','Cancel','danger'):'';
-    return `<tr><td><b>${esc(id)}</b><br><small>${esc(created)}</small>${o.source?`<br><small class="src-tag">📣 ${esc(o.source)}</small>`:''}</td><td>${esc(name)}${riskBadge(o)}</td><td>${esc(phone)}</td><td>${money(total)}</td><td>${esc(o.payment_method||o.paymentMethod||'COD')}${o.transaction_id?`<br><small>TXN: ${esc(o.transaction_id)}</small>`:''}</td><td><span class="pill ${statusClass(s)}">${esc(s)}</span></td><td class="actions"><button class="btn muted" onclick="viewOrder(${i})">View</button><button class="btn" style="background:#1fa855;color:#fff" onclick="whatsappOrder(${i})" title="Message customer on WhatsApp">WhatsApp</button>${next}${cancel}</td></tr>`
+    const sel=selOrders.has(String(o.id))?'checked':'';
+    return `<tr><td class="sel-cell"><input type="checkbox" class="order-sel" ${sel} onchange="toggleOrderSel(${i},this.checked)" aria-label="Select order"></td><td><b>${esc(id)}</b><br><small>${esc(created)}</small>${o.source?`<br><small class="src-tag">📣 ${esc(o.source)}</small>`:''}</td><td>${esc(name)}${riskBadge(o)}</td><td>${esc(phone)}</td><td>${money(total)}</td><td>${esc(o.payment_method||o.paymentMethod||'COD')}${o.transaction_id?`<br><small>TXN: ${esc(o.transaction_id)}</small>`:''}</td><td><span class="pill ${statusClass(s)}">${esc(s)}</span></td><td class="actions"><button class="btn muted" onclick="viewOrder(${i})">View</button><button class="btn" style="background:#1fa855;color:#fff" onclick="whatsappOrder(${i})" title="Message customer on WhatsApp">WhatsApp</button>${next}${cancel}<button class="btn danger" style="opacity:.8" onclick="deleteOrder(${i})" title="Delete this order permanently">🗑</button></td></tr>`
   }).join('');
 }
 function orders(){
@@ -454,13 +456,16 @@ function orders(){
   return `<div class="section-head"><div><h3>Orders</h3><p>Manage, search and update customer orders</p></div><div class="toolbar"><button class="btn muted" onclick="refreshOrders().then(()=>render()).catch(showError)">↻ Refresh</button><button class="btn primary" onclick="exportOrdersCSV()">Export CSV</button></div></div>
   <div class="filters"><div class="search-wrap"><input class="input" id="orderSearch" value="${esc($('orderSearch')?.value||'')}" placeholder="Search order ID, customer, phone, address..." oninput="filterOrders()"></div><select class="select" id="orderStatusFilter" onchange="filterOrders()"><option value="">All Statuses</option>${['Pending','Confirmed','Processing','Shipped','Delivered','Cancelled'].map(s=>`<option value="${s}" ${$('orderStatusFilter')?.value===s?'selected':''}>${s}</option>`).join('')}</select><select class="select" id="orderPaymentFilter" onchange="filterOrders()"><option value="">All Payments</option>${['COD','bKash','Nagad'].map(s=>`<option value="${s}" ${$('orderPaymentFilter')?.value===s?'selected':''}>${s}</option>`).join('')}</select></div>
   <p class="orders-count"><small>Showing ${filtered.length} of ${ordersCache.length} orders.</small></p>
-  <div class="table-wrap"><table class="table"><thead><tr><th>Order ID / Date</th><th>Customer</th><th>Phone</th><th>Total</th><th>Payment</th><th>Status</th><th>Actions</th></tr></thead><tbody id="orderRows">${orderRows(filtered)}</tbody></table></div>`
+  <div id="bulkBar" class="bulk-bar hidden"></div>
+  <style>.sel-cell{width:34px;text-align:center}.bulk-bar{position:sticky;top:0;z-index:5;display:flex;gap:8px;flex-wrap:wrap;align-items:center;background:#0f172a;color:#fff;border-radius:12px;padding:10px 12px;margin:8px 0;box-shadow:0 4px 14px rgba(0,0,0,.25)}.bulk-bar.hidden{display:none}.bulk-bar b{margin-right:6px}.bulk-bar .btn{padding:6px 10px;font-size:12px}</style>
+  <div class="table-wrap"><table class="table"><thead><tr><th class="sel-cell"><input type="checkbox" id="orderSelAll" onchange="selectAllOrders(this.checked)" aria-label="Select all shown"></th><th>Order ID / Date</th><th>Customer</th><th>Phone</th><th>Total</th><th>Payment</th><th>Status</th><th>Actions</th></tr></thead><tbody id="orderRows">${orderRows(filtered)}</tbody></table></div>`
 }
 function filterOrders(){
   const rows=$('orderRows');
   if(rows)rows.innerHTML=orderRows(getFilteredOrders());
   const count=document.querySelector('#content .orders-count');
   if(count)count.textContent=`Showing ${getFilteredOrders().length} of ${ordersCache.length} orders.`;
+  bulkBarRender();
 }
 function actionBtn(i,status,label,cls){return `<button class="btn ${cls}" onclick="updateOrderStatus(${i},'${status}')">${label}</button>`}
 function exportOrdersCSV(){
@@ -539,6 +544,56 @@ function updateOrderBadge(){
   if(!b){b=document.createElement('em');b.className='nav-badge';b.style.cssText='margin-left:auto;background:#ef4444;color:#fff;border-radius:99px;font-style:normal;font-size:11px;font-weight:700;padding:1px 7px';btn.appendChild(b)}
   b.textContent=n;b.style.display=n?'inline-block':'none';
 }
+
+/* ---- bulk select / bulk status / delete orders ---- */
+function bulkBarRender(){
+  const bar=$('bulkBar');if(!bar)return;
+  const n=selOrders.size;bar.classList.toggle('hidden',!n);
+  if(!n){bar.innerHTML='';return}
+  bar.innerHTML=`<b>${n} selected</b>${[['Confirmed','Confirm'],['Processing','Processing'],['Shipped','Shipped'],['Delivered','Delivered']].map(([v,l])=>`<button class="btn primary" onclick="bulkStatus('${v}')">${l}</button>`).join('')}<button class="btn danger" onclick="bulkStatus('Cancelled')">Cancel</button><button class="btn danger" onclick="bulkDelete()">🗑 Delete</button><button class="btn muted" onclick="clearOrderSel()">Clear</button>`;
+  const all=$('orderSelAll');if(all){const shown=getFilteredOrders();all.checked=shown.length>0&&shown.every(x=>selOrders.has(String(x.o.id)))}
+}
+function toggleOrderSel(i,on){const o=ordersCache[i];if(!o)return;on?selOrders.add(String(o.id)):selOrders.delete(String(o.id));bulkBarRender()}
+function selectAllOrders(on){getFilteredOrders().forEach(({o})=>{on?selOrders.add(String(o.id)):selOrders.delete(String(o.id))});filterOrders();bulkBarRender()}
+function clearOrderSel(){selOrders.clear();filterOrders();bulkBarRender()}
+function selectedOrders(){return ordersCache.filter(o=>selOrders.has(String(o.id)))}
+async function bulkStatus(newStatus){
+  const list=selectedOrders();if(!list.length)return;
+  const skip=[],ok=[];
+  list.forEach(o=>{const old=o.status||'Pending';if(old===newStatus||(newStatus==='Cancelled'&&old==='Delivered')||(old==='Cancelled'&&newStatus!=='Cancelled'))skip.push(o);else ok.push(o)});
+  if(!ok.length){alert('Nothing to change: the selected orders already have that status, or cannot be moved to it (delivered orders cannot be cancelled, cancelled orders cannot be re-opened).');return}
+  if(!confirm(`Change ${ok.length} order(s) to "${newStatus}"?${skip.length?`\n\n${skip.length} selected order(s) will be skipped.`:''}${newStatus==='Cancelled'?'\n\nStock of cancelled orders is returned automatically.':''}`))return;
+  try{
+    const {error}=await sb.from('orders').update({status:newStatus,updated_at:new Date().toISOString()}).in('id',ok.map(o=>o.id));
+    if(error)throw error;
+    selOrders.clear();
+    await refreshOrders();
+    if(newStatus==='Cancelled'){try{await refreshProducts()}catch(e){console.warn(e)}}
+    render();
+    alert(`${ok.length} order(s) updated to ${newStatus}.`);
+  }catch(e){showError(e)}
+}
+async function deleteOrdersByIds(ids){
+  const {error}=await sb.from('orders').delete().in('id',ids);
+  if(error)throw error;
+  const {data,error:e2}=await sb.from('orders').select('id').in('id',ids);
+  if(!e2&&data&&data.length)throw new Error('The server did not delete the orders. Run 12_policies.sql in Supabase SQL Editor once (it allows the admin to delete orders), then try again.');
+}
+async function deleteOrder(i){
+  const o=ordersCache[i];if(!o)return;
+  const id=o.order_number||o.id,s=o.status||'Pending';
+  const warn=(s!=='Cancelled'&&s!=='Delivered')?'\n\nThis order is still open. Stock will NOT be returned when you delete it. If you want the stock back, press Cancel first and delete afterwards.':'';
+  if(!confirm(`Delete order ${id} permanently?${warn}\n\nIt will also disappear from reports and profit totals. This cannot be undone.`))return;
+  try{await deleteOrdersByIds([o.id]);selOrders.delete(String(o.id));await refreshOrders();render()}catch(e){showError(e)}
+}
+async function bulkDelete(){
+  const list=selectedOrders();if(!list.length)return;
+  const open=list.filter(o=>!['Cancelled','Delivered'].includes(o.status||'Pending')).length;
+  if(!confirm(`Delete ${list.length} order(s) permanently?${open?`\n\n${open} of them are still open: their stock will NOT be returned (Cancel first if you want the stock back).`:''}\n\nThey will also disappear from reports and profit totals. This cannot be undone.`))return;
+  if(list.length>=5&&!confirm('Are you sure? Final confirmation.'))return;
+  try{await deleteOrdersByIds(list.map(o=>o.id));selOrders.clear();await refreshOrders();render();alert(list.length+' order(s) deleted.')}catch(e){showError(e)}
+}
+Object.assign(window,{toggleOrderSel,selectAllOrders,clearOrderSel,bulkStatus,bulkDelete,deleteOrder});
 async function updateOrderStatus(i,newStatus){
   const order=ordersCache[i];if(!order)return;
   const allowed=['Confirmed','Processing','Shipped','Delivered','Cancelled'];
@@ -836,6 +891,8 @@ async function loadStoreSettings(){
     has_tracking:!!data&&('show_tracking' in data),
     has_cols:!!data&&('col_picker' in data),
     variants_on:!!(data&&data.variants_on),
+    policies:(()=>{let v=data&&data.policies;if(typeof v==='string'){try{v=JSON.parse(v)}catch(e){v=null}}return v&&typeof v==='object'?v:{}})(),
+    has_policies:!!data&&('policies' in data),
     has_variants:!!data&&('variants_on' in data)
   };
   return storeSettingsCache;
@@ -910,6 +967,7 @@ function go(section){
     offers:['Offers & Deals','Manage promotions and schedules'],
     coupons:['Coupons','Create and manage discount codes'],
     reports:['Reports','Profit, sales and trending products'],
+    policies:['Policies','Edit or hide the policy cards shown on your website'],
     leads:['Incomplete orders','People who started checkout but did not order'],
     blocked:['Blocked numbers','Numbers that cannot place orders'],
     delivery:['Delivery','Delivery settings'],
@@ -928,9 +986,10 @@ function go(section){
 }
 function render(){
   const c=$('content');if(!c)return;
-  const map={dashboard,products,orders,customers,categories,offers,coupons,reports,leads:leadsPage,blocked:blockedPage,delivery,payments,settings};
+  const map={dashboard,products,orders,customers,categories,offers,coupons,reports,policies:policiesPage,leads:leadsPage,blocked:blockedPage,delivery,payments,settings};
   c.innerHTML=(map[currentSection]||dashboard)();
   updateOrderBadge();
+  if(currentSection==='orders')bulkBarRender();
 }
 function toggleSidebar(force){
   const side=document.querySelector('.sidebar'),overlay=$('sidebarOverlay');
@@ -1148,6 +1207,10 @@ document.addEventListener('DOMContentLoaded',()=>{
   if(!document.querySelector('.nav[data-section="coupons"]')){
     const ob=document.querySelector('.nav[data-section="offers"]');
     if(ob){const nb=document.createElement('button');nb.className='nav';nb.dataset.section='coupons';nb.innerHTML='🎟 <span>Coupons</span>';ob.after(nb)}
+  }
+  if(!document.querySelector('.nav[data-section="policies"]')){
+    const ob=document.querySelector('.nav[data-section="coupons"]')||document.querySelector('.nav[data-section="offers"]');
+    if(ob){const nb=document.createElement('button');nb.className='nav';nb.dataset.section='policies';nb.innerHTML='📜 <span>Policies</span>';ob.after(nb)}
   }
   document.querySelectorAll('.nav[data-page],.nav[data-section],.subnav-item').forEach(btn=>{
     btn.addEventListener('click',()=>go(btn.dataset.page||btn.dataset.section))
@@ -1540,6 +1603,62 @@ function colsCard(s){
   <label style="display:flex;gap:8px;align-items:center;font-weight:700"><input id="colsToggle" type="checkbox" ${s.col_picker?'checked':''} ${s.has_cols?'':'disabled'}> Show columns picker to customers</label>
   <div class="btn-row"><button class="btn primary" id="saveColsBtn" onclick="saveColsSetting()" ${s.has_cols?'':'disabled'}>Save</button></div></div>`
 }
+/* ---- Policies editor (Admin > Policies) ---- */
+const POL_CARDS=[['warranty','🛡 Warranty'],['returns','↩ Return & replacement'],['delivery','🚚 Delivery'],['payment','💵 Payment']];
+function polChk(id,on,label){return `<label class="pol-chk"><input type="checkbox" id="${id}" ${on?'checked':''}> ${label}</label>`}
+function policiesPage(){
+  const s=storeSettingsCache||{},P=s.policies||{},C=P.cards||{},dis=s.has_policies?'':'disabled';
+  const card=(k,label)=>{
+    const c=C[k]||{},t=c.times||{};
+    const on=c.show!==false;
+    let more='';
+    if(k==='delivery'){
+      more=`<div class="pol-row">${polChk('pol_delivery_fee',c.show_fee!==false,'Show delivery charge (৳)')}${polChk('pol_delivery_time',c.show_time!==false,'Show delivery time')}${polChk('pol_delivery_note',c.show_note!==false,'Show "nearby districts" note')}</div>
+      <div class="form-grid"><label>Dhaka time<input id="pol_t_dhaka" value="${esc(t.dhaka||'')}" placeholder="e.g. 24 hours"></label><label>Nearby Dhaka time<input id="pol_t_nearby" value="${esc(t.nearby||'')}" placeholder="e.g. 2-3 days"></label><label>Outside Dhaka time<input id="pol_t_outside" value="${esc(t.outside||'')}" placeholder="e.g. 3-5 days"></label></div>
+      <small>Delivery charges themselves are changed in Admin &gt; Delivery. Leave a time box empty to keep the default.</small>`;
+    }else{
+      more=`<label>Text (optional)<textarea id="pol_body_${k}" rows="5" placeholder="Leave empty to keep the default text. Start a line with - to make a bullet point.">${esc(c.body||'')}</textarea></label>`;
+    }
+    return `<div class="card pol-card"><h3>${label}</h3>${polChk('pol_show_'+k,on,'Show this card on the website')}
+    <label>Title (optional)<input id="pol_title_${k}" value="${esc(c.title||'')}" placeholder="Leave empty to keep the default title"></label>${more}</div>`;
+  };
+  const ex=Array.isArray(P.extra)?P.extra:[];
+  const extra=[0,1,2].map(n=>{const x=ex[n]||{};return `<div class="card pol-card"><h3>➕ Extra card ${n+1}</h3>${polChk('pol_x_show_'+n,x.show!==false,'Show this card')}
+    <label>Title<input id="pol_x_title_${n}" value="${esc(x.title||'')}" placeholder="e.g. Cash on delivery rules"></label>
+    <label>Text<textarea id="pol_x_body_${n}" rows="4" placeholder="Write your own policy. Start a line with - for bullet points.">${esc(x.body||'')}</textarea></label></div>`}).join('');
+  return `<div class="section-head"><div><h3>Policies</h3><p>Edit or hide what customers read in the "Our Policies" section</p></div><div class="toolbar"><button class="btn muted" onclick="loadStoreSettings().then(render).catch(showError)">↻ Refresh</button><button class="btn primary" id="savePolBtn" onclick="savePolicies()" ${dis}>Save</button></div></div>
+  ${s.has_policies?'':'<p style="color:#b45309"><b>One-time setup needed:</b> run <code>12_policies.sql</code> in Supabase &gt; SQL Editor, then press Refresh.</p>'}
+  <div class="card pol-card"><h3>📜 Whole section</h3>${polChk('pol_section',P.section!==false,'Show the "Our Policies" section on the website')}<small>Turn this off to hide every policy card and the menu link at once.</small></div>
+  <div class="pol-grid">${POL_CARDS.map(([k,l])=>card(k,l)).join('')}${extra}</div>
+  <div class="btn-row"><button class="btn primary" onclick="savePolicies()" ${dis}>Save</button></div>
+  <style>.pol-card{margin-bottom:14px;display:grid;gap:10px}.pol-card textarea,.pol-card input:not([type=checkbox]){width:100%}.pol-chk{display:flex;gap:8px;align-items:center;font-weight:700}.pol-row{display:flex;gap:16px;flex-wrap:wrap}.pol-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px}.pol-grid .pol-card{margin-bottom:0}</style>`;
+}
+async function savePolicies(){
+  const g=id=>$(id)?.value.trim()||'',ck=id=>!!$(id)?.checked;
+  const cards={};
+  POL_CARDS.forEach(([k])=>{
+    const c={show:ck('pol_show_'+k)};
+    if(g('pol_title_'+k))c.title=g('pol_title_'+k);
+    if(k==='delivery'){
+      c.show_fee=ck('pol_delivery_fee');c.show_time=ck('pol_delivery_time');c.show_note=ck('pol_delivery_note');
+      const t={};['dhaka','nearby','outside'].forEach(z=>{if(g('pol_t_'+z))t[z]=g('pol_t_'+z)});if(Object.keys(t).length)c.times=t;
+    }else if(g('pol_body_'+k))c.body=$('pol_body_'+k).value.trim();
+    cards[k]=c;
+  });
+  const extra=[];
+  [0,1,2].forEach(n=>{const title=g('pol_x_title_'+n),body=$('pol_x_body_'+n)?.value.trim()||'';if(title||body)extra.push({title,body,show:ck('pol_x_show_'+n)})});
+  const policies={section:ck('pol_section'),cards,extra};
+  const s=storeSettingsCache||{},btn=$('savePolBtn');
+  try{
+    if(btn){btn.disabled=true;btn.textContent='Saving...'}
+    const {error}=await sb.from('store_settings').upsert({id:1,store_name:s.store_name||'Paboo',policies,updated_at:new Date().toISOString()},{onConflict:'id'});
+    if(error)throw error;
+    storeSettingsCache={...s,policies};
+    alert('Policies saved. Refresh your website to see the change.');
+    render();
+  }catch(e){showError(e);if(btn){btn.disabled=false;btn.textContent='Save'}}
+}
+window.policiesPage=policiesPage;window.savePolicies=savePolicies;
 function variantsCard(s){
   return `<div class="card" style="margin-top:16px"><h3>🎨 Product variants (colour / size)</h3>
   <p>When ON, products that have variants (added in the product form) show option buttons; the customer must pick one before adding to cart, and stock is tracked per option. When OFF, the website works exactly as before and variants are ignored.</p>
