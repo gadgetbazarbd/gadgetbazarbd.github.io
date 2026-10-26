@@ -1318,7 +1318,7 @@ function showCatSuggest(){
 }
 function pickCat(n){const i=$('productCategory');if(i)i.value=n;hideCatSuggest()}
 
-const SITE_URL='https://gadgetbazarbd.github.io/';
+const SITE_URL='https://paboobd.github.io/';
 const POST_WA='8801320992683';
 let postIdx=-1,postSrc='fbgroup';
 const POST_SRCS={fbgroup:'Facebook Group',fbpage:'Facebook Page/Boost',story:'Story',tiktok:'TikTok'};
@@ -1384,7 +1384,7 @@ async function downloadPostImage(kind){
   x.fillStyle='#22c55e';x.font='bold 88px sans-serif';x.fillText('৳'+fin.toLocaleString('en-BD'),W/2,y+60);y+=100;
   if(d>0){x.fillStyle='#cbd5e1';x.font='36px sans-serif';x.fillText('৳'+Number(p.price).toLocaleString('en-BD')+'  •  '+d+'% OFF',W/2,y+10);y+=60}
   x.fillStyle='#fbbf24';x.font='bold 38px sans-serif';
-  x.fillText('Order: gadgetbazarbd.github.io',W/2,H-(kind==='story'?150:80));
+  x.fillText('Order: paboobd.github.io',W/2,H-(kind==='story'?150:80));
   x.fillStyle='#fff';x.font='34px sans-serif';x.fillText('WhatsApp: +'+POST_WA,W/2,H-(kind==='story'?90:30));
   let blob;
   try{blob=await new Promise((r,j)=>c.toBlob(b=>b?r(b):j(new Error('x')),'image/jpeg',.92))}
