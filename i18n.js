@@ -1,4 +1,4 @@
-/* Gadget Bazar BD - Bangla / English switch.
+/* Paboo - Bangla / English switch.
    Default = Bangla. The English text stays in the page source; this file swaps it at display time
    (and swaps back when the customer picks English). Product / category names are never touched. */
 (function(){
@@ -26,7 +26,7 @@ var D={
 "Easy Checkout":"সহজ চেকআউট","Simple and secure order flow":"সহজ ও নিরাপদ অর্ডার প্রক্রিয়া","Order Tracking":"অর্ডার ট্র্যাকিং","Check updates with your phone":"ফোন নম্বর দিয়ে আপডেট দেখুন",
 "Warranty & Returns":"ওয়ারেন্টি ও রিটার্ন","Read our policies":"আমাদের নীতিমালা পড়ুন","Track Your Orders":"আপনার অর্ডার ট্র্যাক করুন","Track Your Order":"আপনার অর্ডার ট্র্যাক করুন",
 "Enter your phone number to see all your orders.":"আপনার সব অর্ডার দেখতে ফোন নম্বর দিন।","Track Orders":"অর্ডার ট্র্যাক করুন","ABOUT US":"আমাদের সম্পর্কে","About Us":"আমাদের সম্পর্কে",
-"Gadget Bazar BD is an online gadget store for Bangladesh. We sell audio products, wearables, power and charging accessories, mobile accessories, RGB lighting, home gadgets and gaming gear, and deliver across the country.":"গ্যাজেট বাজার বিডি বাংলাদেশের একটি অনলাইন গ্যাজেট স্টোর। আমরা অডিও পণ্য, ওয়্যারেবল, পাওয়ার ও চার্জিং এক্সেসরিজ, মোবাইল এক্সেসরিজ, RGB লাইটিং, হোম গ্যাজেট ও গেমিং গিয়ার বিক্রি করি এবং সারাদেশে ডেলিভারি দিই।",
+"Paboo is an online gadget store for Bangladesh. We sell audio products, wearables, power and charging accessories, mobile accessories, RGB lighting, home gadgets and gaming gear, and deliver across the country.":"পাবু বাংলাদেশের একটি অনলাইন গ্যাজেট স্টোর। আমরা অডিও পণ্য, ওয়্যারেবল, পাওয়ার ও চার্জিং এক্সেসরিজ, মোবাইল এক্সেসরিজ, RGB লাইটিং, হোম গ্যাজেট ও গেমিং গিয়ার বিক্রি করি এবং সারাদেশে ডেলিভারি দিই।",
 "SHOP WITH CONFIDENCE":"নিশ্চিন্তে কিনুন","Our Policies":"আমাদের নীতিমালা","GET IN TOUCH":"যোগাযোগ করুন","Contact Us":"যোগাযোগ","WhatsApp":"হোয়াটসঅ্যাপ",
 "Your Cart":"আপনার কার্ট","Your cart is empty.":"আপনার কার্ট খালি।","Subtotal":"সাবটোটাল","Delivery":"ডেলিভারি","Total":"মোট",
 "Customer & payment information":"গ্রাহকের তথ্য ও পেমেন্ট","Customer Information":"গ্রাহকের তথ্য","Full Name *":"পূর্ণ নাম *","Phone Number *":"ফোন নম্বর *",
@@ -42,13 +42,13 @@ var D={
 "Smart gadgets for everyday life. Browse the collection and choose the products that work for you.":"প্রতিদিনের জীবনের জন্য স্মার্ট গ্যাজেট। কালেকশন ঘুরে দেখুন এবং পছন্দের পণ্য বেছে নিন।",
 "Made for gadget lovers in Bangladesh":"বাংলাদেশের গ্যাজেটপ্রেমীদের জন্য","Quick Links":"দ্রুত লিংক","Customer Service":"কাস্টমার সার্ভিস",
 "Nationwide delivery":"সারাদেশে ডেলিভারি","Secure order form":"নিরাপদ অর্ডার ফর্ম","Order tracking":"অর্ডার ট্র্যাকিং","COD & mobile payment":"ক্যাশ অন ডেলিভারি ও মোবাইল পেমেন্ট",
-"© 2026 Gadget Bazar BD. Prices and availability may change.":"© ২০২৬ গ্যাজেট বাজার বিডি। দাম ও স্টক পরিবর্তন হতে পারে।",
+"© 2026 Paboo. Prices and availability may change.":"© ২০২৬ পাবু। দাম ও স্টক পরিবর্তন হতে পারে।",
 "Remove":"সরান","Added to cart":"কার্টে যোগ হয়েছে","Product details":"পণ্যের বিবরণ","Warranty":"ওয়ারেন্টি","Description":"বিবরণ","Full Product Page ↗":"পূর্ণ পণ্য পেজ ↗",
 "Saved gadgets, ready when you are.":"সংরক্ষিত গ্যাজেট, যখন খুশি দেখুন।","Your Wishlist is empty":"আপনার উইশলিস্ট খালি","Tap the heart/Wishlist button on any gadget to save it here.":"যেকোনো পণ্যে হার্ট/উইশলিস্ট বাটন চাপলে এখানে জমা হবে।",
 "Explore Products":"পণ্য দেখুন","MAKE THE RIGHT CHOICE":"সঠিক সিদ্ধান্ত নিন","Compare price, availability and the product details we have.":"দাম, স্টক ও পণ্যের তথ্য তুলনা করুন।",
 "No products to compare yet":"তুলনার জন্য এখনো কোনো পণ্য নেই","Choose up to 3 products from the catalogue and tap Compare.":"ক্যাটালগ থেকে সর্বোচ্চ ৩টি পণ্য বেছে “তুলনা” চাপুন।",
 "Tap the ⋮ menu at the top-right of Chrome.":"Chrome-এর উপরে ডানদিকের ⋮ মেনুতে চাপ দিন।","Tap “Add to Home screen” (or “Install app”).":"“Add to Home screen” (বা “Install app”) চাপ দিন।",
-"Tap “Add”. The Gadget Bazar BD icon will appear on your phone.":"“Add” চাপ দিন। আপনার ফোনে গ্যাজেট বাজার বিডি-র আইকন চলে আসবে।",
+"Tap “Add”. The Paboo icon will appear on your phone.":"“Add” চাপ দিন। আপনার ফোনে পাবু-র আইকন চলে আসবে।",
 "Tap the Share button at the bottom of Safari.":"Safari-র নিচের Share বাটনে চাপ দিন।","Scroll down and tap “Add to Home Screen”.":"নিচে স্ক্রল করে “Add to Home Screen” চাপ দিন।",
 "Already installed":"আগেই ইনস্টল করা আছে","Installed!":"ইনস্টল হয়েছে!",
 /* attributes */
@@ -75,7 +75,7 @@ var D={
 "Product description has not been added yet.":"পণ্যের বিবরণ এখনো যোগ করা হয়নি।","Product details are not available":"পণ্যের তথ্য পাওয়া যাচ্ছে না","Offer products are unavailable":"অফারের পণ্য পাওয়া যাচ্ছে না",
 "Product specifications are shown only when provided by the store. Please confirm important details before ordering.":"স্পেসিফিকেশন শুধু স্টোর দিলে দেখানো হয়। অর্ডারের আগে গুরুত্বপূর্ণ তথ্য নিশ্চিত করে নিন।",
 "← Back to Shop":"← শপে ফিরুন","↩ Return policy: see store policy":"↩ রিটার্ন নীতি: নীতিমালা দেখুন","PRODUCT DETAILS":"পণ্যের বিবরণ","Quick View Popup":"দ্রুত দেখুন",
-"Limited-time offer from Gadget Bazar BD.":"গ্যাজেট বাজার বিডি-র সীমিত সময়ের অফার।","Special gadget deal from Gadget Bazar BD.":"গ্যাজেট বাজার বিডি-র বিশেষ গ্যাজেট ডিল।",
+"Limited-time offer from Paboo.":"পাবু-র সীমিত সময়ের অফার।","Special gadget deal from Paboo.":"পাবু-র বিশেষ গ্যাজেট ডিল।",
 "Saved":"সংরক্ষিত","Comparing":"তুলনায় আছে","Save to Wishlist":"উইশলিস্টে রাখুন","Secure checkout options":"নিরাপদ চেকআউট অপশন","Open hours":"খোলা থাকার সময়",
 "Site colours":"সাইটের রঙ","Courier":"কুরিয়ার","Tracking no.":"ট্র্যাকিং নম্বর","Copy":"কপি","Copied":"কপি হয়েছে","If you do not finish the order, we may contact you on this number to help.":"অর্ডার শেষ না করলে সহায়তার জন্য আমরা এই নম্বরে যোগাযোগ করতে পারি।","Sorry, we cannot take an order from this number right now. Please contact us on WhatsApp.":"দুঃখিত, এই নম্বর থেকে এখন অর্ডার নেওয়া যাচ্ছে না। অনুগ্রহ করে হোয়াটসঅ্যাপে যোগাযোগ করুন।","Please enter a valid phone number.":"সঠিক ফোন নম্বর দিন।","Your cart is empty.":"আপনার কার্ট খালি।","Shop with Confidence":"নিশ্চিন্তে কিনুন","Quick saved shopping tools":"দ্রুত সংরক্ষিত টুলস","Saved shopping tools":"সংরক্ষিত টুলস","Deals and offers":"ডিল ও অফার","Shopping benefits":"কেনাকাটার সুবিধা"
 ,"Choose an option first":"আগে একটি অপশন বেছে নিন","Option":"অপশন","Sold out":"স্টক শেষ"

@@ -1,5 +1,5 @@
 /* =========================================================
-   GADGET BAZAR BD — FINAL ADMIN PANEL
+   PABOO — FINAL ADMIN PANEL
    Supabase + mobile responsive + Catalog UI
    Delivery Settings management added
 ========================================================= */
@@ -16,7 +16,7 @@ let categoriesCache=[];
 let offersCache=[];
 let editingOfferId=null;
 let deliverySettingsCache=null;
-let storeSettingsCache={store_name:'Gadget Bazar BD',phone:'',email:'',address:'',support_hours:''};
+let storeSettingsCache={store_name:'Paboo',phone:'',email:'',address:'',support_hours:''};
 let currentSection='dashboard';
 let editingProductId=null;
 let catalogOpen=true;
@@ -160,7 +160,7 @@ function dashboard(){
     .reduce((s,o)=>s+Number(o.total??(Number(o.subtotal||0)+Number(o.delivery_charge||0))),0);
   const recent=ordersCache.slice(0,6);
 
-  return `<div class="section-head"><div><h3>Dashboard</h3><p>Gadget Bazar BD overview</p></div><button class="btn muted" onclick="refreshDashboard()">↻ Refresh</button></div>
+  return `<div class="section-head"><div><h3>Dashboard</h3><p>Paboo overview</p></div><button class="btn muted" onclick="refreshDashboard()">↻ Refresh</button></div>
   <div class="stats-grid">
     ${stat('▣','Total Products',total)}${stat('✓','Active Products',active)}${stat('▤','Total Orders',totalOrders)}${stat('!','Pending Orders',pending)}
     ${stat('✓','Delivered',delivered)}${stat('৳','Revenue',money(revenue))}${stat('◉','Total Stock',stock)}${stat('⌁','Categories',categoriesCache.length)}
@@ -510,7 +510,7 @@ function waMessage(o){
   const id=o.order_number||o.order_id||o.id||'';
   const name=o.customer_name||o.name||'';
   const total=o.total??(Number(o.subtotal||0)+Number(o.delivery_charge??o.delivery_fee??0));
-  const head=`আসসালামু আলাইকুম${name?' '+name:''}, Gadget Bazar BD থেকে বলছি।\nঅর্ডার নং: ${id}\nমোট: ${money(total)}\n`;
+  const head=`আসসালামু আলাইকুম${name?' '+name:''}, Paboo থেকে বলছি।\nঅর্ডার নং: ${id}\nমোট: ${money(total)}\n`;
   const tail={
     Pending:'আপনার অর্ডারটি আমরা পেয়েছি। কনফার্ম করার জন্য যোগাযোগ করছি, দয়া করে ঠিকানা ও নম্বর ঠিক আছে কিনা জানাবেন।',
     Confirmed:'আপনার অর্ডারটি কনফার্ম করা হয়েছে। শীঘ্রই প্রস্তুত করে পাঠানো হবে। ধন্যবাদ!',
@@ -823,7 +823,7 @@ async function loadStoreSettings(){
   const {data,error}=await sb.from('store_settings').select('*').eq('id',1).maybeSingle();
   if(error)throw error;
   storeSettingsCache={
-    store_name:data?.store_name||'Gadget Bazar BD',
+    store_name:data?.store_name||'Paboo',
     phone:data?.phone||'',
     email:data?.email||'',
     address:data?.address||'',
@@ -845,7 +845,7 @@ function settings(){
   const s=storeSettingsCache||{};
   return `<div class="section-head"><div><h3>Store Settings</h3><p>Manage your store contact information</p></div><button class="btn muted" onclick="loadStoreSettings().then(render).catch(showError)">↻ Refresh</button></div>
   <div class="card"><div class="form-grid">
-    <label class="full">Store Name<input id="storeName" maxlength="120" value="${esc(s.store_name||'Gadget Bazar BD')}" placeholder="Gadget Bazar BD"></label>
+    <label class="full">Store Name<input id="storeName" maxlength="120" value="${esc(s.store_name||'Paboo')}" placeholder="Paboo"></label>
     <label>Contact Phone<input id="storePhone" type="tel" maxlength="30" value="${esc(s.phone||'')}" placeholder="01XXXXXXXXX"></label>
     <label>Contact Email<input id="storeEmail" type="email" maxlength="160" value="${esc(s.email||'')}" placeholder="support@example.com"></label>
     <label class="full">Store Address<textarea id="storeAddress" rows="3" maxlength="500" placeholder="Store address">${esc(s.address||'')}</textarea></label>
@@ -1314,7 +1314,7 @@ async function downloadPostImage(kind){
   const box=kind==='story'?820:560,bx=(W-box)/2,by=kind==='story'?250:70;
   x.fillStyle='#fff';x.beginPath();x.roundRect(bx,by,box,box,36);x.fill();
   if(img){const r=Math.min((box-40)/img.width,(box-40)/img.height),w=img.width*r,h=img.height*r;x.drawImage(img,bx+(box-w)/2,by+(box-h)/2,w,h)}
-  x.textAlign='center';x.fillStyle='#fbbf24';x.font='bold 40px sans-serif';x.fillText('GADGET BAZAR BD',W/2,kind==='story'?150:56);
+  x.textAlign='center';x.fillStyle='#fbbf24';x.font='bold 40px sans-serif';x.fillText('PABOO',W/2,kind==='story'?150:56);
   let y=by+box+(kind==='story'?90:60);
   x.fillStyle='#fff';x.font='bold 52px sans-serif';y=wrapCanvasText(x,p.name,W/2,y,W-140,62,2);
   const fin=postFinal(p),d=Number(p.discount||0);
@@ -1430,7 +1430,7 @@ async function saveSiteTheme(){
   const btn=$('saveThemeBtn');
   try{
     if(btn){btn.disabled=true;btn.textContent='Saving...'}
-    const payload={id:1,store_name:s.store_name||'Gadget Bazar BD',phone:s.phone||'',email:s.email||'',address:s.address||'',support_hours:s.support_hours||'',theme,updated_at:new Date().toISOString()};
+    const payload={id:1,store_name:s.store_name||'Paboo',phone:s.phone||'',email:s.email||'',address:s.address||'',support_hours:s.support_hours||'',theme,updated_at:new Date().toISOString()};
     const {error}=await sb.from('store_settings').upsert(payload,{onConflict:'id'});
     if(error)throw error;
     storeSettingsCache={...s,theme,updated_at:payload.updated_at};pendingTheme=null;
@@ -1551,7 +1551,7 @@ async function saveVariantsSetting(){
   const s=storeSettingsCache||{};const on=!!$('variantsToggle')?.checked;const btn=$('saveVariantsBtn');
   try{
     if(btn){btn.disabled=true;btn.textContent='Saving...'}
-    const {error}=await sb.from('store_settings').upsert({id:1,store_name:s.store_name||'Gadget Bazar BD',variants_on:on,updated_at:new Date().toISOString()},{onConflict:'id'});
+    const {error}=await sb.from('store_settings').upsert({id:1,store_name:s.store_name||'Paboo',variants_on:on,updated_at:new Date().toISOString()},{onConflict:'id'});
     if(error)throw error;
     storeSettingsCache={...s,variants_on:on};
     alert(on?'Product variants are now ON for customers.':'Product variants are OFF. The website works as before.');
@@ -1563,7 +1563,7 @@ async function saveColsSetting(){
   const s=storeSettingsCache||{};const on=!!$('colsToggle')?.checked;const btn=$('saveColsBtn');
   try{
     if(btn){btn.disabled=true;btn.textContent='Saving...'}
-    const {error}=await sb.from('store_settings').upsert({id:1,store_name:s.store_name||'Gadget Bazar BD',col_picker:on,updated_at:new Date().toISOString()},{onConflict:'id'});
+    const {error}=await sb.from('store_settings').upsert({id:1,store_name:s.store_name||'Paboo',col_picker:on,updated_at:new Date().toISOString()},{onConflict:'id'});
     if(error)throw error;
     storeSettingsCache={...s,col_picker:on};
     alert(on?'Columns picker is now ON for customers.':'Columns picker is OFF. The website looks as before.');
@@ -1626,7 +1626,7 @@ function blockedPage(){
 /* incomplete orders */
 function leadMsg(l){
   const items=(Array.isArray(l.items)?l.items:[]).map(i=>`${i.name||'পণ্য'} x${i.qty||1}`).join(', ');
-  return `আসসালামু আলাইকুম ${l.name||''}, Gadget Bazar BD থেকে বলছি। আপনি ${items||'কিছু পণ্য'} অর্ডার করতে চেয়েছিলেন। কোনো সাহায্য লাগলে বলুন, আমরা এখনই অর্ডারটা কনফার্ম করে দিই। 😊`;
+  return `আসসালামু আলাইকুম ${l.name||''}, Paboo থেকে বলছি। আপনি ${items||'কিছু পণ্য'} অর্ডার করতে চেয়েছিলেন। কোনো সাহায্য লাগলে বলুন, আমরা এখনই অর্ডারটা কনফার্ম করে দিই। 😊`;
 }
 function leadsPage(){
   const rows=leadsCache.map((l,i)=>{
@@ -1698,7 +1698,7 @@ async function saveTrackingSetting(){
   const s=storeSettingsCache||{};const on=!!$('trackToggle')?.checked;const btn=$('saveTrackBtn');
   try{
     if(btn){btn.disabled=true;btn.textContent='Saving...'}
-    const {error}=await sb.from('store_settings').upsert({id:1,store_name:s.store_name||'Gadget Bazar BD',show_tracking:on,updated_at:new Date().toISOString()},{onConflict:'id'});
+    const {error}=await sb.from('store_settings').upsert({id:1,store_name:s.store_name||'Paboo',show_tracking:on,updated_at:new Date().toISOString()},{onConflict:'id'});
     if(error)throw error;
     storeSettingsCache={...s,show_tracking:on};
     alert(on?'Customers can now see courier & tracking number.':'Tracking info is now hidden from customers.');

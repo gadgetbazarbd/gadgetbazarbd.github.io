@@ -79,7 +79,7 @@ footer{text-align:center;color:#70879d;padding:25px;border-top:1px solid var(--l
 
 
 /* =========================================================
-   Gadget Bazar BD — polished responsive storefront refresh
+   Paboo — polished responsive storefront refresh
    Kept as an additive layer so existing checkout/drawer logic
    and responsive selectors remain compatible.
 ========================================================= */
@@ -203,7 +203,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;transition:none!important;animation:none!important}}
 
 
-/* Gadget Bazar BD — Deal Zone update */
+/* Paboo — Deal Zone update */
 .hero-actions{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-top:22px}.hero-actions .primary{margin:0}.discount-cta{border:1px solid rgba(255,190,72,.65);background:linear-gradient(135deg,#ffbf4a,#ff7c39);color:#201307;font-weight:800;border-radius:12px;padding:14px 20px;cursor:pointer;box-shadow:0 8px 26px #ff9b3028}.discount-cta:hover{filter:brightness(1.05);transform:translateY(-1px)}
 .deal-zone{padding:36px clamp(16px,4vw,56px);margin:10px auto 20px;max-width:1400px}.deal-zone-head{display:flex;align-items:center;justify-content:space-between;gap:18px;margin-bottom:18px}.deal-zone-head .eyebrow{margin:0 0 6px;color:#ffbf4a;font-size:11px;font-weight:800;letter-spacing:.16em}.deal-zone-head h2{margin:0;font-size:clamp(26px,4vw,36px)}.deal-zone-head p:not(.eyebrow){margin:6px 0 0;color:var(--muted);font-size:13px}.deal-zone-tag{background:rgba(255,139,50,.13);color:#ffbd65;border:1px solid #ff9e4a55;border-radius:999px;padding:8px 12px;font-size:10px;font-weight:900;letter-spacing:.1em;white-space:nowrap}.deal-categories{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:16px}.deal-categories button{padding:14px 10px;border:1px solid var(--line);border-radius:14px;color:var(--text);background:linear-gradient(135deg,rgba(22,58,87,.75),rgba(9,26,44,.95));font-weight:750;cursor:pointer}.deal-categories button:hover{border-color:#3ca9ed}.offers-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}.offer-card{border:1px solid rgba(83,169,222,.22);border-radius:16px;padding:16px;background:linear-gradient(145deg,rgba(16,46,70,.92),rgba(7,21,36,.96));min-width:0}.offer-card .offer-type{font-size:10px;font-weight:850;letter-spacing:.1em;color:#ffbd65;text-transform:uppercase}.offer-card h3{margin:8px 0 6px;font-size:17px}.offer-card p{margin:0 0 12px;color:var(--muted);font-size:12px;line-height:1.6}.offer-card .offer-value{font-size:22px;font-weight:900;color:#78d5ff}.offer-card small{display:block;color:var(--muted);margin-top:7px}.offer-placeholder{grid-column:1/-1;padding:18px;border:1px dashed var(--line);border-radius:14px;color:var(--muted);font-size:13px}@media(max-width:650px){.deal-zone{padding:25px 14px}.deal-categories{grid-template-columns:repeat(2,minmax(0,1fr))}.deal-categories button{font-size:12px;padding:12px 7px}.deal-zone-head h2{font-size:27px}.deal-zone-tag{font-size:9px;padding:7px 9px}.hero-actions{gap:8px}.hero-actions button{padding:12px 15px}}
 
@@ -1002,3 +1002,5 @@ html[data-theme="light"] .install-card,html[data-theme="rose"] .install-card,htm
 .variant-chip .vc-sub{font-size:10px;font-weight:500;opacity:.75;text-decoration:none}
 .variant-note{display:block;margin-top:6px;color:#64748b;font-size:12px}
 .cart-variant{font-weight:600;color:#38bdf8}
+
+.footer-slogan{font-weight:800;color:#fbbf24;margin:6px 0 4px}
