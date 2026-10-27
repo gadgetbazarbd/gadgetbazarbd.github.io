@@ -32,7 +32,8 @@ const STORE_INFO={
  whatsapp:"8801320992683",   // country code + number, digits only. Example: "8801XXXXXXXXX"
  phone:"",      // Example: "01XXXXXXXXX"
  email:"",      // Example: "hello@yourshop.com"
- facebook:"https://facebook.com/paboo.official",   // Full page link. Example: "https://facebook.com/yourpage"
+ facebook:"https://facebook.com/paboo.official",
+ tiktok:"",     // TikTok page link or @name   // Full page link. Example: "https://facebook.com/yourpage"
  address:"",    // Shop / pickup address, if you want to show one
  hours:""       // Example: "Every day, 10 AM to 10 PM"
 };
@@ -293,6 +294,56 @@ async function loadStoreData(){
 
 // Contact details saved in Admin > Settings (store_settings table). Optional: if it can't be read, STORE_INFO above is used.
 let REMOTE_STORE={};
+
+/* ---- Facebook / TikTok / WhatsApp buttons (edited in Admin > Settings) ---- */
+let SOCIAL=null;
+const GB_SOC_ICONS={
+ facebook:'<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M13.5 21v-8h2.7l.4-3.2h-3.1V7.8c0-.9.3-1.5 1.6-1.5h1.7V3.4c-.3 0-1.3-.1-2.4-.1-2.4 0-4 1.5-4 4.1v2.4H7.7V13h2.7v8h3.1z"/></svg>',
+ tiktok:'<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M16.6 3c.3 2.2 1.6 3.6 3.9 3.8v2.8c-1.4.1-2.7-.3-3.9-1.1v6.1c0 3.2-2.6 5.2-5.4 4.9-3-.3-4.9-3.2-4-6 .7-2.2 2.9-3.5 5.2-3.2v2.9c-1.1-.3-2.3.3-2.6 1.4-.4 1.4.7 2.7 2.1 2.6 1.1-.1 1.8-1 1.8-2.1V3h2.9z"/></svg>',
+ whatsapp:'<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round" d="M12 2.8a9.2 9.2 0 0 0-7.9 13.9L2.8 21.2l4.6-1.2A9.2 9.2 0 1 0 12 2.8z"/><path fill="currentColor" d="M8.9 7.7c-.3 0-.6.2-.8.6-.5 1-.2 2.3.8 3.7 1.2 1.7 2.7 2.8 4.2 3.2.6.1 1.5-.2 1.8-.8.1-.3.1-.6 0-.7l-1.5-.8c-.2-.1-.5 0-.6.2l-.4.5c-.9-.4-1.7-1.2-2.2-2.1l.4-.5c.1-.2.2-.4.1-.6l-.8-1.6c-.1-.2-.4-.3-.7-.3z"/></svg>'
+};
+function gbSocialUrl(kind,v){
+ v=String(v||"").trim();if(!v)return"";
+ if(/^https?:\/\//i.test(v))return v;
+ if(kind==="facebook")return "https://facebook.com/"+v.replace(/^(www\.)?facebook\.com\//i,"").replace(/^@/,"");
+ if(kind==="tiktok")return "https://www.tiktok.com/@"+v.replace(/^(www\.)?tiktok\.com\/@?/i,"").replace(/^@/,"");
+ return"";
+}
+function gbSocialLinks(){
+ const S=SOCIAL||{},out=[],digits=s=>String(s||"").replace(/\D/g,"");
+ const on=k=>!(S[k]&&S[k].show===false);
+ const num=digits((S.whatsapp&&S.whatsapp.number)||REMOTE_STORE.whatsapp||STORE_INFO.whatsapp);
+ if(on("whatsapp")&&num){const msg=(S.whatsapp&&S.whatsapp.message)||"Hello Paboo, I need help with an order.";out.push({key:"whatsapp",label:"WhatsApp",text:"+"+num,url:`https://wa.me/${num}?text=${encodeURIComponent(msg)}`});}
+ const fb=gbSocialUrl("facebook",(S.facebook&&S.facebook.url)!==undefined?S.facebook.url:STORE_INFO.facebook);
+ if(on("facebook")&&fb)out.push({key:"facebook",label:"Facebook",text:fb.replace(/^https?:\/\/(www\.)?/i,""),url:fb});
+ const tk=gbSocialUrl("tiktok",(S.tiktok&&S.tiktok.url)!==undefined?S.tiktok.url:STORE_INFO.tiktok);
+ if(on("tiktok")&&tk)out.push({key:"tiktok",label:"TikTok",text:tk.replace(/^https?:\/\/(www\.)?/i,""),url:tk});
+ return out;
+}
+function gbRenderSocial(links){
+ links=links||gbSocialLinks();
+ const order=["facebook","tiktok","whatsapp"],list=order.map(k=>links.find(x=>x.key===k)).filter(Boolean);
+ const row=$("socialRow");
+ if(row)row.innerHTML=list.map(x=>`<a class="social-btn soc-${x.key}" href="${esc(x.url)}" target="_blank" rel="noopener"><span class="soc-ic">${GB_SOC_ICONS[x.key]}</span><span class="soc-tx"><b>${x.label}</b><small>${x.key==="whatsapp"?"Chat now":"Visit our page"}</small></span></a>`).join("");
+ $("socialSection")?.classList.toggle("hidden",!list.length);
+ const fl=$("socialFloat"),pop=$("socialPop"),btn=$("waFloat");
+ if(fl&&pop&&btn){
+  pop.innerHTML=list.map(x=>`<a class="soc-circle soc-${x.key}" href="${esc(x.url)}" target="_blank" rel="noopener" aria-label="${x.label}" title="${x.label}"><span class="soc-ic">${GB_SOC_ICONS[x.key]}</span><em>${x.label}</em></a>`).join("");
+  fl.classList.toggle("hidden",!list.length);
+  fl.dataset.count=String(list.length);
+  if(list.length===1){btn.dataset.direct=list[0].url;}else delete btn.dataset.direct;
+  gbCloseSocial();
+ }
+}
+function gbToggleSocial(){
+ const fl=$("socialFloat"),btn=$("waFloat");if(!fl||!btn)return;
+ if(btn.dataset.direct){window.open(btn.dataset.direct,"_blank","noopener");return;}
+ const open=!fl.classList.contains("open");fl.classList.toggle("open",open);btn.setAttribute("aria-expanded",open?"true":"false");
+}
+function gbCloseSocial(){const fl=$("socialFloat"),btn=$("waFloat");if(fl)fl.classList.remove("open");if(btn)btn.setAttribute("aria-expanded","false");}
+document.addEventListener("click",e=>{const fl=$("socialFloat");if(fl&&fl.classList.contains("open")&&!fl.contains(e.target))gbCloseSocial();});
+document.addEventListener("keydown",e=>{if(e.key==="Escape")gbCloseSocial();});
+window.gbToggleSocial=gbToggleSocial;window.gbCloseSocial=gbCloseSocial;
 async function loadStoreInfo(){
  try{
   const {data,error}=await sb.from("store_settings").select("*").limit(1).maybeSingle();
@@ -301,6 +352,7 @@ async function loadStoreInfo(){
   try{window.gbColsEnabled(!!(data&&data.col_picker));}catch(_){}
   GB_VARS_ON=!!(data&&data.variants_on);
   POLICIES=gbParsePol(data&&data.policies);
+  SOCIAL=gbParsePol(data&&data.social);
   REMOTE_STORE=data?{phone:String(data.phone||"").trim(),email:String(data.email||"").trim(),address:String(data.address||"").trim(),hours:String(data.support_hours||"").trim()}:{};
  }catch(e){console.warn("store_settings not available, using STORE_INFO",e?.message||e);REMOTE_STORE={};}
  renderStoreInfo();
@@ -768,18 +820,19 @@ function renderPolicyInfo(){
 function renderStoreInfo(){
  const i={...STORE_INFO};["phone","email","address","hours"].forEach(k=>{if(REMOTE_STORE[k])i[k]=REMOTE_STORE[k];});const digits=s=>String(s||"").replace(/\D/g,""),cards=[];
  const card=(icon,label,text,href)=>`<${href?`a href="${esc(href)}"${/^https?:/.test(href)?' target="_blank" rel="noopener"':''}`:"div"} class="contact-card"><span class="info-icon"><svg class="ic" aria-hidden="true"><use href="#i-${icon}"/></svg></span><span><small>${esc(label)}</small><strong>${esc(text)}</strong></span></${href?"a":"div"}>`;
- if(digits(i.whatsapp))cards.push(card("chat","WhatsApp","+"+digits(i.whatsapp),`https://wa.me/${digits(i.whatsapp)}`));
+ const soc=gbSocialLinks();
+ const sw=soc.find(x=>x.key==="whatsapp");
+ if(sw)cards.push(card("chat","WhatsApp",sw.text,sw.url));
  if(String(i.phone||"").trim())cards.push(card("call","Phone",i.phone.trim(),`tel:${digits(i.phone)}`));
  if(String(i.email||"").trim())cards.push(card("mail","Email",i.email.trim(),`mailto:${i.email.trim()}`));
- if(/^https?:\/\//i.test(String(i.facebook||"").trim()))cards.push(card("link","Facebook",i.facebook.trim().replace(/^https?:\/\/(www\.)?/i,""),i.facebook.trim()));
+ soc.filter(x=>x.key!=="whatsapp").forEach(x=>cards.push(card("link",x.label,x.text,x.url)));
  if(String(i.address||"").trim())cards.push(card("pin","Address",i.address.trim()));
  if(String(i.hours||"").trim())cards.push(card("clock","Open hours",i.hours.trim()));
  const grid=$("contactGrid"),sec=$("contact");
  if(grid)grid.innerHTML=cards.join("");
  sec?.classList.toggle("hidden",!cards.length);
  $("footContactLink")?.classList.toggle("hidden",!cards.length);
- const wa=$("waFloat");
- if(wa){if(digits(i.whatsapp)){wa.href=`https://wa.me/${digits(i.whatsapp)}?text=${encodeURIComponent("Hello Paboo, I need help with an order.")}`;wa.classList.remove("hidden");}else wa.classList.add("hidden");}
+ gbRenderSocial(soc);
 }
 async function startCustomerSite(){initCustomerUI();updateSavedCounters();renderPolicyInfo();renderStoreInfo();renderProducts();updateCart();await refreshStore();setupLocationPickers();renderSmartRecommendations();}
 window.addToCart=addToCart;window.buyNow=buyNow;window.toggleWishlist=toggleWishlist;window.toggleCompare=toggleCompare;window.showSavedProducts=showSavedProducts;window.closeSavedProducts=closeSavedProducts;window.renderSavedPanel=renderSavedPanel;window.removeSavedProduct=removeSavedProduct;window.applyCoupon=applyCoupon;

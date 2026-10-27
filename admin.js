@@ -893,6 +893,8 @@ async function loadStoreSettings(){
     variants_on:!!(data&&data.variants_on),
     policies:(()=>{let v=data&&data.policies;if(typeof v==='string'){try{v=JSON.parse(v)}catch(e){v=null}}return v&&typeof v==='object'?v:{}})(),
     has_policies:!!data&&('policies' in data),
+    social:(()=>{let v=data&&data.social;if(typeof v==='string'){try{v=JSON.parse(v)}catch(e){v=null}}return v&&typeof v==='object'?v:{}})(),
+    has_social:!!data&&('social' in data),
     has_variants:!!data&&('variants_on' in data)
   };
   return storeSettingsCache;
@@ -908,7 +910,7 @@ function settings(){
     <label class="full">Store Address<textarea id="storeAddress" rows="3" maxlength="500" placeholder="Store address">${esc(s.address||'')}</textarea></label>
     <label class="full">Support Hours<input id="storeHours" maxlength="160" value="${esc(s.support_hours||'')}" placeholder="Every day, 10 AM–8 PM"></label>
   </div><div class="btn-row"><button class="btn primary" id="saveStoreSettingsBtn" onclick="saveStoreSettings()">Save Store Settings</button></div>
-  ${s.updated_at?`<p><small>Last updated: ${esc(new Date(s.updated_at).toLocaleString('en-BD'))}</small></p>`:''}</div>${themeCard(s)}${colsCard(s)}${variantsCard(s)}${trackingCard(s)}`
+  ${s.updated_at?`<p><small>Last updated: ${esc(new Date(s.updated_at).toLocaleString('en-BD'))}</small></p>`:''}</div>${themeCard(s)}${socialCard(s)}${colsCard(s)}${variantsCard(s)}${trackingCard(s)}`
 }
 
 async function saveStoreSettings(){
@@ -1659,6 +1661,53 @@ async function savePolicies(){
   }catch(e){showError(e);if(btn){btn.disabled=false;btn.textContent='Save'}}
 }
 window.policiesPage=policiesPage;window.savePolicies=savePolicies;
+/* ---- Social & contact buttons (Facebook / TikTok / WhatsApp) ---- */
+function socialCard(s){
+  const S=s.social||{},dis=s.has_social?'':'disabled';
+  const row=(k,label,icon,val,ph,extra='')=>{
+    const cfg=S[k]||{};
+    return `<div class="soc-edit"><label class="pol-chk"><input type="checkbox" id="soc_show_${k}" ${cfg.show!==false?'checked':''} ${dis}> ${icon} ${label} — show on website</label>
+    <label>${k==='whatsapp'?'WhatsApp number (with 880...)':'Page link or username'}<input id="soc_${k}" value="${esc(val)}" placeholder="${esc(ph)}" ${dis}></label>${extra}</div>`};
+  const wa=(S.whatsapp&&S.whatsapp.number)||'8801320992683';
+  const fb=(S.facebook&&S.facebook.url)!==undefined?S.facebook.url:'https://facebook.com/paboo.official';
+  const tk=(S.tiktok&&S.tiktok.url)||'';
+  return `<div class="card" style="margin-top:16px"><h3>💬 Contact buttons: Facebook, TikTok, WhatsApp</h3>
+  <p>These buttons appear under "Our Policies" at the bottom of your website, on the Contact Us page, and inside the round WhatsApp button (which opens all three). Turn one off to hide it everywhere. Leave a link empty to hide that button.</p>
+  ${s.has_social?'':'<p style="color:#b45309"><b>One-time setup needed:</b> run <code>13_social.sql</code> in Supabase &gt; SQL Editor, then press Refresh.</p>'}
+  <div class="soc-grid">
+  ${row('facebook','Facebook','🔵',fb,'https://facebook.com/paboo.official')}
+  ${row('tiktok','TikTok','🎵',tk,'https://www.tiktok.com/@paboobd  or  @paboobd')}
+  ${row('whatsapp','WhatsApp','🟢',wa,'8801XXXXXXXXX',`<label>First message customers see (optional)<input id="soc_wa_msg" value="${esc((S.whatsapp&&S.whatsapp.message)||'')}" placeholder="Hello Paboo, I need help with an order." ${dis}></label>`)}
+  </div>
+  <div class="btn-row"><button class="btn primary" id="saveSocBtn" onclick="saveSocial()" ${dis}>Save</button></div>
+  <style>.soc-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin:12px 0}.soc-edit{display:grid;gap:8px;padding:12px;border:1px solid #e2e8f0;border-radius:12px}.soc-edit input:not([type=checkbox]){width:100%}</style></div>`;
+}
+async function saveSocial(){
+  const g=id=>($(id)?.value||'').trim(),ck=id=>!!$(id)?.checked;
+  let wa=g('soc_whatsapp').replace(/\D/g,'');
+  if(wa&&!/^8801\d{9}$/.test(wa)){
+    if(/^01\d{9}$/.test(wa))wa='88'+wa;
+    else{alert('WhatsApp number should look like 8801XXXXXXXXX (country code 880 + 01XXXXXXXXX).');return}
+  }
+  const chkUrl=(v,name)=>{if(!v)return true;if(/^https?:\/\//i.test(v))return true;if(/^[\w.@\/-]+$/.test(v))return true;alert(name+' link/username looks wrong.');return false};
+  const fb=g('soc_facebook'),tk=g('soc_tiktok');
+  if(!chkUrl(fb,'Facebook')||!chkUrl(tk,'TikTok'))return;
+  const social={
+    facebook:{show:ck('soc_show_facebook'),url:fb},
+    tiktok:{show:ck('soc_show_tiktok'),url:tk},
+    whatsapp:{show:ck('soc_show_whatsapp'),number:wa,message:g('soc_wa_msg')}
+  };
+  const s=storeSettingsCache||{},btn=$('saveSocBtn');
+  try{
+    if(btn){btn.disabled=true;btn.textContent='Saving...'}
+    const {error}=await sb.from('store_settings').upsert({id:1,store_name:s.store_name||'Paboo',social,updated_at:new Date().toISOString()},{onConflict:'id'});
+    if(error)throw error;
+    storeSettingsCache={...s,social};
+    alert('Saved. Refresh your website to see the change.');
+    render();
+  }catch(e){showError(e);if(btn){btn.disabled=false;btn.textContent='Save'}}
+}
+window.saveSocial=saveSocial;
 function variantsCard(s){
   return `<div class="card" style="margin-top:16px"><h3>🎨 Product variants (colour / size)</h3>
   <p>When ON, products that have variants (added in the product form) show option buttons; the customer must pick one before adding to cart, and stock is tracked per option. When OFF, the website works exactly as before and variants are ignored.</p>

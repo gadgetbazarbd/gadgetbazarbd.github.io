@@ -79,6 +79,7 @@ var D={
 "Saved":"সংরক্ষিত","Comparing":"তুলনায় আছে","Save to Wishlist":"উইশলিস্টে রাখুন","Secure checkout options":"নিরাপদ চেকআউট অপশন","Open hours":"খোলা থাকার সময়",
 "Site colours":"সাইটের রঙ","Courier":"কুরিয়ার","Tracking no.":"ট্র্যাকিং নম্বর","Copy":"কপি","Copied":"কপি হয়েছে","If you do not finish the order, we may contact you on this number to help.":"অর্ডার শেষ না করলে সহায়তার জন্য আমরা এই নম্বরে যোগাযোগ করতে পারি।","Sorry, we cannot take an order from this number right now. Please contact us on WhatsApp.":"দুঃখিত, এই নম্বর থেকে এখন অর্ডার নেওয়া যাচ্ছে না। অনুগ্রহ করে হোয়াটসঅ্যাপে যোগাযোগ করুন।","Please enter a valid phone number.":"সঠিক ফোন নম্বর দিন।","Your cart is empty.":"আপনার কার্ট খালি।","Shop with Confidence":"নিশ্চিন্তে কিনুন","Quick saved shopping tools":"দ্রুত সংরক্ষিত টুলস","Saved shopping tools":"সংরক্ষিত টুলস","Deals and offers":"ডিল ও অফার","Shopping benefits":"কেনাকাটার সুবিধা"
 ,"Choose an option first":"আগে একটি অপশন বেছে নিন","Option":"অপশন","Sold out":"স্টক শেষ"
+,"Contact":"যোগাযোগ","Chat now":"এখনই চ্যাট করুন","Visit our page":"আমাদের পেজে যান","Questions about an order or a product? Message us on your favourite app.":"অর্ডার বা পণ্য নিয়ে প্রশ্ন আছে? আপনার পছন্দের অ্যাপে আমাদের মেসেজ করুন।"
 };
 /* dynamic text: [regex, function] */
 var R=[

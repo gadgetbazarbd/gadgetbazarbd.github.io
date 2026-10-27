@@ -1004,3 +1004,40 @@ html[data-theme="light"] .install-card,html[data-theme="rose"] .install-card,htm
 .cart-variant{font-weight:600;color:#38bdf8}
 
 .footer-slogan{font-weight:800;color:#fbbf24;margin:6px 0 4px}
+
+/* ---- Contact buttons: Facebook / TikTok / WhatsApp ---- */
+.social-float{position:fixed;right:16px;bottom:16px;z-index:46;display:flex;flex-direction:column;align-items:flex-end;gap:12px}
+.social-float.hidden{display:none}
+.social-float .wa-float{position:static;bottom:auto;right:auto}
+.social-pop{display:flex;flex-direction:column;align-items:flex-end;gap:12px;pointer-events:none}
+.social-float.open .social-pop{pointer-events:auto}
+.soc-circle{display:flex;flex-direction:row-reverse;align-items:center;gap:10px;text-decoration:none;opacity:0;transform:translateY(14px) scale(.85);transition:opacity .22s ease,transform .22s ease}
+.social-float.open .soc-circle{opacity:1;transform:none}
+.social-float.open .soc-circle:nth-last-child(1){transition-delay:.02s}
+.social-float.open .soc-circle:nth-last-child(2){transition-delay:.07s}
+.social-float.open .soc-circle:nth-last-child(3){transition-delay:.12s}
+.soc-circle em{font-style:normal;font-weight:700;font-size:13px;color:#fff;background:rgba(7,20,38,.92);border:1px solid rgba(148,163,184,.3);padding:6px 12px;border-radius:999px;box-shadow:0 6px 18px rgba(0,0,0,.35);white-space:nowrap}
+.soc-circle .soc-ic,.social-btn .soc-ic{display:inline-flex;align-items:center;justify-content:center;color:#fff}
+.soc-circle .soc-ic{width:54px;height:54px;border-radius:50%;box-shadow:0 8px 22px rgba(0,0,0,.4);border:2px solid rgba(255,255,255,.18)}
+.soc-circle .soc-ic svg{width:28px;height:28px}
+.soc-facebook .soc-ic{background:#1877f2}
+.soc-whatsapp .soc-ic{background:#1fa855}
+.soc-tiktok .soc-ic{background:#0b0b0f;box-shadow:0 8px 22px rgba(0,0,0,.4),-2px -2px 0 #25f4ee inset,2px 2px 0 #fe2c55 inset}
+.social-float .wa-float[aria-expanded="true"]{background:#334155}
+.social-section .info-inner{padding-bottom:18px}
+.social-lead{margin-bottom:14px}
+.social-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px}
+.social-btn{display:flex;align-items:center;gap:14px;padding:14px 16px;border-radius:18px;text-decoration:none;color:#fff;border:1px solid rgba(148,163,184,.25);background:rgba(15,23,42,.55);transition:transform .15s ease,box-shadow .15s ease,border-color .15s ease}
+.social-btn:hover{transform:translateY(-2px);box-shadow:0 10px 26px rgba(0,0,0,.35)}
+.social-btn .soc-ic{width:48px;height:48px;border-radius:50%;flex:none}
+.social-btn .soc-ic svg{width:26px;height:26px}
+.social-btn .soc-tx{display:flex;flex-direction:column;line-height:1.25}
+.social-btn .soc-tx b{font-size:16px}
+.social-btn .soc-tx small{opacity:.75;font-size:12.5px}
+.social-btn.soc-facebook{border-color:rgba(24,119,242,.55)}
+.social-btn.soc-whatsapp{border-color:rgba(31,168,85,.55)}
+.social-btn.soc-tiktok{border-color:rgba(254,44,85,.5)}
+@media(max-width:520px){.social-float{bottom:calc(84px + env(safe-area-inset-bottom))}.social-row{grid-template-columns:1fr}}
+@media(min-width:521px){.social-float{bottom:16px}}
+html[data-theme] .social-float .wa-float{color:#fff!important}
+.wa-float{border:0;cursor:pointer;font-family:inherit}

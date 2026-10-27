@@ -33,7 +33,7 @@
     rel="stylesheet"
   >
 
-  <link rel="stylesheet" href="style.css?v=gbbd-fixes-20261027a">
+  <link rel="stylesheet" href="style.css?v=gbbd-fixes-20261027b">
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
@@ -449,6 +449,16 @@
     </div>
   </section>
 
+  <!-- SOCIAL BUTTONS: shown under Our Policies; links are edited in Admin > Settings -->
+  <section class="info-section social-section hidden" data-v="policies home" id="socialSection" aria-labelledby="socialTitle">
+    <div class="info-inner">
+      <p class="eyebrow">GET IN TOUCH</p>
+      <h2 id="socialTitle">Contact Us</h2>
+      <p class="info-lead social-lead">Questions about an order or a product? Message us on your favourite app.</p>
+      <div class="social-row" id="socialRow"></div>
+    </div>
+  </section>
+
   <!-- CONTACT (filled from STORE_INFO in script.js; stays hidden until contact details are added) -->
   <section class="info-section hidden" data-v="contact" id="contact" aria-labelledby="contactTitle">
     <div class="info-inner">
@@ -662,9 +672,12 @@
   <button type="button" data-bar="checkout" class="bb-checkout" onclick="openHeaderCheckout()"><svg class="ic" aria-hidden="true"><use href="#i-bolt"/></svg><span>Checkout</span></button>
 </nav>
 
-<a id="waFloat" class="wa-float hidden" href="#" target="_blank" rel="noopener" aria-label="Chat on WhatsApp">
-  <svg class="ic ic-lg" aria-hidden="true"><use href="#i-chat"/></svg><span>WhatsApp</span>
-</a>
+<div id="socialFloat" class="social-float hidden">
+  <div id="socialPop" class="social-pop" role="menu" aria-label="Contact us"></div>
+  <button type="button" id="waFloat" class="wa-float" aria-label="Contact us" aria-haspopup="true" aria-expanded="false" onclick="gbToggleSocial()">
+    <svg class="ic ic-lg" aria-hidden="true"><use href="#i-chat"/></svg><span>Contact</span>
+  </button>
+</div>
 
 <footer class="site-footer">
   <div class="footer-inner">
@@ -701,8 +714,8 @@
 </footer>
 
 
-<script src="script.js?v=gbbd-fixes-20261027a"></script>
-<script src="i18n.js?v=gbbd-fixes-20261027a"></script>
+<script src="script.js?v=gbbd-fixes-20261027b"></script>
+<script src="i18n.js?v=gbbd-fixes-20261027b"></script>
 
 </body>
 </html>
