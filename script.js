@@ -32,7 +32,7 @@ const STORE_INFO={
  whatsapp:"8801320992683",   // country code + number, digits only. Example: "8801XXXXXXXXX"
  phone:"",      // Example: "01XXXXXXXXX"
  email:"",      // Example: "hello@yourshop.com"
- facebook:"",   // Full page link. Example: "https://facebook.com/yourpage"
+ facebook:"https://facebook.com/paboo.official",   // Full page link. Example: "https://facebook.com/yourpage"
  address:"",    // Shop / pickup address, if you want to show one
  hours:""       // Example: "Every day, 10 AM to 10 PM"
 };
