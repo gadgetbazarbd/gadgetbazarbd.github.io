@@ -33,7 +33,7 @@
     rel="stylesheet"
   >
 
-  <link rel="stylesheet" href="style.css?v=gbbd-dept-20261028a">
+  <link rel="stylesheet" href="style.css?v=gbbd-dept-20261028b">
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
@@ -151,6 +151,7 @@
 
 
 <div id="overlay" class="overlay hidden"></div>
+<div id="deptSheet" class="dept-sheet hidden" role="dialog" aria-modal="true" aria-label="Filter"><div class="ds-back" onclick="gbCloseFilter()"></div><div class="ds-panel" id="deptSheetPanel"></div></div>
 
 
 <!-- SIDE MENU -->
@@ -306,18 +307,44 @@
   </section>
 
 
-  <section class="dept-page dept-cloth" data-v="clothing" id="clothingPage" aria-labelledby="clothingTitle">
-    <div class="dept-banner"><div><h2 id="clothingTitle" data-no-i18n>পোশাক</h2><p>Shirts, T-shirts, Polo, Pants, Jackets and Ladies collection.</p></div><span class="dept-emoji" aria-hidden="true">👕</span></div>
-    <div class="category-tiles dept-tiles" id="deptTiles_clothing"></div>
-    <div class="section-head dept-head"><h2><span data-no-i18n>পোশাক</span></h2><span id="deptCount_clothing"></span></div>
-    <div class="products-grid home-products-grid" id="deptGrid_clothing" aria-live="polite"><div class="showcase-empty">Loading products…</div></div>
+  <section class="dept-page dept-cloth" data-v="clothing" id="clothingPage" aria-label="clothing">
+    <nav class="round-nav dept-quick" aria-label="Quick shop">
+      <a href="#shopCategories"><em class="rn c-blue"><svg class="ic" aria-hidden="true"><use href="#i-grid"/></svg></em><span>Categories</span></a>
+      <a href="#newArrivals"><em class="rn c-purple"><svg class="ic" aria-hidden="true"><use href="#i-sparkle"/></svg></em><span>New Arrivals</span></a>
+      <a href="#bestSellers"><em class="rn c-amber"><svg class="ic" aria-hidden="true"><use href="#i-star"/></svg></em><span>Best Sellers</span></a>
+      <button type="button" onclick="showSavedProducts('wishlist')"><em class="rn c-pink"><svg class="ic" aria-hidden="true"><use href="#i-heart"/></svg></em><span>Wishlist</span></button>
+      <button type="button" onclick="showSavedProducts('compare')"><em class="rn c-teal"><svg class="ic" aria-hidden="true"><use href="#i-compare"/></svg></em><span>Compare</span></button>
+      <button type="button" class="needs-deals hidden" onclick="openDealsPage()"><em class="rn c-red"><svg class="ic" aria-hidden="true"><use href="#i-percent"/></svg></em><span>Deals</span></button>
+    </nav>
+    <div class="dept-bar">
+      <button type="button" class="dept-filter-btn" onclick="gbOpenFilter('clothing')"><span aria-hidden="true">⚙</span> <span>Filter</span> <b id="deptFcount_clothing" class="hidden">0</b></button>
+      <select id="deptSort_clothing" class="dept-sort" onchange="gbDeptSort('clothing',this.value)" aria-label="Sort products"><option value="new">Newest</option><option value="low">Price: Low to High</option><option value="high">Price: High to Low</option><option value="disc">Biggest discount</option></select>
+    </div>
+    <div class="dept-active" id="deptActive_clothing"></div>
+    <div class="dept-body">
+      <aside class="dept-side" id="deptSide_clothing" aria-label="Categories"></aside>
+      <div class="dept-main"><div class="dept-count" id="deptCount_clothing"></div><div class="products-grid home-products-grid" id="deptGrid_clothing" aria-live="polite"><div class="showcase-empty">Loading products…</div></div></div>
+    </div>
   </section>
 
-  <section class="dept-page dept-gadget" data-v="gadget" id="gadgetPage" aria-labelledby="gadgetTitle">
-    <div class="dept-banner"><div><h2 id="gadgetTitle" data-no-i18n>গ্যাজেট</h2><p>Smart gadgets, audio, chargers, wearables and accessories.</p></div><span class="dept-emoji" aria-hidden="true">🎧</span></div>
-    <div class="category-tiles dept-tiles" id="deptTiles_gadget"></div>
-    <div class="section-head dept-head"><h2><span data-no-i18n>গ্যাজেট</span></h2><span id="deptCount_gadget"></span></div>
-    <div class="products-grid home-products-grid" id="deptGrid_gadget" aria-live="polite"><div class="showcase-empty">Loading products…</div></div>
+  <section class="dept-page dept-gadget" data-v="gadget" id="gadgetPage" aria-label="gadget">
+    <nav class="round-nav dept-quick" aria-label="Quick shop">
+      <a href="#shopCategories"><em class="rn c-blue"><svg class="ic" aria-hidden="true"><use href="#i-grid"/></svg></em><span>Categories</span></a>
+      <a href="#newArrivals"><em class="rn c-purple"><svg class="ic" aria-hidden="true"><use href="#i-sparkle"/></svg></em><span>New Arrivals</span></a>
+      <a href="#bestSellers"><em class="rn c-amber"><svg class="ic" aria-hidden="true"><use href="#i-star"/></svg></em><span>Best Sellers</span></a>
+      <button type="button" onclick="showSavedProducts('wishlist')"><em class="rn c-pink"><svg class="ic" aria-hidden="true"><use href="#i-heart"/></svg></em><span>Wishlist</span></button>
+      <button type="button" onclick="showSavedProducts('compare')"><em class="rn c-teal"><svg class="ic" aria-hidden="true"><use href="#i-compare"/></svg></em><span>Compare</span></button>
+      <button type="button" class="needs-deals hidden" onclick="openDealsPage()"><em class="rn c-red"><svg class="ic" aria-hidden="true"><use href="#i-percent"/></svg></em><span>Deals</span></button>
+    </nav>
+    <div class="dept-bar">
+      <button type="button" class="dept-filter-btn" onclick="gbOpenFilter('gadget')"><span aria-hidden="true">⚙</span> <span>Filter</span> <b id="deptFcount_gadget" class="hidden">0</b></button>
+      <select id="deptSort_gadget" class="dept-sort" onchange="gbDeptSort('gadget',this.value)" aria-label="Sort products"><option value="new">Newest</option><option value="low">Price: Low to High</option><option value="high">Price: High to Low</option><option value="disc">Biggest discount</option></select>
+    </div>
+    <div class="dept-active" id="deptActive_gadget"></div>
+    <div class="dept-body">
+      <aside class="dept-side" id="deptSide_gadget" aria-label="Categories"></aside>
+      <div class="dept-main"><div class="dept-count" id="deptCount_gadget"></div><div class="products-grid home-products-grid" id="deptGrid_gadget" aria-live="polite"><div class="showcase-empty">Loading products…</div></div></div>
+    </div>
   </section>
 
   <section class="shop" data-v="home" id="products">
@@ -683,10 +710,10 @@
 
 <nav class="bottom-bar" aria-label="Quick actions">
   <a href="#" data-bar="home" onclick="gbGo('home');return false;"><svg class="ic" aria-hidden="true"><use href="#i-home"/></svg><span>Home</span></a>
-  <button type="button" data-bar="categories" onclick="openMenu()" aria-label="Open categories menu"><svg class="ic" aria-hidden="true"><use href="#i-grid"/></svg><span>Categories</span></button>
-  <a href="#orderTracking" data-bar="track" onclick="var e=document.getElementById('orderTracking');if(e){e.scrollIntoView({behavior:'smooth'});setTimeout(function(){var i=document.getElementById('trackPhone');if(i)i.focus();},500);}return false;"><svg class="ic" aria-hidden="true"><use href="#i-box"/></svg><span>Track</span></a>
+  <a href="#clothingPage" data-bar="clothing"><span class="bb-emo" aria-hidden="true">👕</span><span data-no-i18n>পোশাক</span></a>
+  <a href="#gadgetPage" data-bar="gadget"><span class="bb-emo" aria-hidden="true">🎧</span><span data-no-i18n>গ্যাজেট</span></a>
   <button type="button" data-bar="cart" onclick="openCart()" aria-label="Open cart"><svg class="ic" aria-hidden="true"><use href="#i-cart"/></svg><span>Cart</span><em id="bottomCartCount" class="bb-badge">0</em></button>
-  <button type="button" data-bar="checkout" class="bb-checkout" onclick="openHeaderCheckout()"><svg class="ic" aria-hidden="true"><use href="#i-bolt"/></svg><span>Checkout</span></button>
+  <a href="#orderTracking" data-bar="track" onclick="var e=document.getElementById('orderTracking');if(e){e.scrollIntoView({behavior:'smooth'});setTimeout(function(){var i=document.getElementById('trackPhone');if(i)i.focus();},500);}return false;"><svg class="ic" aria-hidden="true"><use href="#i-box"/></svg><span>Track</span></a>
 </nav>
 
 <div id="socialFloat" class="social-float hidden">
@@ -731,8 +758,8 @@
 </footer>
 
 
-<script src="script.js?v=gbbd-dept-20261028a"></script>
-<script src="i18n.js?v=gbbd-dept-20261028a"></script>
+<script src="script.js?v=gbbd-dept-20261028b"></script>
+<script src="i18n.js?v=gbbd-dept-20261028b"></script>
 
 </body>
 </html>

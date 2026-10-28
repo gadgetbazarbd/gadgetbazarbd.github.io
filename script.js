@@ -56,7 +56,7 @@ function jsArg(v){return "'"+String(v??'').replace(/\\/g,'\\\\').replace(/'/g,"\
 function saleWindow(r){const s=Date.parse(r.sale_starts_at||""),e=Date.parse(r.sale_ends_at||"");return{s:Number.isFinite(s)?s:null,e:Number.isFinite(e)?e:null};}
 function discountNow(raw,w){const n=Date.now();if(w.s===null&&w.e===null)return raw;return((w.s===null||w.s<=n)&&(w.e===null||w.e>n))?raw:0;}
 /* ---- Product variants (colour / size) — only active when the admin switch is ON ---- */
-let GB_VARS_ON=false;const gbPicked={};
+let GB_VARS_ON=false,SIZE_GUIDE={text:"",image:""};const gbPicked={};
 function gbParseVars(v){if(typeof v==="string"){try{v=JSON.parse(v)}catch(e){v=[]}}if(!Array.isArray(v))return[];return v.map(x=>({name:String((x&&x.name)||"").trim(),stock:Math.max(0,Math.floor(Number(x&&x.stock)||0)),price:Number(x&&x.price)>0?Number(x.price):0,c:String((x&&x.c)||"").trim(),s:String((x&&x.s)||"").trim()})).filter(x=>x.name);}
 function pvars(p){return GB_VARS_ON&&p&&Array.isArray(p.variants)&&p.variants.length?p.variants:[];}
 function vOf(p,n){return n?pvars(p).find(v=>v.name===n)||null:null;}
@@ -64,7 +64,7 @@ function stockOf(p,n){const v=vOf(p,n);return v?v.stock:(Number(p.stock)||0);}
 function gbVar(id){const p=getProduct(id);const n=gbPicked[String(id)];return p&&vOf(p,n)?n:null;}
 /* ===== Clothing: colours, sizes, measurements, size chart ===== */
 const gbPickC={},gbPickS={};
-function gbParseColors(v){if(typeof v==="string"){try{v=JSON.parse(v)}catch(e){v=[]}}if(!Array.isArray(v))return[];return v.map(x=>({n:String((x&&x.n)||"").trim(),h:/^#[0-9a-f]{3,8}$/i.test(String((x&&x.h)||""))?x.h:"#cccccc"})).filter(x=>x.n);}
+function gbParseColors(v){if(typeof v==="string"){try{v=JSON.parse(v)}catch(e){v=[]}}if(!Array.isArray(v))return[];return v.map(x=>({n:String((x&&x.n)||"").trim(),h:/^#[0-9a-f]{3,8}$/i.test(String((x&&x.h)||""))?x.h:"#cccccc",i:/^https?:\/\//i.test(String((x&&x.i)||""))?x.i:""})).filter(x=>x.n);}
 function gbParseChart(v){if(typeof v==="string"){try{v=JSON.parse(v)}catch(e){v=null}}if(!v||typeof v!=="object")return{unit:"",cols:[],rows:[]};const cols=(Array.isArray(v.cols)?v.cols:[]).map(x=>String(x||"").trim());const rows=(Array.isArray(v.rows)?v.rows:[]).filter(r=>r&&String(r.s||"").trim()&&r.on!==false).map(r=>({s:String(r.s).trim(),v:cols.map((_,i)=>String(((r.v||[])[i])??"").trim())}));return{unit:String(v.unit||"").trim(),cols,rows};}
 function isCloth(p){return !!p&&p.dept==="clothing";}
 function clothAxes(p){
@@ -80,11 +80,13 @@ function gbClothMini(p){
  if(!isCloth(p))return"";const a=clothAxes(p);if(!a.colors.length&&!a.sizes.length)return"";
  const dots=a.colors.slice(0,6).map(n=>`<i class="cm-dot" title="${esc(n)}" style="background:${esc(clothHex(p,n))}"></i>`).join("")+(a.colors.length>6?`<em class="cm-more">+${a.colors.length-6}</em>`:"");
  const sz=a.sizes.slice(0,6).map(z=>`<span class="cm-sz${clothStockFor(a.vs,"",z)<=0?' off':''}" data-no-i18n>${esc(z)}</span>`).join("");
- return `<div class="cloth-mini">${dots?`<div class="cm-dots">${dots}</div>`:""}${sz?`<div class="cm-sizes">${sz}</div>`:""}</div>`;
+ const low=Number(p.stock)>0&&Number(p.stock)<=3?`<div class="cm-low">Only ${Number(p.stock)} left</div>`:"";
+ return `<div class="cloth-mini">${dots?`<div class="cm-dots">${dots}</div>`:""}${sz?`<div class="cm-sizes">${sz}</div>`:""}${low}</div>`;
 }
 function clothChartBox(p,sel){
  const ch=p.sizeChart||{rows:[],cols:[]};if(!ch.rows.length||!ch.cols.some(Boolean))return"";
- return `<div class="size-chart"><div class="sc-title">Size chart${ch.unit?` <small data-no-i18n>(${esc(ch.unit)})</small>`:""}</div><div class="sc-wrap"><table><thead><tr><th>Size</th>${ch.cols.map(n=>`<th data-no-i18n>${esc(n)}</th>`).join("")}</tr></thead><tbody>${ch.rows.map(r=>`<tr class="${r.s===sel?'sel':''}"><th data-no-i18n>${esc(r.s)}</th>${r.v.map(x=>`<td data-no-i18n>${esc(x||"—")}</td>`).join("")}</tr>`).join("")}</tbody></table></div></div>`;
+ const guide=(SIZE_GUIDE.text||SIZE_GUIDE.image)?`<details class="size-guide"><summary>How to measure</summary><div>${SIZE_GUIDE.image?`<img src="${esc(SIZE_GUIDE.image)}" alt="" loading="lazy">`:""}${SIZE_GUIDE.text?`<p data-no-i18n>${esc(SIZE_GUIDE.text).replace(/\n/g,"<br>")}</p>`:""}</div></details>`:"";
+ return `<div class="size-chart"><div class="sc-title">Size chart${ch.unit?` <small data-no-i18n>(${esc(ch.unit)})</small>`:""}</div>${guide}<div class="sc-wrap"><table><thead><tr><th>Size</th>${ch.cols.map(n=>`<th data-no-i18n>${esc(n)}</th>`).join("")}</tr></thead><tbody>${ch.rows.map(r=>`<tr class="${r.s===sel?'sel':''}"><th data-no-i18n>${esc(r.s)}</th>${r.v.map(x=>`<td data-no-i18n>${esc(x||"—")}</td>`).join("")}</tr>`).join("")}</tbody></table></div></div>`;
 }
 function clothPicker(p){
  const a=clothAxes(p),id=String(p.id);let c=gbPickC[id]||"",s=gbPickS[id]||"";
@@ -94,7 +96,7 @@ function clothPicker(p){
  if(a.sizes.length)h+=`<div class="variant-title">Size: <b class="cl-val" data-no-i18n>${esc(s||"—")}</b></div><div class="variant-chips">${a.sizes.map(z=>{const out=clothStockFor(a.vs,c,z)<=0;return `<button type="button" class="variant-chip ${s===z?'active':''}" ${out?'disabled':''} onclick="gbPickCS(${esc(jsArg(p.id))},'s',${esc(jsArg(z))})" data-no-i18n>${esc(z)}</button>`;}).join("")}</div>`;
  const ch=p.sizeChart;
  if(s&&ch&&ch.cols.length){const r=ch.rows.find(x=>x.s===s);if(r){const parts=ch.cols.map((n,i)=>r.v[i]?`<span><em data-no-i18n>${esc(n)}</em> <b data-no-i18n>${esc(r.v[i])}</b></span>`:"").filter(Boolean);if(parts.length)h+=`<div class="size-meas"><strong data-no-i18n>${esc(s)}</strong>${parts.join("")}${ch.unit?`<small data-no-i18n>(${esc(ch.unit)})</small>`:""}</div>`;}}
- h+=cur?`<small class="variant-note">In stock: ${stockOf(p,cur)}</small>`:`<small class="variant-note">${a.colors.length&&a.sizes.length?"Choose colour and size first":(a.colors.length?"Choose a colour first":"Choose a size first")}</small>`;
+h+=cur?(stockOf(p,cur)<=3?`<small class="variant-note cm-low">Only ${stockOf(p,cur)} left</small>`:`<small class="variant-note">In stock: ${stockOf(p,cur)}</small>`):`<small class="variant-note">${a.colors.length&&a.sizes.length?"Choose colour and size first":(a.colors.length?"Choose a colour first":"Choose a size first")}</small>`;
  if(a.colors.length)h+=`<div class="cl-avail"><span class="cl-avail-t">Available colours</span>${a.colors.map(n=>`<span class="cl-chip"><i style="background:${esc(clothHex(p,n))}"></i><span data-no-i18n>${esc(n)}</span></span>`).join("")}</div>`;
  return h+clothChartBox(p,s)+"</div>";
 }
@@ -402,6 +404,7 @@ async function loadStoreInfo(){
   GB_VARS_ON=!!(data&&data.variants_on);
   POLICIES=gbParsePol(data&&data.policies);
   SOCIAL=gbParsePol(data&&data.social);
+  {const g=gbParsePol(data&&data.size_guide);SIZE_GUIDE={text:String(g.text||"").trim(),image:/^https?:\/\//i.test(String(g.image||""))?g.image:""};}
   REMOTE_STORE=data?{phone:String(data.phone||"").trim(),email:String(data.email||"").trim(),address:String(data.address||"").trim(),hours:String(data.support_hours||"").trim()}:{};
  }catch(e){console.warn("store_settings not available, using STORE_INFO",e?.message||e);REMOTE_STORE={};}
  renderStoreInfo();
@@ -417,8 +420,10 @@ async function refreshStore(){
 
 /* Product pictures: square frame, lazy loading, tidy placeholder when a photo is missing or fails to load. */
 function imgPlaceholder(){return '<span class="img-placeholder" aria-hidden="true"><svg class="ic ic-lg"><use href="#i-box"/></svg></span>';}
+let gbCardColor="";
 function productImg(p){
- return p.image?`<img class="pimg" src="${esc(p.image)}" alt="${esc(p.name)}" loading="lazy" decoding="async" onerror="gbImgFail(this)">`:imgPlaceholder();
+ const _ci=gbCardColor&&isCloth(p)?gbColorImg(p,gbCardColor):"";const _src=_ci||p.image;
+ return _src?`<img class="pimg" src="${esc(_src)}" alt="${esc(p.name)}" loading="lazy" decoding="async" onerror="gbImgFail(this)">`:imgPlaceholder();
 }
 window.gbImgFail=function(img){const s=document.createElement("span");s.innerHTML=imgPlaceholder();img.replaceWith(s.firstChild);};
 
@@ -475,17 +480,19 @@ function viewProductDetails(id){
  let modal=$('productDetailsModal');
  if(!modal){modal=document.createElement('div');modal.id='productDetailsModal';modal.className='product-details-modal';modal.setAttribute('role','dialog');modal.setAttribute('aria-modal','true');modal.innerHTML='<div class="product-details-backdrop" onclick="closeProductDetails()"></div><section class="product-details-dialog"><button type="button" class="product-details-close" onclick="closeProductDetails()" aria-label="Close details">×</button><div id="productDetailsBody"></div></section>';document.body.appendChild(modal);}
  const specs=productSpecEntries(p);
- const sold=Number(p.stock)<=0,discount=Number(p.discount)>0,images=productImages(p);
+ const sold=Number(p.stock)<=0,discount=Number(p.discount)>0,images=productImagesFor(p);
  $('productDetailsBody').innerHTML=`<div class="product-details-layout"><div><div class="product-details-image" id="productModalMainImage">${images.length?`<img src="${esc(images[0])}" alt="${esc(p.name)}" onerror="this.style.display='none'">`:`<span>${imgPlaceholder()}</span>`}</div>${images.length>1?`<div class="product-gallery-thumbs">${images.map((src,i)=>`<button type="button" class="product-gallery-thumb ${i===0?'active':''}" onclick="setProductGalleryImage('productModalMainImage',this,this.dataset.src)" data-src="${esc(src)}" aria-label="View image ${i+1}"><img src="${esc(src)}" alt="" loading="lazy"></button>`).join('')}</div>`:''}</div><div class="product-details-copy"><span class="product-details-kicker">${esc(p.cat||'Gadget')}</span><h2>${esc(p.name)}</h2><div class="product-details-price">${money(finalPrice(p,gbVar(p.id)))} ${discount?`<del>${money(p.price)}</del><span class="discount-badge">${Math.round(Number(p.discount))}% OFF</span>`:''}</div><p class="product-details-stock ${sold?'sold':''}">${sold?'Currently out of stock':`In stock: ${Math.max(0,Number(p.stock)||0)}`}</p>${p.description?`<p class="product-details-description">${esc(p.description)}</p>`:''}${specs.length?`<div class="product-details-specs"><h3>Product details</h3><dl>${specs.map(([k,v])=>`<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl></div>`:'<p class="product-details-description">Detailed specifications have not been added for this product yet.</p>'}${variantChips(p)}<div class="product-details-actions"><button type="button" class="add-btn" ${sold?'disabled':''} onclick="closeProductDetails();window.addToCart(${jsArg(p.id)})">Add to Cart</button><button type="button" class="buy-btn" ${sold?'disabled':''} onclick="closeProductDetails();window.buyNow(${jsArg(p.id)})">Buy Now</button><button type="button" class="full-details-btn" onclick="window.openProductPage(${jsArg(p.id)})">Full Product Page ↗</button></div></div></div>`;
  modal.classList.add('is-open');document.body.classList.add('product-details-open');
 }
 function closeProductDetails(){const modal=$('productDetailsModal');if(modal)modal.classList.remove('is-open');document.body.classList.remove('product-details-open');}
 window.viewProductDetails=viewProductDetails;window.closeProductDetails=closeProductDetails;
+function gbColorImg(p,name){const c=(p&&p.colors||[]).find(x=>x.n===name);return c&&c.i?c.i:"";}
+function productImagesFor(p){const arr=productImages(p),ci=p&&isCloth(p)?gbColorImg(p,gbPickC[String(p.id)]):"";return ci?[ci,...arr.filter(x=>x!==ci)]:arr;}
 function productImages(p){const arr=Array.isArray(p?.images)?p.images:[];return [...new Set([p?.image,...arr].filter(x=>typeof x==='string'&&/^https?:\/\//i.test(x)))].slice(0,8);}
 function setProductGalleryImage(containerId,button,url){const box=$(containerId);if(!box)return;const img=box.querySelector('img');if(img)img.src=url;box.querySelectorAll('.product-gallery-thumb').forEach(b=>b.classList.remove('active'));button?.classList.add('active');}
 function openProductPage(id){const url=new URL(window.location.href);url.searchParams.set('product',String(id));url.hash='';window.location.href=url.toString();}
 function returnToShop(){const url=new URL(window.location.href);url.searchParams.delete('product');url.hash='products';window.location.href=url.toString();}
-function handleProductPageRoute(loadFailed=false){const id=new URLSearchParams(window.location.search).get('product');const page=$('fullProductPage');if(!page)return;if(!id){page.classList.add('hidden');document.body.classList.remove('full-product-page-open');return;}page.classList.remove('hidden');document.body.classList.add('full-product-page-open');if(loadFailed){page.innerHTML='<div class="full-product-message"><h2>Products could not be loaded</h2><p>Please check your connection and try again.</p><button class="view-btn" onclick="returnToShop()">Back to Shop</button></div>';return;}const p=getProduct(id);if(!p){page.innerHTML='<div class="full-product-message"><h2>Product not found</h2><p>This product may be unavailable or removed.</p><button class="view-btn" onclick="returnToShop()">Back to Shop</button></div>';return;}const specs=productSpecEntries(p),images=productImages(p),sold=Number(p.stock)<=0,discount=Number(p.discount)>0;const related=products.filter(x=>String(x.id)!==String(p.id)&&x.cat===p.cat).slice(0,4);page.innerHTML=`<div class="full-product-topbar"><button type="button" class="full-product-back" onclick="returnToShop()">← Back to Shop</button><span>PABOO <b>• PRODUCT DETAILS</b></span><button type="button" class="full-product-cart" onclick="returnToShop();setTimeout(()=>document.getElementById('cartDrawer')?.classList.add('open'),350)">🛒 Cart</button></div><div class="full-product-container"><div class="full-product-hero"><div><div class="full-product-gallery"><div class="full-product-main-image" id="fullProductMainImage">${images.length?`<img src="${esc(images[0])}" alt="${esc(p.name)}" onerror="this.style.display='none'">`:`<span>${imgPlaceholder()}</span>`}</div>${images.length>1?`<div class="product-gallery-thumbs">${images.map((src,i)=>`<button type="button" class="product-gallery-thumb ${i===0?'active':''}" onclick="setProductGalleryImage('fullProductMainImage',this,this.dataset.src)" data-src="${esc(src)}" aria-label="View image ${i+1}"><img src="${esc(src)}" alt="" loading="lazy"></button>`).join('')}</div>`:''}</div></div><div class="full-product-info"><span class="product-details-kicker">${esc(p.cat||'Gadget')}</span><h1>${esc(p.name)}</h1><div class="product-details-price">${money(finalPrice(p,gbVar(p.id)))} ${discount?`<del>${money(p.price)}</del><span class="discount-badge">${Math.round(Number(p.discount))}% OFF</span>`:''}</div>${saleBox(p)}<p class="product-details-stock ${sold?'sold':''}">${sold?'Currently out of stock':`In stock: ${Math.max(0,Number(p.stock)||0)}`}</p>${p.description?`<p class="product-details-description">${esc(p.description)}</p>`:'<p class="product-details-description">Product description has not been added yet.</p>'}${variantChips(p)}<div class="full-product-actions"><button type="button" class="add-btn" ${sold?'disabled':''} onclick="window.addToCart(${jsArg(p.id)})">Add to Cart</button><button type="button" class="buy-btn" ${sold?'disabled':''} onclick="window.buyNow(${jsArg(p.id)})">Buy Now</button><button type="button" class="view-btn" onclick="window.viewProductDetails(${jsArg(p.id)})">Quick View Popup</button><button type="button" class="full-product-save" onclick="window.toggleWishlist(${jsArg(p.id)})">♡ Save to Wishlist</button></div><div class="full-product-highlights"><span>⚡ Secure checkout options</span><span>📦 Stock: ${Math.max(0,Number(p.stock)||0)}</span><span>↩ Return policy: see store policy</span></div></div></div>${specs.length?`<section class="full-product-spec-section"><h2>Specifications & Features</h2><dl>${specs.map(([k,v])=>`<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl></section>`:`<section class="full-product-spec-section"><h2>Specifications & Features</h2><p>Specifications have not been provided for this product yet. Ask the store to confirm important details before ordering.</p></section>`}${related.length?`<section class="full-product-related"><h2>You may also like</h2><div class="full-product-related-grid">${related.map(x=>`<article class="full-related-card"><div class="full-related-image">${x.image?`<img src="${esc(x.image)}" alt="${esc(x.name)}" loading="lazy">`:esc(x.emoji||'📦')}</div><h3>${esc(x.name)}</h3><strong>${money(finalPrice(x))}</strong><button type="button" class="view-btn" onclick="window.openProductPage(${jsArg(x.id)})">View Details</button></article>`).join('')}</div></section>`:''}<div class="full-product-footer">Paboo · Prices and stock may change. Confirm product details before ordering.</div></div>`;}
+function handleProductPageRoute(loadFailed=false){const id=new URLSearchParams(window.location.search).get('product');const page=$('fullProductPage');if(!page)return;if(!id){page.classList.add('hidden');document.body.classList.remove('full-product-page-open');return;}page.classList.remove('hidden');document.body.classList.add('full-product-page-open');if(loadFailed){page.innerHTML='<div class="full-product-message"><h2>Products could not be loaded</h2><p>Please check your connection and try again.</p><button class="view-btn" onclick="returnToShop()">Back to Shop</button></div>';return;}const p=getProduct(id);if(!p){page.innerHTML='<div class="full-product-message"><h2>Product not found</h2><p>This product may be unavailable or removed.</p><button class="view-btn" onclick="returnToShop()">Back to Shop</button></div>';return;}const specs=productSpecEntries(p),images=productImagesFor(p),sold=Number(p.stock)<=0,discount=Number(p.discount)>0;const related=products.filter(x=>String(x.id)!==String(p.id)&&x.cat===p.cat).slice(0,4);page.innerHTML=`<div class="full-product-topbar"><button type="button" class="full-product-back" onclick="returnToShop()">← Back to Shop</button><span>PABOO <b>• PRODUCT DETAILS</b></span><button type="button" class="full-product-cart" onclick="returnToShop();setTimeout(()=>document.getElementById('cartDrawer')?.classList.add('open'),350)">🛒 Cart</button></div><div class="full-product-container"><div class="full-product-hero"><div><div class="full-product-gallery"><div class="full-product-main-image" id="fullProductMainImage">${images.length?`<img src="${esc(images[0])}" alt="${esc(p.name)}" onerror="this.style.display='none'">`:`<span>${imgPlaceholder()}</span>`}</div>${images.length>1?`<div class="product-gallery-thumbs">${images.map((src,i)=>`<button type="button" class="product-gallery-thumb ${i===0?'active':''}" onclick="setProductGalleryImage('fullProductMainImage',this,this.dataset.src)" data-src="${esc(src)}" aria-label="View image ${i+1}"><img src="${esc(src)}" alt="" loading="lazy"></button>`).join('')}</div>`:''}</div></div><div class="full-product-info"><span class="product-details-kicker">${esc(p.cat||'Gadget')}</span><h1>${esc(p.name)}</h1><div class="product-details-price">${money(finalPrice(p,gbVar(p.id)))} ${discount?`<del>${money(p.price)}</del><span class="discount-badge">${Math.round(Number(p.discount))}% OFF</span>`:''}</div>${saleBox(p)}<p class="product-details-stock ${sold?'sold':''}">${sold?'Currently out of stock':`In stock: ${Math.max(0,Number(p.stock)||0)}`}</p>${p.description?`<p class="product-details-description">${esc(p.description)}</p>`:'<p class="product-details-description">Product description has not been added yet.</p>'}${variantChips(p)}<div class="full-product-actions"><button type="button" class="add-btn" ${sold?'disabled':''} onclick="window.addToCart(${jsArg(p.id)})">Add to Cart</button><button type="button" class="buy-btn" ${sold?'disabled':''} onclick="window.buyNow(${jsArg(p.id)})">Buy Now</button><button type="button" class="view-btn" onclick="window.viewProductDetails(${jsArg(p.id)})">Quick View Popup</button><button type="button" class="full-product-save" onclick="window.toggleWishlist(${jsArg(p.id)})">♡ Save to Wishlist</button></div><div class="full-product-highlights"><span>⚡ Secure checkout options</span><span>📦 Stock: ${Math.max(0,Number(p.stock)||0)}</span><span>↩ Return policy: see store policy</span></div></div></div>${specs.length?`<section class="full-product-spec-section"><h2>Specifications & Features</h2><dl>${specs.map(([k,v])=>`<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl></section>`:`<section class="full-product-spec-section"><h2>Specifications & Features</h2><p>Specifications have not been provided for this product yet. Ask the store to confirm important details before ordering.</p></section>`}${related.length?`<section class="full-product-related"><h2>You may also like</h2><div class="full-product-related-grid">${related.map(x=>`<article class="full-related-card"><div class="full-related-image">${x.image?`<img src="${esc(x.image)}" alt="${esc(x.name)}" loading="lazy">`:esc(x.emoji||'📦')}</div><h3>${esc(x.name)}</h3><strong>${money(finalPrice(x))}</strong><button type="button" class="view-btn" onclick="window.openProductPage(${jsArg(x.id)})">View Details</button></article>`).join('')}</div></section>`:''}<div class="full-product-footer">Paboo · Prices and stock may change. Confirm product details before ordering.</div></div>`;}
 window.openProductPage=openProductPage;window.returnToShop=returnToShop;window.setProductGalleryImage=setProductGalleryImage;
 
 function showSavedProducts(kind){
@@ -593,7 +600,8 @@ function renderHomepageShowcases(){
 
 
 /* ===== Departments: পোশাক (clothing) and গ্যাজেট (gadget) pages ===== */
-const gbDeptCat={clothing:"",gadget:""};
+function gbDFnew(){return{cat:"",sort:"new",sizes:[],colors:[],min:null,max:null,stock:false,disc:false};}
+const gbDF={clothing:gbDFnew(),gadget:gbDFnew()};
 function deptCats(d){
  const m=new Map();
  categories.filter(c=>(c.dept==="clothing"?"clothing":"gadget")===d).forEach(c=>{const n=String(c.name||"").trim();if(n)m.set(categoryKey(n),n);});
@@ -608,21 +616,88 @@ function deptEmoji(n,d){
   if(/ladies|women|girl|kurti|dress|লেডিজ|কুর্তি|থ্রি/.test(v))return"👗";if(/shoe|sandal|জুতা|স্যান্ডেল/.test(v))return"👟";
   if(/cap|hat|টুপি/.test(v))return"🧢";if(/kid|child|baby|বাচ্চা/.test(v))return"🧒";return"👕";
  }
- return homeCategoryIcon(n);
+ return null;
 }
+function deptProducts(d){return products.filter(p=>p.dept===d);}
+function deptPriceRange(d){const l=deptProducts(d).map(p=>Math.round(finalPrice(p)));return l.length?[Math.min(...l),Math.max(...l)]:[0,0];}
+function deptSizes(d){
+ const set=[];deptProducts(d).forEach(p=>{if(isCloth(p))clothAxes(p).sizes.forEach(s=>{if(!set.includes(s))set.push(s);});});
+ const std=["XS","S","M","L","XL","XXL","3XL"];
+ return set.sort((a,b)=>{const x=std.indexOf(a),y=std.indexOf(b);if(x>=0&&y>=0)return x-y;if(x>=0)return-1;if(y>=0)return 1;return String(a).localeCompare(String(b),undefined,{numeric:true});});
+}
+function deptColors(d){
+ const m=new Map();deptProducts(d).forEach(p=>{if(isCloth(p))clothAxes(p).colors.forEach(n=>{const k=n.toLowerCase();if(!m.has(k))m.set(k,{n,h:clothHex(p,n)});});});
+ return[...m.values()];
+}
+function deptFiltered(d,ignoreCat){
+ const f=gbDF[d];let list=deptProducts(d);
+ if(f.cat&&!ignoreCat)list=list.filter(p=>categoryKey(p.cat)===categoryKey(f.cat));
+ if(f.stock)list=list.filter(p=>Number(p.stock)>0);
+ if(f.disc)list=list.filter(p=>Number(p.discount)>0);
+ if(f.min!=null)list=list.filter(p=>finalPrice(p)>=f.min);
+ if(f.max!=null)list=list.filter(p=>finalPrice(p)<=f.max);
+ if(f.sizes.length||f.colors.length){
+  const sl=f.sizes.map(x=>x.toLowerCase()),cl=f.colors.map(x=>x.toLowerCase());
+  list=list.filter(p=>isCloth(p)&&clothAxes(p).vs.some(v=>v.stock>0&&(!sl.length||sl.includes((v.s||"").toLowerCase()))&&(!cl.length||cl.includes((v.c||"").toLowerCase()))));
+ }
+ list=list.slice();
+ if(f.sort==="low")list.sort((a,b)=>finalPrice(a)-finalPrice(b));
+ else if(f.sort==="high")list.sort((a,b)=>finalPrice(b)-finalPrice(a));
+ else if(f.sort==="disc")list.sort((a,b)=>Number(b.discount)-Number(a.discount));
+ return list;
+}
+function deptActiveCount(d){const f=gbDF[d];return f.sizes.length+f.colors.length+(f.min!=null?1:0)+(f.max!=null?1:0)+(f.stock?1:0)+(f.disc?1:0);}
 function renderDeptPage(d){
- const tiles=$("deptTiles_"+d),grid=$("deptGrid_"+d),cnt=$("deptCount_"+d);if(!grid)return;
- const cur=gbDeptCat[d],names=deptCats(d);
- if(cur&&!names.some(n=>categoryKey(n)===categoryKey(cur)))gbDeptCat[d]="";
- if(tiles)tiles.innerHTML=names.length?`<button class="category-tile dept-tile ${!gbDeptCat[d]?'is-on':''}" type="button" onclick="gbDeptFilter('${d}','')"><span class="category-tile-icon" aria-hidden="true">${d==="clothing"?"👕":"🎧"}</span><strong>All</strong><small>All products</small></button>`+names.map(n=>`<button class="category-tile dept-tile ${categoryKey(n)===categoryKey(gbDeptCat[d])?'is-on':''}" type="button" onclick="gbDeptFilter('${d}',${esc(jsArg(n))})"><span class="category-tile-icon" aria-hidden="true">${deptEmoji(n,d)}</span><strong>${esc(n)}</strong><small>Explore collection</small><span class="category-tile-arrow" aria-hidden="true">↗</span></button>`).join(""):"";
- let list=products.filter(p=>p.dept===d);
- if(gbDeptCat[d])list=list.filter(p=>categoryKey(p.cat)===categoryKey(gbDeptCat[d]));
- list.sort((a,b)=>Number(b.featured)-Number(a.featured));
- grid.innerHTML=list.length?list.map(homeProductCard).join(""):'<div class="showcase-empty">No products here yet.</div>';
+ const side=$("deptSide_"+d),grid=$("deptGrid_"+d),cnt=$("deptCount_"+d);if(!grid)return;
+ const f=gbDF[d],names=deptCats(d);
+ if(f.cat&&!names.some(n=>categoryKey(n)===categoryKey(f.cat)))f.cat="";
+ if(side)side.innerHTML=`<button class="dept-cat ${!f.cat?'is-on':''}" type="button" onclick="gbDeptCat('${d}','')"><i aria-hidden="true">${d==="clothing"?"👕":"🎧"}</i><span>All</span></button>`+names.map(n=>`<button class="dept-cat ${categoryKey(n)===categoryKey(f.cat)?'is-on':''}" type="button" onclick="gbDeptCat('${d}',${esc(jsArg(n))})"><i aria-hidden="true">${deptEmoji(n,d)||homeCategoryIcon(n)}</i><span data-no-i18n>${esc(n)}</span></button>`).join("");
+ const chips=[];
+ f.sizes.forEach(x=>chips.push([`${x}`,"sizes",x]));f.colors.forEach(x=>chips.push([x,"colors",x]));
+ if(f.min!=null||f.max!=null){const r=deptPriceRange(d);chips.push([`৳${f.min!=null?f.min:r[0]} – ৳${f.max!=null?f.max:r[1]}`,"price",""]);}
+ if(f.stock)chips.push(["In stock only","stock",""]);if(f.disc)chips.push(["On sale","disc",""]);
+ const act=$("deptActive_"+d);
+ if(act)act.innerHTML=chips.length?chips.map(c=>`<button type="button" class="dept-chip" onclick="gbDeptClear('${d}','${c[1]}',${esc(jsArg(c[2]))})"><span ${c[1]==="sizes"||c[1]==="colors"||c[1]==="price"?'data-no-i18n':''}>${esc(c[0])}</span> ✕</button>`).join("")+`<button type="button" class="dept-chip dept-chip-clear" onclick="gbDeptClear('${d}','all','')">Clear all</button>`:"";
+ const fc=$("deptFcount_"+d),n=deptActiveCount(d);if(fc){fc.textContent=String(n);fc.classList.toggle("hidden",!n);}
+ const ss=$("deptSort_"+d);if(ss)ss.value=f.sort;
+ const list=deptFiltered(d);
+ gbCardColor=f.colors.length===1?f.colors[0]:"";
+ grid.innerHTML=list.length?list.map(homeProductCard).join(""):`<div class="showcase-empty">${n||f.cat?'No products match these filters.':'No products here yet.'}${n?` <button type="button" class="link-btn" onclick="gbDeptClear('${d}','all','')">Clear all</button>`:""}</div>`;
+ gbCardColor="";
  if(cnt)cnt.textContent=`${list.length} products`;
 }
-function gbDeptFilter(d,n){gbDeptCat[d]=n;renderDeptPage(d);}
-window.gbDeptFilter=gbDeptFilter;
+function gbDeptCat(d,n){gbDF[d].cat=n;renderDeptPage(d);}
+function gbDeptSort(d,v){gbDF[d].sort=v;renderDeptPage(d);}
+function gbDeptClear(d,kind,val){
+ const f=gbDF[d];
+ if(kind==="all"){const k=f.cat,s=f.sort;gbDF[d]=gbDFnew();gbDF[d].cat=k;gbDF[d].sort=s;}
+ else if(kind==="sizes")f.sizes=f.sizes.filter(x=>x!==val);
+ else if(kind==="colors")f.colors=f.colors.filter(x=>x!==val);
+ else if(kind==="price"){f.min=null;f.max=null;}
+ else if(kind==="stock")f.stock=false;else if(kind==="disc")f.disc=false;
+ renderDeptPage(d);if(!$("deptSheet").classList.contains("hidden"))gbRenderSheet(d);
+}
+function gbOpenFilter(d){const s=$("deptSheet");if(!s)return;s.dataset.d=d;gbRenderSheet(d);s.classList.remove("hidden");}
+function gbCloseFilter(){$("deptSheet")?.classList.add("hidden");}
+function gbRenderSheet(d){
+ const p=$("deptSheetPanel");if(!p)return;const f=gbDF[d],r=deptPriceRange(d),lo=f.min!=null?f.min:r[0],hi=f.max!=null?f.max:r[1];
+ const sizes=d==="clothing"?deptSizes(d):[],cols=d==="clothing"?deptColors(d):[];
+ let h=`<div class="ds-head"><b>Filter</b><button type="button" class="ds-x" onclick="gbCloseFilter()" aria-label="Close">✕</button></div><div class="ds-body">`;
+ if(sizes.length)h+=`<div class="ds-t">Size</div><div class="ds-row">${sizes.map(x=>`<button type="button" class="ds-pill ${f.sizes.includes(x)?'on':''}" onclick="gbFToggle('${d}','sizes',${esc(jsArg(x))})" data-no-i18n>${esc(x)}</button>`).join("")}</div>`;
+ if(cols.length)h+=`<div class="ds-t">Colour</div><div class="ds-row">${cols.map(c=>`<button type="button" class="ds-sw ${f.colors.includes(c.n)?'on':''}" title="${esc(c.n)}" aria-label="${esc(c.n)}" onclick="gbFToggle('${d}','colors',${esc(jsArg(c.n))})"><i style="background:${esc(c.h)}"></i></button>`).join("")}</div>`;
+ if(r[1]>r[0])h+=`<div class="ds-t">Price <b id="dsPrice" data-no-i18n>৳${lo} – ৳${hi}</b></div><div class="ds-range"><input type="range" id="dsMin" min="${r[0]}" max="${r[1]}" value="${lo}" oninput="gbFPrice('${d}')"><input type="range" id="dsMax" min="${r[0]}" max="${r[1]}" value="${hi}" oninput="gbFPrice('${d}')"></div>`;
+ h+=`<div class="ds-row" style="margin-top:12px"><button type="button" class="ds-pill ${f.stock?'on':''}" onclick="gbFToggle('${d}','stock','')">In stock only</button><button type="button" class="ds-pill ${f.disc?'on':''}" onclick="gbFToggle('${d}','disc','')">On sale</button></div></div>`;
+ h+=`<div class="ds-foot"><button type="button" class="ds-clear" onclick="gbDeptClear('${d}','all','')">Clear all</button><button type="button" class="ds-apply" id="dsApply" onclick="gbCloseFilter()">Show ${deptFiltered(d).length} products</button></div>`;
+ p.innerHTML=h;
+}
+function gbFToggle(d,kind,val){const f=gbDF[d];if(kind==="sizes"||kind==="colors"){const a=f[kind],i=a.indexOf(val);if(i>=0)a.splice(i,1);else a.push(val);}else f[kind]=!f[kind];renderDeptPage(d);gbRenderSheet(d);}
+function gbFPrice(d){
+ const r=deptPriceRange(d),a=$("dsMin"),b=$("dsMax");if(!a||!b)return;let lo=Number(a.value),hi=Number(b.value);if(lo>hi){if(document.activeElement===a){lo=hi;a.value=lo;}else{hi=lo;b.value=hi;}}
+ const f=gbDF[d];f.min=lo>r[0]?lo:null;f.max=hi<r[1]?hi:null;
+ const t=$("dsPrice");if(t)t.textContent=`৳${lo} – ৳${hi}`;
+ renderDeptPage(d);const ap=$("dsApply");if(ap)ap.textContent=`Show ${deptFiltered(d).length} products`;
+}
+Object.assign(window,{gbDeptCat,gbDeptSort,gbDeptClear,gbOpenFilter,gbCloseFilter,gbFToggle,gbFPrice});
 function renderSmartRecommendations(){let old=$("smartRecommendations");if(old)old.remove();if(!products.length)return;let seed=products.find(p=>p.featured)||products[0];let picks=products.filter(p=>p.cat===seed.cat&&String(p.id)!==String(seed.id)&&p.stock>0).slice(0,3);if(!picks.length)picks=products.filter(p=>String(p.id)!==String(seed.id)&&p.stock>0).slice(0,3);if(!picks.length)return;let section=document.createElement("section");section.id="smartRecommendations";section.dataset.v="home";section.className="shop smart-recommendations";section.innerHTML=`<div class="section-head"><h2>Smart Picks For You</h2><span>Based on product category and availability</span></div><div class="products-grid">${picks.map(p=>`<article class="product-card"><div class="product-img">${p.image?`<img src="${esc(p.image)}" alt="${esc(p.name)}" style="width:100%;height:100%;object-fit:contain">`:imgPlaceholder()}</div><div class="category">${esc(p.cat)}</div><h3>${esc(p.name)}</h3><div class="price">${money(finalPrice(p))}</div><button class="add-btn" onclick="addToCart('${String(p.id).replace(/'/g,"\'")}')">Add to Cart</button></article>`).join("")}</div>`;$("products")?.insertAdjacentElement("afterend",section);}
 function getProduct(id){return products.find(p=>String(p.id)===String(id));}
 function finalPrice(p,vn){const v=vOf(p,vn),base=v&&v.price>0?v.price:p.price;return p.discount>0?Math.max(0,base-base*p.discount/100):base;}
@@ -650,7 +725,7 @@ function updateDeliveryInfo(){
  updateCart();
 }
 function updateCart(){
- let c=$("cartCount");if(c)c.textContent=cart.reduce((sum,item)=>sum+item.qty,0);{const n=cart.reduce((sum,item)=>sum+item.qty,0),b=$("bottomCartCount");if(b){b.textContent=n;b.classList.toggle("is-empty",!n);}}
+ let c=$("cartCount");if(c)c.textContent=cart.reduce((sum,item)=>sum+item.qty,0);{const n=cart.reduce((sum,item)=>sum+item.qty,0),b=$("bottomCartCount");if(b){b.textContent=n;b.classList.toggle("is-empty",!n);if(b.parentElement)b.parentElement.classList.toggle("has-items",n>0);}}
  let t=totals();["cartSubtotal","cartDelivery","cartTotal","checkoutTotal"].forEach((id,i)=>{let e=$(id);if(e)e.textContent=money([t.subtotal,t.delivery,t.total,t.total][i]);});let dc=$("couponDiscount");if(dc)dc.textContent=money(t.discount);let ca=$("couponStatus");if(ca)ca.textContent=appliedCoupon?(t.discount?`Coupon ${appliedCoupon} applied`:`Coupon ${appliedCoupon}: minimum order ${money(COUPONS[appliedCoupon]?.min||0)}`):"Enter a code and tap Apply.";
  let cb=$("checkoutBtn");if(cb)cb.disabled=!cart.length||!enabledPaymentTypes().length;
  let box=$("cartItems");if(!box)return;
@@ -939,6 +1014,8 @@ function updateBottomBar(){
  else{
   const v=document.body.dataset.view||"home";
   if(v==="track")active="track";
+  else if(v==="clothing")active="clothing";
+  else if(v==="gadget")active="gadget";
   else if(v==="home"&&window.scrollY<300)active="home";
  }
  bar.querySelectorAll("[data-bar]").forEach(el=>{const on=el.dataset.bar===active;el.classList.toggle("is-active",on);if(on)el.setAttribute("aria-current","true");else el.removeAttribute("aria-current");});
@@ -1015,6 +1092,7 @@ let gbNavCount=0;
 function viewFromHash(){let id="";try{id=decodeURIComponent(location.hash.slice(1));}catch(e){}return VIEW_BY_ID[id]||"home";}
 function setView(v,scrollTarget){
  document.body.dataset.view=v;
+ try{$("deptSheet")?.classList.add("hidden");}catch(e){}
  const t=$("pageHeadTitle");if(t)t.textContent=VIEW_TITLES[v]||"";
  if(v==="home"&&scrollTarget){requestAnimationFrame(()=>scrollTarget.scrollIntoView({behavior:"smooth"}));}
  else window.scrollTo(0,0);

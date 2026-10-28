@@ -185,7 +185,7 @@ function products(){
 }
 function productRows(list){
   if(!list.length)return `<tr><td colspan="8" class="empty">No products found</td></tr>`;
-  return list.map(p=>`<tr><td>${p.image?`<img class="thumb" src="${esc(p.image)}" alt="">`:'—'}</td><td><b>${esc(p.name)}</b></td><td>${esc(p.category||'—')} <small title="${deptOf(p)}">${deptOf(p)==='clothing'?'👕':'🎧'}</small></td><td>${money(p.price)}</td><td>${marginCell(p)}</td><td>${Number(p.stock||0)}</td><td><span class="pill ${p.active!==false?'green':'red'}">${p.active!==false?'Active':'Inactive'}</span></td><td class="actions"><button class="btn primary" onclick="openPostBuilder(${productsCache.indexOf(p)})">📣 Post</button><button class="btn muted" onclick="editProduct(${productsCache.indexOf(p)})">Edit</button><button class="btn danger" onclick="deleteProduct(${productsCache.indexOf(p)})">Delete</button></td></tr>`).join('')
+  return list.map(p=>`<tr><td>${p.image?`<img class="thumb" src="${esc(p.image)}" alt="">`:'—'}</td><td><b>${esc(p.name)}</b></td><td>${esc(p.category||'—')} <small title="${deptOf(p)}">${deptOf(p)==='clothing'?'👕':'🎧'}</small></td><td>${money(p.price)}</td><td>${marginCell(p)}</td><td>${Number(p.stock||0)}</td><td><span class="pill ${p.active!==false?'green':'red'}">${p.active!==false?'Active':'Inactive'}</span></td><td class="actions"><button class="btn primary" onclick="openPostBuilder(${productsCache.indexOf(p)})">📣 Post</button><button class="btn muted" onclick="editProduct(${productsCache.indexOf(p)})">Edit</button><button class="btn muted" title="Copy product" onclick="copyProduct(${productsCache.indexOf(p)})">⧉ Copy</button><button class="btn danger" onclick="deleteProduct(${productsCache.indexOf(p)})">Delete</button></td></tr>`).join('')
 }
 function filterProducts(){
   const q=($('productSearch')?.value||'').toLowerCase().trim();
@@ -199,8 +199,8 @@ function filterProducts(){
   const rows=$('productRows');if(rows)rows.innerHTML=productRows(list)
 }
 
-function addProduct(d){newDept=(typeof d==='string'&&d)?d:(curDept||'gadget');editingProductId=null;openModal('Add Product',productForm());deptChange()}
-function editProduct(i){const p=productsCache[i];if(!p)return;editingProductId=p.id;openModal('Edit Product',productForm(p));deptChange()}
+function addProduct(d){copySrc=null;newDept=(typeof d==='string'&&d)?d:(curDept||'gadget');editingProductId=null;openModal('Add Product',productForm());deptChange()}
+function editProduct(i){const p=productsCache[i];if(!p)return;editingProductId=p.id;copySrc=null;openModal('Edit Product',productForm(p));deptChange()}
 function saleDt(v){if(!v)return '';const d=new Date(v);if(isNaN(d))return '';return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,16)}
 function productForm(p={}){
   const dept=p.id?deptOf(p):newDept;clothInit(p);
@@ -255,10 +255,11 @@ async function saveProduct(){
   try{
     const isEdit=!!editingProductId,id=editingProductId||crypto.randomUUID(),old=productsCache.find(p=>String(p.id)===String(id));
     const btn=$('saveProductBtn');if(btn){btn.disabled=true;btn.textContent='Saving...'}
-    let images=old?.images??old?.gallery??old?.image_urls??[];
+    const imgSrc=old||copySrc;
+    let images=imgSrc?.images??imgSrc?.gallery??imgSrc?.image_urls??[];
     if(typeof images==='string'){try{images=JSON.parse(images)}catch(e){images=[]}}
     if(!Array.isArray(images))images=[];
-    images=[...new Set([old?.image,...images].filter(x=>typeof x==='string'&&/^https?:\/\//i.test(x)))];
+    images=[...new Set([imgSrc?.image,...images].filter(x=>typeof x==='string'&&/^https?:\/\//i.test(x)))];
     const remove=new Set([...document.querySelectorAll('.remove-product-image:checked')].map(x=>x.value));
     images=images.filter(x=>!remove.has(x));
     for(const file of files){const url=await uploadImage(file,id);if(url)images.push(url)}
@@ -353,7 +354,7 @@ function clothInit(p){
   const byS={};((ch&&ch.rows)||[]).forEach(r=>{if(r&&r.s)byS[r.s]={s:String(r.s),on:r.on!==false,v:cols.map((_,i)=>String(((r.v||[])[i])??''))}});
   const sizes=CE_SIZES.map((s,i)=>byS[s]||{s,on:!ch&&i<4,v:cols.map(()=>'')});
   Object.keys(byS).forEach(k=>{if(!CE_SIZES.includes(k))sizes.push(byS[k])});
-  const cl=colors.filter(c=>c&&c.n).map(c=>({id:'c'+(++ceUid),n:String(c.n),h:/^#[0-9a-f]{6}$/i.test(c.h||'')?c.h:'#999999'}));
+  const cl=colors.filter(c=>c&&c.n).map(c=>({id:'c'+(++ceUid),n:String(c.n),h:/^#[0-9a-f]{6}$/i.test(c.h||'')?c.h:'#999999',i:/^https?:\/\//i.test(c.i||'')?c.i:''}));
   const stock={};
   (Array.isArray(ceJson(p.variants,[]))?ceJson(p.variants,[]):[]).forEach(v=>{if(!v||(!v.c&&!v.s))return;const c=cl.find(x=>x.n===v.c);stock[(c?c.id:'')+'|'+(v.s||'')]=Math.max(0,Math.floor(Number(v.stock)||0))});
   clothState={unit:ch&&ch.unit!=null?String(ch.unit):'ইঞ্চি',cols,sizes,colors:cl,stock};
@@ -365,16 +366,17 @@ function deptChange(){
 }
 function clothHtml(){
   return `<div class="cloth-ed"><h4>👕 পোশাকের রং, সাইজ ও মাপ</h4>
-  <div class="ce-block"><b>১) রং (Colours)</b><div id="ceColors">${ceColorsHtml()}</div><button type="button" class="btn muted" onclick="ceAddColor()">＋ রং যোগ করুন</button></div>
+  <div class="ce-block"><b>১) রং (Colours)</b><small>নিচের রঙে চাপলেই যোগ হবে। প্রতি রঙের ছবি দিলে ওয়েবসাইটে রং বাছলে সেই ছবি দেখাবে (📷)।</small><div class="ce-pal">${CE_PAL.map((x,i)=>`<button type="button" class="ce-pbtn" title="${x[0]}" style="background:${x[1]}" onclick="ceAddPreset(${i})"></button>`).join('')}</div><div id="ceColors">${ceColorsHtml()}</div><button type="button" class="btn muted" onclick="ceAddColor()">＋ অন্য রং যোগ করুন</button></div>
   <div class="ce-block"><b>২) সাইজ ও মাপ</b><small>বাঁ দিকের টিক দিলে সাইজটি ওয়েবসাইটে দেখাবে। টিক তুললে লুকানো থাকবে।</small>
+  <div class="ce-unit">টেমপ্লেট: <select id="ceTpl" onchange="ceApplyTpl(this.value)"><option value="">— একটি বেছে নিন —</option>${Object.keys(CE_TPL).map(k=>`<option value="${k}">${CE_TPL[k].label}</option>`).join('')}</select> <small>(নমুনা মাপ, ইঞ্চিতে। নিজের কাপড় মেপে বদলে নিন)</small></div>
   <div class="ce-unit">মাপের একক: <input id="ceUnit" value="${esc(clothState.unit)}" oninput="clothState.unit=this.value" placeholder="ইঞ্চি"></div>
   <div id="ceSizes" class="ce-scroll">${ceSizesHtml()}</div>
   <div class="ce-add"><input id="ceNewSize" placeholder="নতুন সাইজ (যেমন 30, 3XL)"><button type="button" class="btn muted" onclick="ceAddSize()">＋ সাইজ</button><button type="button" class="btn muted" onclick="ceAddCol()">＋ মাপের কলাম (যেমন গলা)</button></div></div>
-  <div class="ce-block"><b>৩) স্টক (প্রতিটি রং ও সাইজের)</b><div id="ceStock" class="ce-scroll">${ceStockHtml()}</div></div></div>`;
+  <div class="ce-block"><b>৩) স্টক (প্রতিটি রং ও সাইজের)</b> <button type="button" class="btn muted" style="padding:2px 10px" onclick="ceFillStock()">সব ঘরে একই সংখ্যা</button><div id="ceStock" class="ce-scroll">${ceStockHtml()}</div></div></div>`;
 }
 function ceColorsHtml(){
   const c=clothState.colors;if(!c.length)return '<div class="empty">কোনো রং নেই। রং না থাকলে শুধু সাইজ দিয়ে চলবে।</div>';
-  return c.map((x,i)=>`<div class="ce-row"><input type="color" value="${esc(x.h)}" oninput="clothState.colors[${i}].h=this.value"><input value="${esc(x.n)}" placeholder="রঙের নাম (যেমন নীল)" oninput="clothState.colors[${i}].n=this.value" onchange="ceRefreshStock()"><button type="button" class="btn danger" onclick="ceDelColor(${i})">✕</button></div>`).join('');
+  return c.map((x,i)=>`<div class="ce-row"><input type="color" value="${esc(x.h)}" oninput="clothState.colors[${i}].h=this.value"><input value="${esc(x.n)}" placeholder="রঙের নাম (যেমন নীল)" oninput="clothState.colors[${i}].n=this.value" onchange="ceRefreshStock()"><label class="ce-img" title="এই রঙের ছবি">${x.i?`<img src="${esc(x.i)}" alt="">`:'📷'}<input type="file" accept="image/*" onchange="ceColorImg(${i},this)"></label>${x.i?`<button type="button" class="ce-x" title="ছবি সরান" onclick="clothState.colors[${i}].i='';ceRefreshAll()">🗑</button>`:''}<button type="button" class="btn danger" onclick="ceDelColor(${i})">✕</button></div>`).join('');
 }
 function ceSizesHtml(){
   const st=clothState;
@@ -390,7 +392,7 @@ function ceStockHtml(){
 function ceStk(el){clothState.stock[el.dataset.c+'|'+el.dataset.s]=Math.max(0,Math.floor(Number(el.value)||0))}
 function ceRefreshStock(){const e=$('ceStock');if(e)e.innerHTML=ceStockHtml()}
 function ceRefreshAll(){const a=$('ceColors'),b=$('ceSizes');if(a)a.innerHTML=ceColorsHtml();if(b)b.innerHTML=ceSizesHtml();ceRefreshStock()}
-function ceAddColor(){clothState.colors.push({id:'c'+(++ceUid),n:'',h:'#1d4ed8'});ceRefreshAll();const ins=document.querySelectorAll('#ceColors .ce-row input:not([type=color])');ins[ins.length-1]?.focus()}
+function ceAddColor(){clothState.colors.push({id:'c'+(++ceUid),n:'',h:'#1d4ed8'});ceRefreshAll();const ins=document.querySelectorAll('#ceColors .ce-row input:not([type=color]):not([type=file])');ins[ins.length-1]?.focus()}
 function ceDelColor(i){clothState.colors.splice(i,1);ceRefreshAll()}
 function ceToggleSize(i,on){clothState.sizes[i].on=on;ceRefreshAll()}
 function ceAddSize(){const inp=$('ceNewSize');const n=(inp?.value||'').trim();if(!n)return;if(clothState.sizes.some(z=>z.s.toLowerCase()===n.toLowerCase())){alert('এই সাইজ আগে থেকেই আছে।');return}clothState.sizes.push({s:n,on:true,v:clothState.cols.map(()=>'')});inp.value='';ceRefreshAll()}
@@ -399,7 +401,7 @@ function ceAddCol(){const n=prompt('মাপের নাম লিখুন (�
 function ceDelCol(i){if(!confirm('এই কলাম মুছবেন?'))return;clothState.cols.splice(i,1);clothState.sizes.forEach(z=>z.v.splice(i,1));ceRefreshAll()}
 function clothCollect(){
   const st=clothState;
-  const colors=st.colors.map(c=>({id:c.id,n:String(c.n||'').trim(),h:c.h})).filter(c=>c.n);
+  const colors=st.colors.map(c=>({id:c.id,n:String(c.n||'').trim(),h:c.h,i:c.i||''})).filter(c=>c.n);
   const seen=new Set();colors.forEach(c=>{const k=c.n.toLowerCase();if(seen.has(k))throw new Error('একই রঙের নাম দুইবার আছে: '+c.n);seen.add(k)});
   const keep=st.cols.map((n,i)=>({n:String(n||'').trim(),i})).filter(x=>x.n);
   const cols=keep.map(x=>x.n);
@@ -412,8 +414,68 @@ function clothCollect(){
     const v={name,stock:Math.max(0,Math.floor(Number(st.stock[c.id+'|'+z])||0))};
     if(c.n)v.c=c.n;if(z)v.s=z;variants.push(v);
   }));
-  return{colors:colors.map(c=>({n:c.n,h:c.h})),size_chart:{unit:String(st.unit||'').trim(),cols,rows},variants};
+  return{colors:colors.map(c=>c.i?{n:c.n,h:c.h,i:c.i}:{n:c.n,h:c.h}),size_chart:{unit:String(st.unit||'').trim(),cols,rows},variants};
 }
+
+const CE_PAL=[['কালো','#111111'],['সাদা','#ffffff'],['নেভি','#1e3a8a'],['নীল','#2563eb'],['আকাশি','#7dd3fc'],['লাল','#dc2626'],['মেরুন','#7f1d1d'],['সবুজ','#16a34a'],['অলিভ','#6b7a2e'],['হলুদ','#facc15'],['কমলা','#f97316'],['গোলাপি','#ec4899'],['বেগুনি','#7c3aed'],['ধূসর','#6b7280'],['বাদামি','#78350f'],['বেইজ','#d6c5a0']];
+const CE_TPL={
+  shirt:{label:'শার্ট (ফরমাল/ক্যাজুয়াল)',cols:['বুক','দৈর্ঘ্য','কাঁধ','হাতা'],rows:{S:[38,27,17,24],M:[40,28,17.5,25],L:[42,29,18,25.5],XL:[44,30,18.5,26],XXL:[46,31,19,26.5]}},
+  tee:{label:'টি-শার্ট / পোলো',cols:['বুক','দৈর্ঘ্য','কাঁধ'],rows:{S:[36,26,16],M:[38,27,17],L:[40,28,18],XL:[42,29,19],XXL:[44,30,20]}},
+  pant:{label:'প্যান্ট / জিন্স',cols:['কোমর','দৈর্ঘ্য','হিপ','ঊরু'],rows:{'28':[28,39,36,22],'30':[30,40,38,23],'32':[32,41,40,24],'34':[34,42,42,25],'36':[36,42,44,26]}},
+  jacket:{label:'জ্যাকেট / হুডি',cols:['বুক','দৈর্ঘ্য','কাঁধ','হাতা'],rows:{S:[40,25,17,24],M:[42,26,18,25],L:[44,27,19,25.5],XL:[46,28,20,26],XXL:[48,29,21,26.5]}},
+  ladies:{label:'লেডিজ টপ / কুর্তি',cols:['বুক','কোমর','দৈর্ঘ্য','কাঁধ'],rows:{S:[34,30,38,14],M:[36,32,39,14.5],L:[38,34,40,15],XL:[40,36,41,15.5],XXL:[42,38,42,16]}}
+};
+function ceAddPreset(i){const c=CE_PAL[i];if(clothState.colors.some(x=>String(x.n).trim().toLowerCase()===c[0].toLowerCase()))return;clothState.colors.push({id:'c'+(++ceUid),n:c[0],h:c[1],i:''});ceRefreshAll()}
+async function ceColorImg(i,inp){const f=inp.files&&inp.files[0];if(!f)return;try{const url=await uploadImage(f,'col'+(editingProductId||'new'));clothState.colors[i].i=url;ceRefreshAll()}catch(e){showError(e)}}
+function ceApplyTpl(k){
+  const t=CE_TPL[k];if(!t)return;
+  const has=clothState.sizes.some(z=>z.v.some(x=>String(x||'').trim()));
+  if(has&&!confirm('এই টেমপ্লেট বসালে এখনকার মাপগুলো বদলে যাবে। বসাবেন?')){const e=$('ceTpl');if(e)e.value='';return}
+  clothState.cols=t.cols.slice();clothState.unit='ইঞ্চি';
+  const sizes=Object.keys(t.rows).map(sz=>({s:sz,on:true,v:t.rows[sz].map(String)}));
+  CE_SIZES.forEach(sz=>{if(!t.rows[sz])sizes.push({s:sz,on:false,v:t.cols.map(()=> '')})});
+  clothState.sizes=sizes;
+  const u=$('ceUnit');if(u)u.value='ইঞ্চি';
+  ceRefreshAll();const e=$('ceTpl');if(e)e.value='';
+}
+function ceFillStock(){
+  const n=prompt('প্রতিটি রং ও সাইজে কত পিস দেবেন?','10');if(n===null)return;const q=Math.max(0,Math.floor(Number(n)));if(!Number.isFinite(q))return;
+  const st=clothState,sizes=st.sizes.filter(z=>z.on).map(z=>z.s),rows=st.colors.length?st.colors.map(c=>c.id):[''],cs=sizes.length?sizes:[''];
+  rows.forEach(r=>cs.forEach(z=>{st.stock[r+'|'+z]=q}));ceRefreshStock();
+}
+let copySrc=null;
+function copyProduct(i){
+  const p=productsCache[i];if(!p)return;
+  newDept=deptOf(p);editingProductId=null;copySrc=p;
+  const c={...p};delete c.id;c.name=(p.name||'')+' (copy)';
+  openModal('Copy Product',productForm(c));deptChange();
+}
+/* ----- Size guide (Settings) ----- */
+function sizeGuideCard(s){
+  const g=s.size_guide||{},dis=s.has_size_guide?'':'disabled';
+  return `<div class="card" style="margin-top:16px"><h3>📏 সাইজ গাইড (কীভাবে মাপবেন)</h3>
+  <p>পোশাকের মাপের টেবিলের নিচে "কীভাবে মাপবেন" নামে খোলা-বন্ধ করা অংশে এটা দেখাবে। একবার লিখলে সব পোশাকে দেখাবে। ফাঁকা রাখলে কিছু দেখাবে না।</p>
+  ${s.has_size_guide?'':'<p style="color:#b45309"><b>One-time setup needed:</b> run <code>15_clothing_extras.sql</code> in Supabase &gt; SQL Editor, then press Refresh.</p>'}
+  <label>লেখা<textarea id="sgText" rows="4" placeholder="যেমন: বুক মাপতে বগলের নিচ দিয়ে ফিতা ঘুরিয়ে নিন..." ${dis}>${esc(g.text||'')}</textarea></label>
+  <label>ছবি (ঐচ্ছিক)<input type="file" id="sgFile" accept="image/*" ${dis}></label>
+  ${g.image?`<div style="margin:8px 0"><img src="${esc(g.image)}" alt="" style="max-width:220px;border-radius:10px"><br><label><input type="checkbox" id="sgRemove"> ছবিটি সরিয়ে ফেলুন</label></div>`:''}
+  <button class="btn primary" id="saveSgBtn" onclick="saveSizeGuide()" ${dis}>Save</button></div>`;
+}
+async function saveSizeGuide(){
+  const s=storeSettingsCache||{},btn=$('saveSgBtn');
+  try{
+    if(btn){btn.disabled=true;btn.textContent='Saving...'}
+    let image=(s.size_guide&&s.size_guide.image)||'';
+    if($('sgRemove')?.checked)image='';
+    const f=$('sgFile')?.files?.[0];if(f)image=await uploadImage(f,'size-guide');
+    const size_guide={text:($('sgText')?.value||'').trim(),image};
+    const {error}=await sb.from('store_settings').upsert({id:1,store_name:s.store_name||'Paboo',size_guide,updated_at:new Date().toISOString()},{onConflict:'id'});
+    if(error)throw error;
+    storeSettingsCache={...s,size_guide};
+    alert('Saved. Refresh your website to see the change.');render();
+  }catch(e){showError(e);if(btn){btn.disabled=false;btn.textContent='Save'}}
+}
+Object.assign(window,{ceAddPreset,ceColorImg,ceApplyTpl,ceFillStock,copyProduct,saveSizeGuide});
 Object.assign(window,{deptPage,deptChange,ceAddColor,ceDelColor,ceToggleSize,ceAddSize,ceDelSize,ceAddCol,ceDelCol,ceStk,ceRefreshStock});
 /* ---- CSV import / export ---- */
 const CSV_COLS=['name','category','price','discount','stock','buying_price','brand','description'];
@@ -588,7 +650,7 @@ function exportOrdersCSV(){
 function formatOrderItems(items){
   if(typeof items==='string'){try{items=JSON.parse(items)}catch{return items}}
   if(!Array.isArray(items))return '';
-  return items.map(x=>`${x.name||x.title||'Product'} x${x.qty||x.quantity||1}`).join('; ');
+  return items.map(x=>`${x.name||x.title||'Product'}${x.variant?' ['+x.variant+']':''} x${x.qty||x.quantity||1}`).join('; ');
 }
 function viewOrder(i){
   const o=ordersCache[i];if(!o)return;
@@ -597,7 +659,7 @@ function viewOrder(i){
   const payment=o.payment_method||o.paymentMethod||'COD',s=o.status||'Pending',delivery=Number(o.delivery_charge??o.delivery_fee??0),total=o.total??(Number(o.subtotal||0)+delivery);
   let items=o.items;let itemHtml='';
   if(typeof items==='string'){try{items=JSON.parse(items)}catch{items=[]}}
-  if(Array.isArray(items))itemHtml=items.map(x=>{const qty=Number(x.qty||x.quantity||1);const price=Number(x.price||x.unit_price||0);return `<div class="order-item"><span>${esc(x.name||x.title||'Product')} × ${qty}</span><b>${money(price*qty)}</b></div>`}).join('');
+  if(Array.isArray(items))itemHtml=items.map(x=>{const qty=Number(x.qty||x.quantity||1);const price=Number(x.price||x.unit_price||0);return `<div class="order-item"><span>${esc(x.name||x.title||'Product')}${x.variant?` <b class="ord-var">${esc(x.variant)}</b>`:''} × ${qty}</span><b>${money(price*qty)}</b></div>`}).join('');
   const created=o.created_at?new Date(o.created_at).toLocaleString('en-BD'):'—';
   openModal('Order '+id,`<div class="card"><b>Order Information</b><p><b>Order ID:</b> ${esc(id)}</p><p><b>Placed:</b> ${esc(created)}</p><p><b>Status:</b> <span class="pill ${statusClass(s)}">${esc(s)}</span></p><hr><b>Customer</b><p>${esc(name)} · ${esc(phone)}</p><p>${esc([district,upazila].filter(Boolean).join(', '))}</p><p>${esc(address||'—')}</p><hr><p><b>Payment:</b> ${esc(payment)}</p><p><b>Transaction ID:</b> ${esc(o.transaction_id||'—')}</p><p><b>Source:</b> ${esc(o.source||'—')}</p><p><b>Subtotal:</b> ${money(o.subtotal)}</p><p><b>Delivery:</b> ${money(delivery)}</p><p><b>Total:</b> <b>${money(total)}</b></p><p><b>Customer note:</b> ${esc(o.note||'—')}</p>${itemHtml?`<hr><b>Items</b><div class="order-items">${itemHtml}</div>`:'<hr><p>No item details saved with this order.</p>'}${courierBox(i,o)}</div><div class="btn-row">${blockBtn(o)}<button class="btn" style="background:#1fa855;color:#fff" onclick="whatsappOrder(${i})">WhatsApp Customer</button>${s==='Pending'?actionBtn(i,'Confirmed','Confirm Order','primary'):''}${s==='Confirmed'?actionBtn(i,'Processing','Start Processing','primary'):''}${s==='Processing'?actionBtn(i,'Shipped','Mark Shipped','primary'):''}${s==='Shipped'?actionBtn(i,'Delivered','Mark Delivered','primary'):''}${s!=='Delivered'&&s!=='Cancelled'?actionBtn(i,'Cancelled','Cancel Order','danger'):''}</div>`);
 }
@@ -1001,6 +1063,8 @@ async function loadStoreSettings(){
     has_policies:!!data&&('policies' in data),
     social:(()=>{let v=data&&data.social;if(typeof v==='string'){try{v=JSON.parse(v)}catch(e){v=null}}return v&&typeof v==='object'?v:{}})(),
     has_social:!!data&&('social' in data),
+    size_guide:(()=>{let v=data&&data.size_guide;if(typeof v==='string'){try{v=JSON.parse(v)}catch(e){v=null}}return v&&typeof v==='object'?v:{}})(),
+    has_size_guide:!!data&&('size_guide' in data),
     has_variants:!!data&&('variants_on' in data)
   };
   return storeSettingsCache;
@@ -1016,7 +1080,7 @@ function settings(){
     <label class="full">Store Address<textarea id="storeAddress" rows="3" maxlength="500" placeholder="Store address">${esc(s.address||'')}</textarea></label>
     <label class="full">Support Hours<input id="storeHours" maxlength="160" value="${esc(s.support_hours||'')}" placeholder="Every day, 10 AM–8 PM"></label>
   </div><div class="btn-row"><button class="btn primary" id="saveStoreSettingsBtn" onclick="saveStoreSettings()">Save Store Settings</button></div>
-  ${s.updated_at?`<p><small>Last updated: ${esc(new Date(s.updated_at).toLocaleString('en-BD'))}</small></p>`:''}</div>${themeCard(s)}${socialCard(s)}${colsCard(s)}${variantsCard(s)}${trackingCard(s)}`
+  ${s.updated_at?`<p><small>Last updated: ${esc(new Date(s.updated_at).toLocaleString('en-BD'))}</small></p>`:''}</div>${themeCard(s)}${socialCard(s)}${colsCard(s)}${variantsCard(s)}${sizeGuideCard(s)}${trackingCard(s)}`
 }
 
 async function saveStoreSettings(){
