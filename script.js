@@ -57,12 +57,60 @@ function saleWindow(r){const s=Date.parse(r.sale_starts_at||""),e=Date.parse(r.s
 function discountNow(raw,w){const n=Date.now();if(w.s===null&&w.e===null)return raw;return((w.s===null||w.s<=n)&&(w.e===null||w.e>n))?raw:0;}
 /* ---- Product variants (colour / size) — only active when the admin switch is ON ---- */
 let GB_VARS_ON=false;const gbPicked={};
-function gbParseVars(v){if(typeof v==="string"){try{v=JSON.parse(v)}catch(e){v=[]}}if(!Array.isArray(v))return[];return v.map(x=>({name:String((x&&x.name)||"").trim(),stock:Math.max(0,Math.floor(Number(x&&x.stock)||0)),price:Number(x&&x.price)>0?Number(x.price):0})).filter(x=>x.name);}
+function gbParseVars(v){if(typeof v==="string"){try{v=JSON.parse(v)}catch(e){v=[]}}if(!Array.isArray(v))return[];return v.map(x=>({name:String((x&&x.name)||"").trim(),stock:Math.max(0,Math.floor(Number(x&&x.stock)||0)),price:Number(x&&x.price)>0?Number(x.price):0,c:String((x&&x.c)||"").trim(),s:String((x&&x.s)||"").trim()})).filter(x=>x.name);}
 function pvars(p){return GB_VARS_ON&&p&&Array.isArray(p.variants)&&p.variants.length?p.variants:[];}
 function vOf(p,n){return n?pvars(p).find(v=>v.name===n)||null:null;}
 function stockOf(p,n){const v=vOf(p,n);return v?v.stock:(Number(p.stock)||0);}
 function gbVar(id){const p=getProduct(id);const n=gbPicked[String(id)];return p&&vOf(p,n)?n:null;}
+/* ===== Clothing: colours, sizes, measurements, size chart ===== */
+const gbPickC={},gbPickS={};
+function gbParseColors(v){if(typeof v==="string"){try{v=JSON.parse(v)}catch(e){v=[]}}if(!Array.isArray(v))return[];return v.map(x=>({n:String((x&&x.n)||"").trim(),h:/^#[0-9a-f]{3,8}$/i.test(String((x&&x.h)||""))?x.h:"#cccccc"})).filter(x=>x.n);}
+function gbParseChart(v){if(typeof v==="string"){try{v=JSON.parse(v)}catch(e){v=null}}if(!v||typeof v!=="object")return{unit:"",cols:[],rows:[]};const cols=(Array.isArray(v.cols)?v.cols:[]).map(x=>String(x||"").trim());const rows=(Array.isArray(v.rows)?v.rows:[]).filter(r=>r&&String(r.s||"").trim()&&r.on!==false).map(r=>({s:String(r.s).trim(),v:cols.map((_,i)=>String(((r.v||[])[i])??"").trim())}));return{unit:String(v.unit||"").trim(),cols,rows};}
+function isCloth(p){return !!p&&p.dept==="clothing";}
+function clothAxes(p){
+ const vs=pvars(p),cs=[],ss=[];
+ vs.forEach(v=>{if(v.c&&!cs.includes(v.c))cs.push(v.c);if(v.s&&!ss.includes(v.s))ss.push(v.s);});
+ const co=(p.colors||[]).map(c=>c.n).filter(n=>cs.includes(n));cs.forEach(n=>{if(!co.includes(n))co.push(n);});
+ const so=((p.sizeChart||{rows:[]}).rows).map(r=>r.s).filter(n=>ss.includes(n));ss.forEach(n=>{if(!so.includes(n))so.push(n);});
+ return{colors:co,sizes:so,vs};
+}
+function clothHex(p,n){const c=(p.colors||[]).find(x=>x.n===n);return c?c.h:"#cccccc";}
+function clothStockFor(vs,c,s){return vs.filter(v=>(!c||v.c===c)&&(!s||v.s===s)).reduce((a,v)=>a+v.stock,0);}
+function gbClothMini(p){
+ if(!isCloth(p))return"";const a=clothAxes(p);if(!a.colors.length&&!a.sizes.length)return"";
+ const dots=a.colors.slice(0,6).map(n=>`<i class="cm-dot" title="${esc(n)}" style="background:${esc(clothHex(p,n))}"></i>`).join("")+(a.colors.length>6?`<em class="cm-more">+${a.colors.length-6}</em>`:"");
+ const sz=a.sizes.slice(0,6).map(z=>`<span class="cm-sz${clothStockFor(a.vs,"",z)<=0?' off':''}" data-no-i18n>${esc(z)}</span>`).join("");
+ return `<div class="cloth-mini">${dots?`<div class="cm-dots">${dots}</div>`:""}${sz?`<div class="cm-sizes">${sz}</div>`:""}</div>`;
+}
+function clothChartBox(p,sel){
+ const ch=p.sizeChart||{rows:[],cols:[]};if(!ch.rows.length||!ch.cols.some(Boolean))return"";
+ return `<div class="size-chart"><div class="sc-title">Size chart${ch.unit?` <small data-no-i18n>(${esc(ch.unit)})</small>`:""}</div><div class="sc-wrap"><table><thead><tr><th>Size</th>${ch.cols.map(n=>`<th data-no-i18n>${esc(n)}</th>`).join("")}</tr></thead><tbody>${ch.rows.map(r=>`<tr class="${r.s===sel?'sel':''}"><th data-no-i18n>${esc(r.s)}</th>${r.v.map(x=>`<td data-no-i18n>${esc(x||"—")}</td>`).join("")}</tr>`).join("")}</tbody></table></div></div>`;
+}
+function clothPicker(p){
+ const a=clothAxes(p),id=String(p.id);let c=gbPickC[id]||"",s=gbPickS[id]||"";
+ if(c&&!a.colors.includes(c))c="";if(s&&!a.sizes.includes(s))s="";
+ const cur=gbVar(p.id);let h='<div class="variant-box cloth-box">';
+ if(a.colors.length)h+=`<div class="variant-title">Colour: <b class="cl-val" data-no-i18n>${esc(c||"—")}</b></div><div class="cl-colors">${a.colors.map(n=>{const out=clothStockFor(a.vs,n,s)<=0;return `<button type="button" class="cl-dot ${c===n?'active':''}" ${out?'disabled':''} title="${esc(n)}" aria-label="${esc(n)}" onclick="gbPickCS(${esc(jsArg(p.id))},'c',${esc(jsArg(n))})"><i style="background:${esc(clothHex(p,n))}"></i></button>`;}).join("")}</div>`;
+ if(a.sizes.length)h+=`<div class="variant-title">Size: <b class="cl-val" data-no-i18n>${esc(s||"—")}</b></div><div class="variant-chips">${a.sizes.map(z=>{const out=clothStockFor(a.vs,c,z)<=0;return `<button type="button" class="variant-chip ${s===z?'active':''}" ${out?'disabled':''} onclick="gbPickCS(${esc(jsArg(p.id))},'s',${esc(jsArg(z))})" data-no-i18n>${esc(z)}</button>`;}).join("")}</div>`;
+ const ch=p.sizeChart;
+ if(s&&ch&&ch.cols.length){const r=ch.rows.find(x=>x.s===s);if(r){const parts=ch.cols.map((n,i)=>r.v[i]?`<span><em data-no-i18n>${esc(n)}</em> <b data-no-i18n>${esc(r.v[i])}</b></span>`:"").filter(Boolean);if(parts.length)h+=`<div class="size-meas"><strong data-no-i18n>${esc(s)}</strong>${parts.join("")}${ch.unit?`<small data-no-i18n>(${esc(ch.unit)})</small>`:""}</div>`;}}
+ h+=cur?`<small class="variant-note">In stock: ${stockOf(p,cur)}</small>`:`<small class="variant-note">${a.colors.length&&a.sizes.length?"Choose colour and size first":(a.colors.length?"Choose a colour first":"Choose a size first")}</small>`;
+ if(a.colors.length)h+=`<div class="cl-avail"><span class="cl-avail-t">Available colours</span>${a.colors.map(n=>`<span class="cl-chip"><i style="background:${esc(clothHex(p,n))}"></i><span data-no-i18n>${esc(n)}</span></span>`).join("")}</div>`;
+ return h+clothChartBox(p,s)+"</div>";
+}
+function gbPickCS(id,kind,val){
+ id=String(id);const p=getProduct(id);if(!p)return;
+ const m=kind==="c"?gbPickC:gbPickS;m[id]=m[id]===val?"":val;
+ const a=clothAxes(p);let c=gbPickC[id]||"",s=gbPickS[id]||"";
+ if(c&&s&&clothStockFor(a.vs,c,s)<=0){if(kind==="c")gbPickS[id]="";else gbPickC[id]="";c=gbPickC[id]||"";s=gbPickS[id]||"";}
+ const need=(a.colors.length?!!c:true)&&(a.sizes.length?!!s:true);
+ const v=need?a.vs.find(x=>(x.c||"")===(a.colors.length?c:"")&&(x.s||"")===(a.sizes.length?s:"")):null;
+ if(v)gbPicked[id]=v.name;else delete gbPicked[id];
+ const mm=$('productDetailsModal');if(mm&&mm.classList.contains('is-open'))viewProductDetails(id);else handleProductPageRoute();
+}
+window.gbPickCS=gbPickCS;
 function variantChips(p){
+ if(isCloth(p)&&clothAxes(p).vs.length)return clothPicker(p);
  const vs=pvars(p);if(!vs.length)return"";const cur=gbVar(p.id);
  return `<div class="variant-box"><div class="variant-title">Option</div><div class="variant-chips">${vs.map(v=>`<button type="button" class="variant-chip ${cur===v.name?'active':''}" ${v.stock<=0?'disabled':''} onclick="gbPickVariant(${esc(jsArg(p.id))},${esc(jsArg(v.name))})">${esc(v.name)}${v.stock<=0?'<span class="vc-sub">Sold out</span>':(v.price>0?'<span class="vc-sub">'+money(v.price)+'</span>':'')}</button>`).join('')}</div>${cur?`<small class="variant-note">In stock: ${stockOf(p,cur)}</small>`:'<small class="variant-note">Choose an option first</small>'}</div>`;
 }
@@ -71,6 +119,7 @@ window.gbPickVariant=gbPickVariant;
 function normalizeProduct(r){const _w=saleWindow(r);return{
  rawDiscount:Number(r.discount||0),saleStartMs:_w.s,saleEndMs:_w.e,
  variants:gbParseVars(r.variants),
+ dept:r.dept==="clothing"?"clothing":"gadget",colors:gbParseColors(r.colors),sizeChart:gbParseChart(r.size_chart),
  id:r.id,name:r.name||r.product_name||"Unnamed Product",cat:String(r.category||r.cat||"Other").trim(),
  price:Number(r.price||0),discount:discountNow(Number(r.discount||0),_w),stock:Number(r.stock??r.stock_quantity??0),
  image:r.image||r.image_url||"",featured:!!r.featured,emoji:r.emoji||"📦",
@@ -492,7 +541,7 @@ function renderProducts(){
  g.innerHTML=a.map(p=>{
   let sold=p.stock<=0,disc=p.discount>0,price=disc?Math.max(0,p.price-p.price*p.discount/100):p.price;
   let id=String(p.id).replace(/'/g,"\\'");
-  return `<article class="product-card">${saleStrip(p)}<div class="product-img">${productImg(p)}</div><div class="category">${esc(p.cat)}</div><h3>${esc(p.name)}</h3><div class="price">${money(price)} ${disc?`<del style="font-size:12px;color:#7895af">${money(p.price)}</del>`:""}</div>${saleStock(p)}<div class="product-actions"><button class="view-btn" type="button" onclick="viewProductDetails('${id}')">View</button><button class="add-btn" ${sold?"disabled":""} onclick="window.addToCart('${id}')">${sold?"Out of Stock":"Add to Cart"}</button><button class="buy-btn" ${sold?"disabled":""} onclick="window.buyNow('${id}')">${sold?"Out of Stock":"Buy Now"}</button></div><div class="extra-product-actions"><button type="button" onclick="toggleWishlist('${id}')">${wishlistIds.has(String(p.id))?"♥ Saved":"♡ Wishlist"}</button><button type="button" onclick="toggleCompare('${id}')">${compareIds.has(String(p.id))?"✓ Comparing":"⇄ Compare"}</button></div></article>`;
+  return `<article class="product-card">${saleStrip(p)}<div class="product-img">${productImg(p)}</div><div class="category">${esc(p.cat)}</div><h3>${esc(p.name)}</h3><div class="price">${money(price)} ${disc?`<del style="font-size:12px;color:#7895af">${money(p.price)}</del>`:""}</div>${saleStock(p)}${gbClothMini(p)}<div class="product-actions"><button class="view-btn" type="button" onclick="viewProductDetails('${id}')">View</button><button class="add-btn" ${sold?"disabled":""} onclick="window.addToCart('${id}')">${sold?"Out of Stock":"Add to Cart"}</button><button class="buy-btn" ${sold?"disabled":""} onclick="window.buyNow('${id}')">${sold?"Out of Stock":"Buy Now"}</button></div><div class="extra-product-actions"><button type="button" onclick="toggleWishlist('${id}')">${wishlistIds.has(String(p.id))?"♥ Saved":"♡ Wishlist"}</button><button type="button" onclick="toggleCompare('${id}')">${compareIds.has(String(p.id))?"✓ Comparing":"⇄ Compare"}</button></div></article>`;
  }).join("")||`<div class="empty" style="grid-column:1/-1">${activeQuery()?`No products found for "${esc(activeQuery())}". Try another word, or <button type="button" class="link-btn" onclick="clearSearch()">clear the search</button>.`:"No products found."}</div>`;
  updateSavedCounters();
  renderDealProducts();
@@ -514,7 +563,7 @@ function homeCategoryIcon(name){
 function homeProductCard(p){
  const id=jsArg(p.id),sold=Number(p.stock)<=0,disc=Number(p.discount)>0;
  const saved=wishlistIds.has(String(p.id)),compared=compareIds.has(String(p.id));
- return `<article class="product-card home-product-card">${saleStrip(p)}<div class="product-img">${productImg(p)}${disc?`<span class="home-discount-badge">${Math.round(Number(p.discount))}% OFF</span>`:""}<div class="home-card-tools"><button type="button" class="home-save-btn ${saved?'is-saved':''}" aria-label="${saved?'Remove from Wishlist':'Add to Wishlist'}" title="${saved?'Remove from Wishlist':'Add to Wishlist'}" onclick="toggleWishlist(${id})">${saved?'♥':'♡'}</button><button type="button" class="home-save-btn ${compared?'is-compared':''}" aria-label="${compared?'Remove from Compare':'Add to Compare'}" title="${compared?'Remove from Compare':'Add to Compare'}" onclick="toggleCompare(${id})">${compared?'✓':'⇄'}</button></div></div><div class="category">${esc(p.cat||"Gadget")}</div><h3>${esc(p.name)}</h3><div class="price">${money(finalPrice(p))} ${disc?`<del>${money(p.price)}</del>`:""}</div>${saleStock(p)}<div class="product-actions"><button class="view-btn" type="button" onclick="viewProductDetails(${id})">View Details</button><button class="add-btn" type="button" ${sold?"disabled":""} onclick="window.addToCart(${id})">${sold?"Out of Stock":"Add to Cart"}</button><button class="buy-btn" type="button" ${sold?"disabled":""} onclick="window.buyNow(${id})">${sold?"Out of Stock":"Buy Now"}</button></div></article>`;
+ return `<article class="product-card home-product-card">${saleStrip(p)}<div class="product-img">${productImg(p)}${disc?`<span class="home-discount-badge">${Math.round(Number(p.discount))}% OFF</span>`:""}<div class="home-card-tools"><button type="button" class="home-save-btn ${saved?'is-saved':''}" aria-label="${saved?'Remove from Wishlist':'Add to Wishlist'}" title="${saved?'Remove from Wishlist':'Add to Wishlist'}" onclick="toggleWishlist(${id})">${saved?'♥':'♡'}</button><button type="button" class="home-save-btn ${compared?'is-compared':''}" aria-label="${compared?'Remove from Compare':'Add to Compare'}" title="${compared?'Remove from Compare':'Add to Compare'}" onclick="toggleCompare(${id})">${compared?'✓':'⇄'}</button></div></div><div class="category">${esc(p.cat||"Gadget")}</div><h3>${esc(p.name)}</h3><div class="price">${money(finalPrice(p))} ${disc?`<del>${money(p.price)}</del>`:""}</div>${saleStock(p)}${gbClothMini(p)}<div class="product-actions"><button class="view-btn" type="button" onclick="viewProductDetails(${id})">View Details</button><button class="add-btn" type="button" ${sold?"disabled":""} onclick="window.addToCart(${id})">${sold?"Out of Stock":"Add to Cart"}</button><button class="buy-btn" type="button" ${sold?"disabled":""} onclick="window.buyNow(${id})">${sold?"Out of Stock":"Buy Now"}</button></div></article>`;
 }
 function renderHomeProductGrid(id,list,emptyText,limit=4){
  const grid=$(id);if(!grid)return;
@@ -539,8 +588,41 @@ function renderHomepageShowcases(){
  // This store currently has no verified sales-count field; use admin-featured products first and label the section transparently.
  const topPicks=featured.length?featured:available.slice().sort((a,b)=>Number(b.stock)-Number(a.stock));
  renderHomeProductGrid("bestSellersGrid",topPicks,"Store favourites will appear here when products are available.",24);
+ renderDeptPage("clothing");renderDeptPage("gadget");
 }
 
+
+/* ===== Departments: পোশাক (clothing) and গ্যাজেট (gadget) pages ===== */
+const gbDeptCat={clothing:"",gadget:""};
+function deptCats(d){
+ const m=new Map();
+ categories.filter(c=>(c.dept==="clothing"?"clothing":"gadget")===d).forEach(c=>{const n=String(c.name||"").trim();if(n)m.set(categoryKey(n),n);});
+ products.filter(p=>p.dept===d).forEach(p=>{if(p.cat&&!m.has(categoryKey(p.cat)))m.set(categoryKey(p.cat),p.cat);});
+ return[...m.values()];
+}
+function deptEmoji(n,d){
+ const v=String(n||"").toLowerCase();
+ if(d==="clothing"){
+  if(/t-?shirt|tee|টি/.test(v))return"👕";if(/polo|পোলো/.test(v))return"🎽";if(/shirt|শার্ট/.test(v))return"👔";
+  if(/pant|jean|trouser|প্যান্ট|জিন্স/.test(v))return"👖";if(/jacket|hood|sweater|coat|জ্যাকেট|সোয়েটার/.test(v))return"🧥";
+  if(/ladies|women|girl|kurti|dress|লেডিজ|কুর্তি|থ্রি/.test(v))return"👗";if(/shoe|sandal|জুতা|স্যান্ডেল/.test(v))return"👟";
+  if(/cap|hat|টুপি/.test(v))return"🧢";if(/kid|child|baby|বাচ্চা/.test(v))return"🧒";return"👕";
+ }
+ return homeCategoryIcon(n);
+}
+function renderDeptPage(d){
+ const tiles=$("deptTiles_"+d),grid=$("deptGrid_"+d),cnt=$("deptCount_"+d);if(!grid)return;
+ const cur=gbDeptCat[d],names=deptCats(d);
+ if(cur&&!names.some(n=>categoryKey(n)===categoryKey(cur)))gbDeptCat[d]="";
+ if(tiles)tiles.innerHTML=names.length?`<button class="category-tile dept-tile ${!gbDeptCat[d]?'is-on':''}" type="button" onclick="gbDeptFilter('${d}','')"><span class="category-tile-icon" aria-hidden="true">${d==="clothing"?"👕":"🎧"}</span><strong>All</strong><small>All products</small></button>`+names.map(n=>`<button class="category-tile dept-tile ${categoryKey(n)===categoryKey(gbDeptCat[d])?'is-on':''}" type="button" onclick="gbDeptFilter('${d}',${esc(jsArg(n))})"><span class="category-tile-icon" aria-hidden="true">${deptEmoji(n,d)}</span><strong>${esc(n)}</strong><small>Explore collection</small><span class="category-tile-arrow" aria-hidden="true">↗</span></button>`).join(""):"";
+ let list=products.filter(p=>p.dept===d);
+ if(gbDeptCat[d])list=list.filter(p=>categoryKey(p.cat)===categoryKey(gbDeptCat[d]));
+ list.sort((a,b)=>Number(b.featured)-Number(a.featured));
+ grid.innerHTML=list.length?list.map(homeProductCard).join(""):'<div class="showcase-empty">No products here yet.</div>';
+ if(cnt)cnt.textContent=`${list.length} products`;
+}
+function gbDeptFilter(d,n){gbDeptCat[d]=n;renderDeptPage(d);}
+window.gbDeptFilter=gbDeptFilter;
 function renderSmartRecommendations(){let old=$("smartRecommendations");if(old)old.remove();if(!products.length)return;let seed=products.find(p=>p.featured)||products[0];let picks=products.filter(p=>p.cat===seed.cat&&String(p.id)!==String(seed.id)&&p.stock>0).slice(0,3);if(!picks.length)picks=products.filter(p=>String(p.id)!==String(seed.id)&&p.stock>0).slice(0,3);if(!picks.length)return;let section=document.createElement("section");section.id="smartRecommendations";section.dataset.v="home";section.className="shop smart-recommendations";section.innerHTML=`<div class="section-head"><h2>Smart Picks For You</h2><span>Based on product category and availability</span></div><div class="products-grid">${picks.map(p=>`<article class="product-card"><div class="product-img">${p.image?`<img src="${esc(p.image)}" alt="${esc(p.name)}" style="width:100%;height:100%;object-fit:contain">`:imgPlaceholder()}</div><div class="category">${esc(p.cat)}</div><h3>${esc(p.name)}</h3><div class="price">${money(finalPrice(p))}</div><button class="add-btn" onclick="addToCart('${String(p.id).replace(/'/g,"\'")}')">Add to Cart</button></article>`).join("")}</div>`;$("products")?.insertAdjacentElement("afterend",section);}
 function getProduct(id){return products.find(p=>String(p.id)===String(id));}
 function finalPrice(p,vn){const v=vOf(p,vn),base=v&&v.price>0?v.price:p.price;return p.discount>0?Math.max(0,base-base*p.discount/100):base;}
@@ -927,8 +1009,8 @@ window.clearSearch=clearSearch;
 
 /* ===== Simple page router: each button opens its own page (no long scrolling) =====
    Pages are shown/hidden with CSS using body[data-view]; links are real #hashes, so the phone's Back button works. */
-const VIEW_BY_ID={shopCategories:"categories",newArrivals:"new-arrivals",bestSellers:"best-sellers",featuredProducts:"featured",orderTracking:"track",about:"about",policies:"policies",contact:"contact",products:"home",dealZone:"home",flashSale:"flash"};
-const VIEW_TITLES={categories:"Categories","new-arrivals":"New Arrivals","best-sellers":"Best Sellers & Top Picks",featured:"Featured Products",track:"Track Your Order",about:"About Us",policies:"Our Policies",contact:"Contact Us",flash:"Flash Sale"};
+const VIEW_BY_ID={shopCategories:"categories",newArrivals:"new-arrivals",bestSellers:"best-sellers",featuredProducts:"featured",orderTracking:"track",about:"about",policies:"policies",contact:"contact",products:"home",dealZone:"home",flashSale:"flash",clothingPage:"clothing",gadgetPage:"gadget"};
+const VIEW_TITLES={categories:"Categories","new-arrivals":"New Arrivals","best-sellers":"Best Sellers & Top Picks",featured:"Featured Products",track:"Track Your Order",about:"About Us",policies:"Our Policies",contact:"Contact Us",flash:"Flash Sale",clothing:"পোশাক",gadget:"গ্যাজেট"};
 let gbNavCount=0;
 function viewFromHash(){let id="";try{id=decodeURIComponent(location.hash.slice(1));}catch(e){}return VIEW_BY_ID[id]||"home";}
 function setView(v,scrollTarget){

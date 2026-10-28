@@ -149,3 +149,26 @@ header{
 .admin-gallery-item input,.admin-checkline input{width:auto;margin:0}
 .form-grid label.admin-checkline,.admin-checkline{display:flex;align-items:flex-start;gap:9px;border:1px solid #bfdbfe;background:#eff6ff;padding:12px;border-radius:10px;line-height:1.45}
 @media(max-width:560px){.form-grid label.full{grid-column:1/-1}.admin-gallery-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+
+/* Update 14: departments + clothing editor */
+.dept-cats{background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:12px 14px;margin:0 0 12px}
+.dept-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.dept-chip{display:inline-flex;align-items:center;gap:6px;background:#e0f2fe;color:#075985;border-radius:99px;padding:5px 6px 5px 12px;font-size:13px;font-weight:600}
+.dept-chip button{border:0;background:#fff;border-radius:50%;width:20px;height:20px;cursor:pointer;color:#b91c1c;font-weight:800;line-height:1}
+.cloth-ed{border:2px solid #f59e0b55;background:#fffbeb;border-radius:14px;padding:12px}
+.cloth-ed h4{margin:0 0 8px}
+.ce-block{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:10px;margin:8px 0}
+.ce-block>small{display:block;color:#64748b;margin:2px 0 6px}
+.ce-row{display:flex;gap:8px;align-items:center;margin:6px 0}
+.ce-row input[type=color]{width:42px;height:36px;padding:0;border:1px solid #cbd5e1;border-radius:8px;background:#fff}
+.ce-row input:not([type=color]){flex:1;min-width:0}
+.ce-unit{margin:6px 0}.ce-unit input{width:90px}
+.ce-scroll{overflow-x:auto}
+.ce-table{border-collapse:collapse;font-size:13px;width:100%}
+.ce-table th,.ce-table td{border:1px solid #e2e8f0;padding:4px 6px;text-align:center;white-space:nowrap}
+.ce-table input:not([type=checkbox]){width:78px;padding:5px;border:1px solid #cbd5e1;border-radius:6px}
+.ce-table tr.off{opacity:.45}
+.ce-colname{font-weight:700}
+.ce-x{border:0;background:transparent;color:#b91c1c;font-size:16px;cursor:pointer}
+.ce-add{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}.ce-add input{width:170px}
+.ce-sw{display:inline-block;width:12px;height:12px;border-radius:50%;border:1px solid #94a3b8;margin-right:5px;vertical-align:middle}

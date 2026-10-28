@@ -178,13 +178,14 @@ function stat(icon,label,value){return `<div class="stat-card"><div class="stat-
 ========================================================= */
 
 function products(){
+  curDept='';
   return `<div class="section-head"><div><h3>Products</h3><p>Manage your product catalog</p></div><div class="toolbar"><button class="btn primary" onclick="addProduct()">＋ Add Product</button><button class="btn muted" onclick="csvImportOpen()">⬆ CSV Import</button><button class="btn muted" onclick="csvExport()">⬇ CSV Export</button><button class="btn muted" onclick="refreshProducts().then(render).catch(showError)">↻ Refresh</button></div></div>
   <div class="filters"><div class="search-wrap"><input class="input" id="productSearch" placeholder="Search products..." oninput="filterProducts()"></div><select class="select" id="productCategoryFilter" onchange="filterProducts()"><option value="">All Categories</option>${categoriesCache.map(c=>`<option value="${esc(c.name)}">${esc(c.name)}</option>`).join('')}</select><select class="select" id="productStockFilter" onchange="filterProducts()"><option value="">All Stock</option><option value="in">In Stock</option><option value="out">Out of Stock</option></select></div>
   <div class="table-wrap"><table class="table"><thead><tr><th>Image</th><th>Product</th><th>Category</th><th>Price</th><th>Buy → Profit</th><th>Stock</th><th>Status</th><th>Actions</th></tr></thead><tbody id="productRows">${productRows(productsCache)}</tbody></table></div>`
 }
 function productRows(list){
   if(!list.length)return `<tr><td colspan="8" class="empty">No products found</td></tr>`;
-  return list.map(p=>`<tr><td>${p.image?`<img class="thumb" src="${esc(p.image)}" alt="">`:'—'}</td><td><b>${esc(p.name)}</b></td><td>${esc(p.category||'—')}</td><td>${money(p.price)}</td><td>${marginCell(p)}</td><td>${Number(p.stock||0)}</td><td><span class="pill ${p.active!==false?'green':'red'}">${p.active!==false?'Active':'Inactive'}</span></td><td class="actions"><button class="btn primary" onclick="openPostBuilder(${productsCache.indexOf(p)})">📣 Post</button><button class="btn muted" onclick="editProduct(${productsCache.indexOf(p)})">Edit</button><button class="btn danger" onclick="deleteProduct(${productsCache.indexOf(p)})">Delete</button></td></tr>`).join('')
+  return list.map(p=>`<tr><td>${p.image?`<img class="thumb" src="${esc(p.image)}" alt="">`:'—'}</td><td><b>${esc(p.name)}</b></td><td>${esc(p.category||'—')} <small title="${deptOf(p)}">${deptOf(p)==='clothing'?'👕':'🎧'}</small></td><td>${money(p.price)}</td><td>${marginCell(p)}</td><td>${Number(p.stock||0)}</td><td><span class="pill ${p.active!==false?'green':'red'}">${p.active!==false?'Active':'Inactive'}</span></td><td class="actions"><button class="btn primary" onclick="openPostBuilder(${productsCache.indexOf(p)})">📣 Post</button><button class="btn muted" onclick="editProduct(${productsCache.indexOf(p)})">Edit</button><button class="btn danger" onclick="deleteProduct(${productsCache.indexOf(p)})">Delete</button></td></tr>`).join('')
 }
 function filterProducts(){
   const q=($('productSearch')?.value||'').toLowerCase().trim();
@@ -193,15 +194,16 @@ function filterProducts(){
   const list=productsCache.filter(p=>{
     const text=`${p.name||''} ${p.category||''}`.toLowerCase();
     const stockOk=!stock||(stock==='in'?Number(p.stock||0)>0:Number(p.stock||0)<=0);
-    return text.includes(q)&&(!cat||p.category===cat)&&stockOk;
+    return text.includes(q)&&(!cat||p.category===cat)&&stockOk&&(!curDept||deptOf(p)===curDept);
   });
   const rows=$('productRows');if(rows)rows.innerHTML=productRows(list)
 }
 
-function addProduct(){editingProductId=null;openModal('Add Product',productForm())}
-function editProduct(i){const p=productsCache[i];if(!p)return;editingProductId=p.id;openModal('Edit Product',productForm(p))}
+function addProduct(d){newDept=(typeof d==='string'&&d)?d:(curDept||'gadget');editingProductId=null;openModal('Add Product',productForm());deptChange()}
+function editProduct(i){const p=productsCache[i];if(!p)return;editingProductId=p.id;openModal('Edit Product',productForm(p));deptChange()}
 function saleDt(v){if(!v)return '';const d=new Date(v);if(isNaN(d))return '';return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,16)}
 function productForm(p={}){
+  const dept=p.id?deptOf(p):newDept;clothInit(p);
   const opts=categoriesCache.map(c=>`<option value="${esc(c.name)}" ${p.category===c.name?'selected':''}>${esc(c.name)}</option>`).join('');
   let gallery=p.images??p.gallery??p.image_urls??[];
   if(typeof gallery==='string'){try{gallery=JSON.parse(gallery)}catch(e){gallery=[]}}
@@ -211,6 +213,7 @@ function productForm(p={}){
   const specsText=typeof specs==='string'?specs:(Array.isArray(specs)?specs.map(x=>typeof x==='object'&&x?`${x.name||x.label||'Feature'}: ${x.value||x.detail||''}`:String(x)).join('\n'):JSON.stringify(specs,null,2));
   return `<div class="form-grid">
     <label>Product Name<input id="productName" value="${esc(p.name||'')}" placeholder="e.g. TWS AirBuds Pro" required></label>
+    <label>Department (বিভাগ)<select id="productDept" onchange="deptChange()"><option value="gadget" ${dept==='gadget'?'selected':''}>🎧 গ্যাজেট</option><option value="clothing" ${dept==='clothing'?'selected':''}>👕 পোশাক</option></select></label>
     <label>Category<span class="cat-wrap"><input id="productCategory" autocomplete="off" value="${esc(p.category||'')}" placeholder="Select or type a new category" onfocus="showCatSuggest()" oninput="showCatSuggest()" onblur="setTimeout(hideCatSuggest,180)"><div id="catSuggest" class="cat-suggest hidden"></div></span></label>
     <label>Price (৳)<input id="productPrice" type="number" min="0" value="${Number(p.price||0)}"></label>
     <label>Discount (%)<input id="productDiscount" type="number" min="0" max="100" value="${Number(p.discount||0)}"></label>
@@ -218,8 +221,9 @@ function productForm(p={}){
     <label>Flash sale ends (optional)<input id="productSaleEnd" type="datetime-local" value="${saleDt(p.sale_ends_at)}"></label>
     <p class="hint" style="grid-column:1/-1;margin:-4px 0 4px;font-size:12px;color:#64748b">⚡ Set both times to run a timed Flash Sale. The Discount (%) above applies only inside this window; before and after it the full price is charged. Leave both blank for a normal always-on discount. (Run 5_flash_sale.sql once first.)</p>
     <label>Buying price ৳ (private)<input id="productCost" type="number" min="0" step="any" value="${costOf(p.id)||''}" placeholder="what you paid"><small>Only you can see this. Used for profit reports.</small></label>
-    <label>Stock<input id="productStock" type="number" min="0" value="${Number(p.stock||0)}"></label>
-    <label style="grid-column:1/-1">Variants — colour / size (optional)<textarea id="productVariants" rows="4" placeholder="One per line:  Name | Stock | Price (optional)&#10;Black | 5&#10;White | 3 | 1200&#10;Size L | 10">${esc(variantsToText(p.variants))}</textarea><small>If you add variants, the total Stock is calculated automatically from them. Customers see these only when <b>Settings &gt; Product variants</b> is ON. Leave empty for a normal product.</small></label>
+    <label id="stockLbl">Stock<input id="productStock" type="number" min="0" value="${Number(p.stock||0)}"></label>
+    <div class="full" id="clothBox" style="display:none">${clothHtml()}</div>
+    <label id="gadgetVarLbl" style="grid-column:1/-1">Variants — colour / size (optional)<textarea id="productVariants" rows="4" placeholder="One per line:  Name | Stock | Price (optional)&#10;Black | 5&#10;White | 3 | 1200&#10;Size L | 10">${esc(variantsToText(p.variants))}</textarea><small>If you add variants, the total Stock is calculated automatically from them. Customers see these only when <b>Settings &gt; Product variants</b> is ON. Leave empty for a normal product.</small></label>
     <label>Status<select id="productActive"><option value="true" ${p.active!==false?'selected':''}>Active</option><option value="false" ${p.active===false?'selected':''}>Inactive</option></select></label>
     <label>Brand<input id="productBrand" value="${esc(p.brand||'')}" placeholder="e.g. Xiaomi"></label>
     <label>Model<input id="productModel" value="${esc(p.model||'')}" placeholder="e.g. Redmi Buds"></label>
@@ -277,7 +281,16 @@ async function saveProduct(){
       specifications,
       is_deal:!!$('productIsDeal')?.checked
     };
-    {
+    const dept=$('productDept')?.value==='clothing'?'clothing':'gadget';
+    if(dept==='clothing'&&!hasDeptCol())throw new Error('Run 14_clothing.sql in Supabase > SQL Editor first (Update 14), then try again.');
+    if(hasDeptCol())product.dept=dept;
+    if(dept==='clothing'){
+      const cc=clothCollect();
+      if(!cc.variants.length)throw new Error('Add at least one colour or one size (turn a size ON) for a clothing product.');
+      product.colors=cc.colors;product.size_chart=cc.size_chart;product.variants=cc.variants;
+      product.stock=cc.variants.reduce((a,v)=>a+v.stock,0);
+    }else if(hasDeptCol()&&old&&deptOf(old)==='clothing'){product.colors=null;product.size_chart=null;}
+    if(dept!=='clothing'){
       const vars=parseVariants($('productVariants')?.value);
       if(vars.length||(old&&('variants' in old))){
         product.variants=vars;
@@ -297,7 +310,7 @@ async function saveProduct(){
       if(hit){product.category=hit.name}
       else{
         const slug=category.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')||('cat-'+Date.now());
-        const {error:ce}=await sb.from('categories').insert({name:category,slug});
+        const {error:ce}=await sb.from('categories').insert(hasDeptCol()?{name:category,slug,dept}:{name:category,slug});
         if(ce&&!/duplicate|23505/i.test((ce.code||'')+(ce.message||'')))throw ce;
         const cr=await sb.from('categories').select('*').order('name');
         if(!cr.error&&cr.data)categoriesCache=cr.data;
@@ -313,6 +326,95 @@ async function saveProduct(){
     const btn=$('saveProductBtn');if(btn){btn.disabled=false;btn.textContent='Save Product'}
   }
 }
+
+/* =========================================================
+   UPDATE 14: DEPARTMENTS (পোশাক / গ্যাজেট) + CLOTHING EDITOR
+========================================================= */
+let curDept='',newDept='gadget',clothState=null,ceUid=0;
+const CE_SIZES=['S','M','L','XL','XXL'];
+function hasDeptCol(){return productsCache.some(x=>'dept' in x)||categoriesCache.some(x=>'dept' in x)}
+function deptOf(x){return x&&x.dept==='clothing'?'clothing':'gadget'}
+function deptLabel(d){return d==='clothing'?'👕 পোশাক':'🎧 গ্যাজেট'}
+function deptPage(d){
+  curDept=d;
+  const cats=categoriesCache.map((c,i)=>({c,i})).filter(x=>deptOf(x.c)===d);
+  const list=productsCache.filter(p=>deptOf(p)===d);
+  const note=hasDeptCol()?'':'<p class="hint" style="color:#b45309">⚠ Run <b>14_clothing.sql</b> in Supabase first, so the department can be saved.</p>';
+  return `<div class="section-head"><div><h3>${deptLabel(d)}</h3><p>${d==='clothing'?'Clothing categories and products (colours, sizes, measurements)':'Gadget categories and products'}</p></div><div class="toolbar"><button class="btn primary" onclick="addProduct('${d}')">＋ Add Product</button><button class="btn muted" onclick="addCategory('${d}')">＋ Add Category</button></div></div>${note}
+  <div class="dept-cats"><b>Categories</b><div class="dept-chips">${cats.length?cats.map(x=>`<span class="dept-chip">${esc(x.c.name)}<button type="button" title="Delete category" onclick="deleteCategory(${x.i})">×</button></span>`).join(''):'<span class="empty">No categories yet. Add one above.</span>'}</div></div>
+  <div class="filters"><div class="search-wrap"><input class="input" id="productSearch" placeholder="Search products..." oninput="filterProducts()"></div><select class="select" id="productCategoryFilter" onchange="filterProducts()"><option value="">All Categories</option>${cats.map(x=>`<option value="${esc(x.c.name)}">${esc(x.c.name)}</option>`).join('')}</select><select class="select" id="productStockFilter" onchange="filterProducts()"><option value="">All Stock</option><option value="in">In Stock</option><option value="out">Out of Stock</option></select></div>
+  <div class="table-wrap"><table class="table"><thead><tr><th>Image</th><th>Product</th><th>Category</th><th>Price</th><th>Buy → Profit</th><th>Stock</th><th>Status</th><th>Actions</th></tr></thead><tbody id="productRows">${productRows(list)}</tbody></table></div>`;
+}
+function ceJson(v,d){if(typeof v!=='string')return v??d;try{return JSON.parse(v)}catch(e){return d}}
+function clothInit(p){
+  let colors=ceJson(p.colors,[]);if(!Array.isArray(colors))colors=[];
+  let ch=ceJson(p.size_chart,null);if(!ch||typeof ch!=='object')ch=null;
+  const cols=ch&&Array.isArray(ch.cols)&&ch.cols.length?ch.cols.map(String):['বুক','দৈর্ঘ্য','কাঁধ','হাতা'];
+  const byS={};((ch&&ch.rows)||[]).forEach(r=>{if(r&&r.s)byS[r.s]={s:String(r.s),on:r.on!==false,v:cols.map((_,i)=>String(((r.v||[])[i])??''))}});
+  const sizes=CE_SIZES.map((s,i)=>byS[s]||{s,on:!ch&&i<4,v:cols.map(()=>'')});
+  Object.keys(byS).forEach(k=>{if(!CE_SIZES.includes(k))sizes.push(byS[k])});
+  const cl=colors.filter(c=>c&&c.n).map(c=>({id:'c'+(++ceUid),n:String(c.n),h:/^#[0-9a-f]{6}$/i.test(c.h||'')?c.h:'#999999'}));
+  const stock={};
+  (Array.isArray(ceJson(p.variants,[]))?ceJson(p.variants,[]):[]).forEach(v=>{if(!v||(!v.c&&!v.s))return;const c=cl.find(x=>x.n===v.c);stock[(c?c.id:'')+'|'+(v.s||'')]=Math.max(0,Math.floor(Number(v.stock)||0))});
+  clothState={unit:ch&&ch.unit!=null?String(ch.unit):'ইঞ্চি',cols,sizes,colors:cl,stock};
+}
+function deptChange(){
+  const d=$('productDept')?.value;const cl=d==='clothing';
+  const box=$('clothBox');if(box)box.style.display=cl?'':'none';
+  ['stockLbl','gadgetVarLbl'].forEach(id=>{const e=$(id);if(e)e.style.display=cl?'none':''});
+}
+function clothHtml(){
+  return `<div class="cloth-ed"><h4>👕 পোশাকের রং, সাইজ ও মাপ</h4>
+  <div class="ce-block"><b>১) রং (Colours)</b><div id="ceColors">${ceColorsHtml()}</div><button type="button" class="btn muted" onclick="ceAddColor()">＋ রং যোগ করুন</button></div>
+  <div class="ce-block"><b>২) সাইজ ও মাপ</b><small>বাঁ দিকের টিক দিলে সাইজটি ওয়েবসাইটে দেখাবে। টিক তুললে লুকানো থাকবে।</small>
+  <div class="ce-unit">মাপের একক: <input id="ceUnit" value="${esc(clothState.unit)}" oninput="clothState.unit=this.value" placeholder="ইঞ্চি"></div>
+  <div id="ceSizes" class="ce-scroll">${ceSizesHtml()}</div>
+  <div class="ce-add"><input id="ceNewSize" placeholder="নতুন সাইজ (যেমন 30, 3XL)"><button type="button" class="btn muted" onclick="ceAddSize()">＋ সাইজ</button><button type="button" class="btn muted" onclick="ceAddCol()">＋ মাপের কলাম (যেমন গলা)</button></div></div>
+  <div class="ce-block"><b>৩) স্টক (প্রতিটি রং ও সাইজের)</b><div id="ceStock" class="ce-scroll">${ceStockHtml()}</div></div></div>`;
+}
+function ceColorsHtml(){
+  const c=clothState.colors;if(!c.length)return '<div class="empty">কোনো রং নেই। রং না থাকলে শুধু সাইজ দিয়ে চলবে।</div>';
+  return c.map((x,i)=>`<div class="ce-row"><input type="color" value="${esc(x.h)}" oninput="clothState.colors[${i}].h=this.value"><input value="${esc(x.n)}" placeholder="রঙের নাম (যেমন নীল)" oninput="clothState.colors[${i}].n=this.value" onchange="ceRefreshStock()"><button type="button" class="btn danger" onclick="ceDelColor(${i})">✕</button></div>`).join('');
+}
+function ceSizesHtml(){
+  const st=clothState;
+  return `<table class="ce-table"><thead><tr><th>চালু</th><th>সাইজ</th>${st.cols.map((n,i)=>`<th><input class="ce-colname" value="${esc(n)}" oninput="clothState.cols[${i}]=this.value"><button type="button" class="ce-x" title="কলাম মুছুন" onclick="ceDelCol(${i})">×</button></th>`).join('')}<th></th></tr></thead><tbody>${st.sizes.map((z,i)=>`<tr class="${z.on?'':'off'}"><td><input type="checkbox" ${z.on?'checked':''} onchange="ceToggleSize(${i},this.checked)"></td><th>${esc(z.s)}</th>${st.cols.map((_,ci)=>`<td><input value="${esc(z.v[ci]||'')}" oninput="clothState.sizes[${i}].v[${ci}]=this.value" placeholder="—"></td>`).join('')}<td>${CE_SIZES.includes(z.s)?'':`<button type="button" class="ce-x" title="সাইজ মুছুন" onclick="ceDelSize(${i})">×</button>`}</td></tr>`).join('')}</tbody></table>`;
+}
+function ceStockHtml(){
+  const st=clothState,sizes=st.sizes.filter(z=>z.on).map(z=>z.s);
+  const rows=st.colors.length?st.colors:[{id:'',n:'(সব রং)'}];
+  if(!st.colors.length&&!sizes.length)return '<div class="empty">কমপক্ষে একটি রং যোগ করুন বা একটি সাইজ চালু করুন।</div>';
+  const cs=sizes.length?sizes:[''];
+  return `<table class="ce-table"><thead><tr><th>রং \\ সাইজ</th>${cs.map(z=>`<th>${esc(z||'স্টক')}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>`<tr><th>${r.id?`<span class="ce-sw" style="background:${esc(r.h)}"></span>`:''}${esc(r.n||'(নাম নেই)')}</th>${cs.map(z=>`<td><input type="number" min="0" value="${Number(st.stock[r.id+'|'+z]||0)}" data-c="${esc(r.id)}" data-s="${esc(z)}" oninput="ceStk(this)"></td>`).join('')}</tr>`).join('')}</tbody></table>`;
+}
+function ceStk(el){clothState.stock[el.dataset.c+'|'+el.dataset.s]=Math.max(0,Math.floor(Number(el.value)||0))}
+function ceRefreshStock(){const e=$('ceStock');if(e)e.innerHTML=ceStockHtml()}
+function ceRefreshAll(){const a=$('ceColors'),b=$('ceSizes');if(a)a.innerHTML=ceColorsHtml();if(b)b.innerHTML=ceSizesHtml();ceRefreshStock()}
+function ceAddColor(){clothState.colors.push({id:'c'+(++ceUid),n:'',h:'#1d4ed8'});ceRefreshAll();const ins=document.querySelectorAll('#ceColors .ce-row input:not([type=color])');ins[ins.length-1]?.focus()}
+function ceDelColor(i){clothState.colors.splice(i,1);ceRefreshAll()}
+function ceToggleSize(i,on){clothState.sizes[i].on=on;ceRefreshAll()}
+function ceAddSize(){const inp=$('ceNewSize');const n=(inp?.value||'').trim();if(!n)return;if(clothState.sizes.some(z=>z.s.toLowerCase()===n.toLowerCase())){alert('এই সাইজ আগে থেকেই আছে।');return}clothState.sizes.push({s:n,on:true,v:clothState.cols.map(()=>'')});inp.value='';ceRefreshAll()}
+function ceDelSize(i){clothState.sizes.splice(i,1);ceRefreshAll()}
+function ceAddCol(){const n=prompt('মাপের নাম লিখুন (যেমন গলা, কোমর, উচ্চতা):');if(!n||!n.trim())return;clothState.cols.push(n.trim());clothState.sizes.forEach(z=>z.v.push(''));ceRefreshAll()}
+function ceDelCol(i){if(!confirm('এই কলাম মুছবেন?'))return;clothState.cols.splice(i,1);clothState.sizes.forEach(z=>z.v.splice(i,1));ceRefreshAll()}
+function clothCollect(){
+  const st=clothState;
+  const colors=st.colors.map(c=>({id:c.id,n:String(c.n||'').trim(),h:c.h})).filter(c=>c.n);
+  const seen=new Set();colors.forEach(c=>{const k=c.n.toLowerCase();if(seen.has(k))throw new Error('একই রঙের নাম দুইবার আছে: '+c.n);seen.add(k)});
+  const keep=st.cols.map((n,i)=>({n:String(n||'').trim(),i})).filter(x=>x.n);
+  const cols=keep.map(x=>x.n);
+  const rows=st.sizes.map(z=>({s:z.s,on:!!z.on,v:keep.map(x=>String(z.v[x.i]||'').trim())}));
+  const onSizes=rows.filter(r=>r.on).map(r=>r.s);
+  const variants=[];
+  const cs=colors.length?colors:[{id:'',n:''}],ss=onSizes.length?onSizes:[''];
+  if(colors.length||onSizes.length)cs.forEach(c=>ss.forEach(z=>{
+    const name=[c.n,z].filter(Boolean).join(' / ');
+    const v={name,stock:Math.max(0,Math.floor(Number(st.stock[c.id+'|'+z])||0))};
+    if(c.n)v.c=c.n;if(z)v.s=z;variants.push(v);
+  }));
+  return{colors:colors.map(c=>({n:c.n,h:c.h})),size_chart:{unit:String(st.unit||'').trim(),cols,rows},variants};
+}
+Object.assign(window,{deptPage,deptChange,ceAddColor,ceDelColor,ceToggleSize,ceAddSize,ceDelSize,ceAddCol,ceDelCol,ceStk,ceRefreshStock});
 /* ---- CSV import / export ---- */
 const CSV_COLS=['name','category','price','discount','stock','buying_price','brand','description'];
 function csvParse(text){
@@ -617,19 +719,23 @@ async function updateOrderStatus(i,newStatus){
 ========================================================= */
 
 function categories(){
-  const rows=categoriesCache.map((c,i)=>`<tr><td>${esc(c.name)}</td><td>${esc(c.slug||'—')}</td><td><button class="btn danger" onclick="deleteCategory(${i})">Delete</button></td></tr>`).join('');
+  curDept='';
+  const rows=categoriesCache.map((c,i)=>`<tr><td>${esc(c.name)}</td><td>${deptLabel(deptOf(c))}</td><td>${esc(c.slug||'—')}</td><td><button class="btn danger" onclick="deleteCategory(${i})">Delete</button></td></tr>`).join('');
   return `<div class="section-head"><div><h3>Categories</h3><p>Manage product categories</p></div><button class="btn primary" onclick="addCategory()">＋ Add Category</button></div>
-  <div class="table-wrap"><table class="table"><thead><tr><th>Name</th><th>Slug</th><th>Action</th></tr></thead><tbody>${rows||`<tr><td colspan="3" class="empty">No categories</td></tr>`}</tbody></table></div>`
+  <div class="table-wrap"><table class="table"><thead><tr><th>Name</th><th>Department</th><th>Slug</th><th>Action</th></tr></thead><tbody>${rows||`<tr><td colspan="4" class="empty">No categories</td></tr>`}</tbody></table></div>`
 }
-function addCategory(){
-  openModal('Add Category',`<label class="form-grid"><span class="full">Category Name<input id="categoryName" placeholder="Audio"></span></label><div class="btn-row"><button class="btn muted" onclick="closeModal()">Cancel</button><button class="btn primary" onclick="saveCategory()">Save</button></div>`)
+function addCategory(d){
+  const dd=(typeof d==='string'&&d)?d:(curDept||'gadget');
+  openModal('Add Category',`<label class="form-grid"><span class="full">Department (বিভাগ)<select id="categoryDept"><option value="gadget" ${dd==='gadget'?'selected':''}>🎧 গ্যাজেট</option><option value="clothing" ${dd==='clothing'?'selected':''}>👕 পোশাক</option></select></span><span class="full">Category Name<input id="categoryName" placeholder="Audio / Shirt"></span></label><div class="btn-row"><button class="btn muted" onclick="closeModal()">Cancel</button><button class="btn primary" onclick="saveCategory()">Save</button></div>`)
 }
 async function saveCategory(){
   const name=$('categoryName')?.value.trim();
   if(!name){alert('Category name is required.');return}
   try{
     const slug=name.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
-    const {error}=await sb.from('categories').insert({name,slug});
+    const cd=$('categoryDept')?.value==='clothing'?'clothing':'gadget';
+    if(cd==='clothing'&&!hasDeptCol())throw new Error('Run 14_clothing.sql in Supabase > SQL Editor first (Update 14).');
+    const {error}=await sb.from('categories').insert(hasDeptCol()?{name,slug,dept:cd}:{name,slug});
     if(error)throw error;
     const {data,error:e}=await sb.from('categories').select('*').order('name');
     if(e)throw e;
@@ -950,7 +1056,7 @@ function setNavActive(section){
     x.classList.toggle('active-sub',(x.dataset.page||x.dataset.section)===section)
   });
 
-  if(section==='products'||section==='categories'){
+  if(section==='products'||section==='categories'||section==='clothing'||section==='gadget'){
     catalogOpen=true;
     $('catalogMenu')?.classList.remove('hidden');
     if($('catalogArrow'))$('catalogArrow').textContent='⌄'
@@ -963,6 +1069,8 @@ function go(section){
   const titles={
     dashboard:['Dashboard','Store overview'],
     products:['Products','Manage products'],
+    clothing:['পোশাক (Clothing)','Clothing categories and products'],
+    gadget:['গ্যাজেট (Gadgets)','Gadget categories and products'],
     orders:['Orders','Manage customer orders'],
     customers:['Customers','Customer list'],
     categories:['Categories','Manage categories'],
@@ -988,7 +1096,7 @@ function go(section){
 }
 function render(){
   const c=$('content');if(!c)return;
-  const map={dashboard,products,orders,customers,categories,offers,coupons,reports,policies:policiesPage,leads:leadsPage,blocked:blockedPage,delivery,payments,settings};
+  const map={dashboard,clothing:()=>deptPage('clothing'),gadget:()=>deptPage('gadget'),products,orders,customers,categories,offers,coupons,reports,policies:policiesPage,leads:leadsPage,blocked:blockedPage,delivery,payments,settings};
   c.innerHTML=(map[currentSection]||dashboard)();
   updateOrderBadge();
   if(currentSection==='orders')bulkBarRender();
@@ -1311,7 +1419,8 @@ function hideCatSuggest(){$('catSuggest')?.classList.add('hidden')}
 function showCatSuggest(){
   const box=$('catSuggest'),inp=$('productCategory');if(!box||!inp)return;
   const q=inp.value.trim().toLowerCase();
-  const list=categoriesCache.filter(c=>!q||String(c.name).toLowerCase().includes(q));
+  const sd=$('productDept')?.value||'gadget';
+  const list=categoriesCache.filter(c=>deptOf(c)===sd&&(!q||String(c.name).toLowerCase().includes(q)));
   let h=list.map(c=>`<div onmousedown="pickCat(this.dataset.n)" data-n="${esc(c.name)}">${esc(c.name)}</div>`).join('');
   const exact=categoriesCache.some(c=>String(c.name).trim().toLowerCase()===q);
   if(q&&!exact)h+=`<div class="cat-new" onmousedown="pickCat(this.dataset.n)" data-n="${esc(inp.value.trim())}">＋ Add new: ${esc(inp.value.trim())}</div>`;

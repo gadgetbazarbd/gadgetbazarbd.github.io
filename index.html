@@ -33,7 +33,7 @@
     rel="stylesheet"
   >
 
-  <link rel="stylesheet" href="style.css?v=gbbd-fixes-20261027b">
+  <link rel="stylesheet" href="style.css?v=gbbd-dept-20261028a">
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
@@ -66,7 +66,7 @@
 </head>
 
 <body data-view="home">
-<script>/* open the right page on the very first paint (no flash of the shop) */(function(){var m={shopCategories:"categories",newArrivals:"new-arrivals",bestSellers:"best-sellers",featuredProducts:"featured",orderTracking:"track",about:"about",policies:"policies",contact:"contact",flashSale:"flash"};try{var h=decodeURIComponent(location.hash.slice(1));if(m[h])document.body.setAttribute("data-view",m[h]);}catch(e){}})();</script>
+<script>/* open the right page on the very first paint (no flash of the shop) */(function(){var m={shopCategories:"categories",newArrivals:"new-arrivals",bestSellers:"best-sellers",featuredProducts:"featured",orderTracking:"track",about:"about",policies:"policies",contact:"contact",flashSale:"flash",clothingPage:"clothing",gadgetPage:"gadget"};try{var h=decodeURIComponent(location.hash.slice(1));if(m[h])document.body.setAttribute("data-view",m[h]);}catch(e){}})();</script>
 
 <!-- Icon set (shared by the whole page) -->
 <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
@@ -166,6 +166,9 @@
     <svg class="ic" aria-hidden="true"><use href="#i-home"/></svg> All Products
   </button>
 
+  <button class="menu-item" type="button" data-no-i18n onclick="gbGo('clothing');closeMenu()"><span aria-hidden="true">👕</span> পোশাক</button>
+  <button class="menu-item" type="button" data-no-i18n onclick="gbGo('gadget');closeMenu()"><span aria-hidden="true">🎧</span> গ্যাজেট</button>
+
   <div class="menu-label">Your shopping</div>
   <button class="menu-item persistent-menu" data-persistent-menu="1" type="button" onclick="showSavedProducts('wishlist');closeMenu()">♡ My Wishlist <span class="menu-count" id="wishlistMenuCount">0</span></button>
   <button class="menu-item persistent-menu" data-persistent-menu="1" type="button" onclick="showSavedProducts('compare');closeMenu()">⇄ Compare Products <span class="menu-count" id="compareMenuCount">0</span></button>
@@ -180,7 +183,7 @@
 
   <!-- HERO -->
   <!-- PAGE HEADER for sub pages (back button + title) -->
-  <div class="page-head" data-v="categories new-arrivals best-sellers featured track about policies contact">
+  <div class="page-head" data-v="categories new-arrivals best-sellers featured track about policies contact clothing gadget">
     <button type="button" class="page-back" onclick="gbBack()" aria-label="Back">&#8249;</button>
     <h2 id="pageHeadTitle"></h2>
   </div>
@@ -196,8 +199,8 @@
       <p>Electronics, mobile accessories, RGB lighting & home gadgets.</p>
 
       <div class="hero-actions">
-        <button class="primary" type="button" onclick="document.getElementById('products').scrollIntoView({behavior:'smooth'})">Shop Now</button>
-        <button class="discount-cta needs-deals hidden" type="button" onclick="openDealsPage()"><svg class="ic" aria-hidden="true"><use href="#i-tag"/></svg> Deals &amp; Offers</button>
+        <a class="primary hero-dept dept-cloth" href="#clothingPage" data-no-i18n><span aria-hidden="true">👕</span> পোশাক</a>
+        <a class="primary hero-dept dept-gadget" href="#gadgetPage" data-no-i18n><span aria-hidden="true">🎧</span> গ্যাজেট</a>
       </div>
       <div class="hero-saved-actions" aria-label="Quick saved shopping tools">
         <button type="button" onclick="showSavedProducts('wishlist')">♡ Wishlist <span id="wishlistHeroCount">0</span></button>
@@ -302,6 +305,20 @@
     </div>
   </section>
 
+
+  <section class="dept-page dept-cloth" data-v="clothing" id="clothingPage" aria-labelledby="clothingTitle">
+    <div class="dept-banner"><div><h2 id="clothingTitle" data-no-i18n>পোশাক</h2><p>Shirts, T-shirts, Polo, Pants, Jackets and Ladies collection.</p></div><span class="dept-emoji" aria-hidden="true">👕</span></div>
+    <div class="category-tiles dept-tiles" id="deptTiles_clothing"></div>
+    <div class="section-head dept-head"><h2><span data-no-i18n>পোশাক</span></h2><span id="deptCount_clothing"></span></div>
+    <div class="products-grid home-products-grid" id="deptGrid_clothing" aria-live="polite"><div class="showcase-empty">Loading products…</div></div>
+  </section>
+
+  <section class="dept-page dept-gadget" data-v="gadget" id="gadgetPage" aria-labelledby="gadgetTitle">
+    <div class="dept-banner"><div><h2 id="gadgetTitle" data-no-i18n>গ্যাজেট</h2><p>Smart gadgets, audio, chargers, wearables and accessories.</p></div><span class="dept-emoji" aria-hidden="true">🎧</span></div>
+    <div class="category-tiles dept-tiles" id="deptTiles_gadget"></div>
+    <div class="section-head dept-head"><h2><span data-no-i18n>গ্যাজেট</span></h2><span id="deptCount_gadget"></span></div>
+    <div class="products-grid home-products-grid" id="deptGrid_gadget" aria-live="polite"><div class="showcase-empty">Loading products…</div></div>
+  </section>
 
   <section class="shop" data-v="home" id="products">
 
@@ -714,8 +731,8 @@
 </footer>
 
 
-<script src="script.js?v=gbbd-fixes-20261027b"></script>
-<script src="i18n.js?v=gbbd-fixes-20261027b"></script>
+<script src="script.js?v=gbbd-dept-20261028a"></script>
+<script src="i18n.js?v=gbbd-dept-20261028a"></script>
 
 </body>
 </html>

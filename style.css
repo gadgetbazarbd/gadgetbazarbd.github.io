@@ -718,7 +718,9 @@ body[data-view="featured"] main>[data-v]:not([data-v~="featured"]),
 body[data-view="track"] main>[data-v]:not([data-v~="track"]),
 body[data-view="about"] main>[data-v]:not([data-v~="about"]),
 body[data-view="policies"] main>[data-v]:not([data-v~="policies"]),
-body[data-view="contact"] main>[data-v]:not([data-v~="contact"]){display:none!important}
+body[data-view="contact"] main>[data-v]:not([data-v~="contact"]),
+body[data-view="clothing"] main>[data-v]:not([data-v~="clothing"]),
+body[data-view="gadget"] main>[data-v]:not([data-v~="gadget"]){display:none!important}
 
 .page-head{position:sticky;top:74px;z-index:25;display:flex;align-items:center;gap:12px;height:54px;padding:0 14px;background:rgba(7,20,38,.96);backdrop-filter:blur(12px);border-bottom:1px solid rgba(137,184,224,.18)}
 .page-head h2{font-size:17px;margin:0}
@@ -734,7 +736,7 @@ body[data-view="home"] .page-head{display:none!important}
 #products .toolbar #searchInput{display:none}
 
 /* categories page only */
-body[data-view="home"] #shopCategories[data-v],body[data-view="new-arrivals"] #shopCategories[data-v],body[data-view="best-sellers"] #shopCategories[data-v],body[data-view="flash"] #shopCategories[data-v],body[data-view="featured"] #shopCategories[data-v],body[data-view="track"] #shopCategories[data-v],body[data-view="about"] #shopCategories[data-v],body[data-view="policies"] #shopCategories[data-v],body[data-view="contact"] #shopCategories[data-v]{display:none!important}
+body[data-view="home"] #shopCategories[data-v],body[data-view="new-arrivals"] #shopCategories[data-v],body[data-view="best-sellers"] #shopCategories[data-v],body[data-view="flash"] #shopCategories[data-v],body[data-view="featured"] #shopCategories[data-v],body[data-view="track"] #shopCategories[data-v],body[data-view="about"] #shopCategories[data-v],body[data-view="policies"] #shopCategories[data-v],body[data-view="contact"] #shopCategories[data-v],body[data-view="clothing"] #shopCategories[data-v],body[data-view="gadget"] #shopCategories[data-v]{display:none!important}
 @media(min-width:700px){.hero{min-height:190px!important;padding-top:22px!important;padding-bottom:22px!important}.hero h1{font-size:42px!important;margin:8px 0!important}.hero p:not(.eyebrow){font-size:15px!important}}
 @media(max-width:700px){
  .hero{padding:12px 16px 10px!important}
@@ -1041,3 +1043,47 @@ html[data-theme="light"] .install-card,html[data-theme="rose"] .install-card,htm
 @media(min-width:521px){.social-float{bottom:16px}}
 html[data-theme] .social-float .wa-float{color:#fff!important}
 .wa-float{border:0;cursor:pointer;font-family:inherit}
+
+/* ===== Update 14: departments, hero buttons, clothing colours / sizes ===== */
+.hero-actions .hero-dept{flex:1 1 0;min-width:130px;display:flex;align-items:center;justify-content:center;gap:8px;text-align:center;text-decoration:none;font-weight:800;font-size:15px;padding:14px 16px;border-radius:14px;border:0;color:#fff;cursor:pointer;box-shadow:0 8px 24px #0004}
+.hero-actions .hero-dept.dept-cloth{background:linear-gradient(135deg,#f59e0b,#ea580c);color:#1b1206}
+.hero-actions .hero-dept.dept-gadget{background:linear-gradient(135deg,#0ea5e9,#2563eb);color:#fff}
+.hero-actions .hero-dept:hover{filter:brightness(1.07);transform:translateY(-1px)}
+@media(max-width:700px){.hero-actions{width:100%}.hero-actions .hero-dept{padding:13px 10px;font-size:15px}}
+.dept-page{max-width:1400px;margin:0 auto;padding:14px clamp(14px,4vw,56px) 28px}
+.dept-banner{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:18px 20px;border-radius:20px;color:#fff;margin-bottom:14px}
+.dept-cloth .dept-banner{background:linear-gradient(120deg,#f59e0b,#be185d)}
+.dept-gadget .dept-banner{background:linear-gradient(120deg,#0ea5e9,#4f46e5)}
+.dept-banner h2{margin:0 0 4px;font-size:clamp(24px,5vw,34px)}.dept-banner p{margin:0;font-size:13px;opacity:.92}
+.dept-emoji{font-size:48px;line-height:1}
+.dept-tiles{margin-bottom:10px}
+.dept-tile.is-on{border-color:#f59e0b;box-shadow:0 0 0 2px #f59e0b55}
+.dept-gadget .dept-tile.is-on{border-color:#38bdf8;box-shadow:0 0 0 2px #38bdf855}
+.dept-head{margin-top:6px}
+.cloth-mini{margin:2px 0 8px;display:flex;flex-direction:column;gap:5px}
+.cm-dots{display:flex;gap:5px;align-items:center;flex-wrap:wrap}
+.cm-dot{width:14px;height:14px;border-radius:50%;border:1.5px solid rgba(255,255,255,.55);display:inline-block}
+.cm-more{font-size:10px;font-style:normal;opacity:.7}
+.cm-sizes{display:flex;gap:4px;flex-wrap:wrap}
+.cm-sz{font-size:10px;font-weight:700;padding:1px 6px;border-radius:6px;border:1px solid rgba(148,163,184,.5)}
+.cm-sz.off{opacity:.35;text-decoration:line-through}
+.cloth-box .variant-title{margin-top:10px}.cloth-box .cl-val{color:#fbbf24}
+.cl-colors{display:flex;gap:10px;flex-wrap:wrap;margin:6px 0}
+.cl-dot{width:36px;height:36px;border-radius:50%;padding:3px;background:transparent;border:2px solid rgba(148,163,184,.4);cursor:pointer;display:grid;place-items:center}
+.cl-dot i{width:100%;height:100%;border-radius:50%;display:block;border:1px solid rgba(255,255,255,.35)}
+.cl-dot.active{border-color:#f59e0b;box-shadow:0 0 0 2px rgba(245,158,11,.35)}
+.cl-dot:disabled{opacity:.35;cursor:not-allowed}
+.size-meas{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;margin:8px 0;padding:9px 12px;border-radius:12px;background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.35);font-size:13px}
+.size-meas em{font-style:normal;opacity:.75;margin-right:3px}.size-meas small{opacity:.7}
+.cl-avail{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:10px 0;font-size:12px}
+.cl-avail-t{font-weight:700;opacity:.8;margin-right:2px}
+.cl-chip{display:inline-flex;gap:5px;align-items:center;padding:3px 9px;border-radius:99px;background:rgba(148,163,184,.14);border:1px solid rgba(148,163,184,.3)}
+.cl-chip i{width:11px;height:11px;border-radius:50%;border:1px solid rgba(255,255,255,.5)}
+.size-chart{margin:12px 0;border:1px solid rgba(148,163,184,.35);border-radius:14px;overflow:hidden}
+.sc-title{padding:9px 12px;font-weight:800;font-size:13px;background:rgba(56,189,248,.12)}
+.sc-wrap{overflow-x:auto}
+.size-chart table{width:100%;border-collapse:collapse;font-size:12.5px;text-align:center}
+.size-chart th,.size-chart td{padding:7px 9px;border-top:1px solid rgba(148,163,184,.22);white-space:nowrap}
+.size-chart thead th{font-size:11.5px;opacity:.8;border-top:0}
+.size-chart tbody th{text-align:left;font-weight:800}
+.size-chart tr.sel{background:rgba(245,158,11,.2);font-weight:700}
