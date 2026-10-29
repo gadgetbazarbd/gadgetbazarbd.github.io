@@ -1251,3 +1251,29 @@ body[data-view="clothing"] .theme-float,body[data-view="gadget"] .theme-float{di
  .product-details-image{aspect-ratio:4/3!important}
  .product-details-image img{object-fit:contain}
 }
+/* ===== Update 17: one card everywhere, names-only fixed rail ===== */
+.products-grid .dept-card .product-img{aspect-ratio:1/1!important;height:auto!important;padding:0!important;display:flex;align-items:center;justify-content:center;background:linear-gradient(145deg,#eef3fb,#fbfdff)}
+.products-grid .dept-card .product-img img{width:100%!important;height:100%!important;object-fit:contain!important;object-position:center}
+.products-grid .dept-card .product-img>span{display:flex;align-items:center;justify-content:center;width:100%;height:100%}
+html[data-cols="1"] .products-grid .dept-card .product-img{aspect-ratio:4/3!important}
+.products-grid .dept-card .product-actions{display:grid!important;grid-template-columns:1fr 1fr!important;gap:6px!important;margin-top:auto!important}
+.products-grid .dept-card .product-actions.dc-one{grid-template-columns:1fr!important}
+.products-grid .dept-card .product-actions .buy-btn{display:block!important}
+html[data-cols="3"] .products-grid .dept-card{padding:6px!important;border-radius:13px!important}
+html[data-cols="3"] .products-grid .dept-card h3{font-size:11.5px!important;margin:6px 1px 1px!important}
+html[data-cols="3"] .products-grid .dept-card .price{font-size:13px!important;margin:0 1px 5px!important}
+html[data-cols="3"] .products-grid .dept-card .price del{display:inline;font-size:10px}
+html[data-cols="3"] .products-grid .dept-card .product-actions{grid-template-columns:1fr!important;gap:4px!important}
+html[data-cols="3"] .products-grid .dept-card .product-actions button{padding:6px 2px!important;font-size:10px!important;border-radius:8px!important;min-height:0!important}
+html[data-cols="3"] .products-grid .dept-card .home-card-tools{top:4px;right:4px;gap:3px}
+html[data-cols="3"] .products-grid .dept-card .home-card-tools .home-save-btn{width:22px;height:22px;font-size:11px}
+html[data-cols="3"] .products-grid .dept-card .home-discount-badge{font-size:8px!important;padding:2px 5px!important;top:4px!important;left:4px!important}
+html[data-cols="4"] .products-grid .dept-card .product-actions,html[data-cols="5"] .products-grid .dept-card .product-actions{grid-template-columns:1fr!important}
+html[data-cols="4"] .products-grid .dept-card .product-actions .buy-btn,html[data-cols="5"] .products-grid .dept-card .product-actions .buy-btn{display:none!important}
+html[data-cols="4"] .products-grid .dept-card .home-card-tools,html[data-cols="5"] .products-grid .dept-card .home-card-tools{display:none!important}
+/* category rail: text only, stays put */
+.dept-side{top:var(--dept-top,132px)!important;max-height:calc(100dvh - var(--dept-top,132px) - 76px)!important;flex-basis:72px;width:72px}
+.dept-cat{padding:13px 4px!important;font-size:11.5px!important;line-height:1.25;text-align:center;justify-content:center;min-height:46px}
+.dept-cat i{display:none!important}
+@media(min-width:700px){.dept-side{flex-basis:160px;width:160px}.dept-cat{justify-content:flex-start;text-align:left;padding:12px 14px!important;font-size:13.5px!important}}
+html[data-cols="2"] .products-grid .dept-card .product-actions button,html:not([data-cols]) .products-grid .dept-card .product-actions button{font-size:10.5px!important;padding:8px 2px!important;white-space:nowrap}
