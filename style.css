@@ -1298,3 +1298,7 @@ body[data-view="clothing"] .dept-page .dept-quick,body[data-view="gadget"] .dept
 .dept-page .dept-side{overscroll-behavior:contain}
 body[data-view="clothing"] .site-footer,body[data-view="gadget"] .site-footer,body[data-view="clothing"] footer,body[data-view="gadget"] footer{display:none!important}
 .gb-warn{width:max-content;min-width:min(78vw,360px);font-size:14.5px}
+.gb-more{grid-column:1/-1;display:flex;justify-content:center;padding:10px 0 6px}
+.gb-more button{border:1px solid rgba(80,190,255,.5);background:rgba(40,150,255,.14);color:#9bdcff;font-weight:800;font-size:14px;padding:11px 26px;border-radius:999px;cursor:pointer;font-family:inherit}
+.gb-more small{font-weight:600;opacity:.75}
+.dept-page .dept-main{padding-bottom:96px!important}

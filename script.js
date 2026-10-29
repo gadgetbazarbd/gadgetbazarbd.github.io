@@ -563,7 +563,8 @@ function renderProducts(){
  let g=$("productsGrid");if(!g)return;let a=filteredProducts();
  if($("sectionTitle"))$("sectionTitle").textContent=activeQuery()?`Results for "${activeQuery()}"`:currentCategory;
  if($("productCount"))$("productCount").textContent=`${a.length} products`;
- g.innerHTML=a.map(deptCard).join("")||`<div class="empty" style="grid-column:1/-1">${activeQuery()?`No products found for "${esc(activeQuery())}". Try another word, or <button type="button" class="link-btn" onclick="clearSearch()">clear the search</button>.`:"No products found."}</div>`;
+ const pgA=gbPage("all",JSON.stringify([currentCategory,activeQuery()]),a);
+ g.innerHTML=(pgA.items.map(deptCard).join("")+(pgA.more?gbMoreBtn("all",pgA.left):""))||`<div class="empty" style="grid-column:1/-1">${activeQuery()?`No products found for "${esc(activeQuery())}". Try another word, or <button type="button" class="link-btn" onclick="clearSearch()">clear the search</button>.`:"No products found."}</div>`;
  updateSavedCounters();
  renderDealProducts();
 }
@@ -660,6 +661,12 @@ function deptFiltered(d,ignoreCat){
  return list;
 }
 function deptActiveCount(d){const f=gbDF[d];return f.sizes.length+f.colors.length+(f.min!=null?1:0)+(f.max!=null?1:0)+(f.stock?1:0)+(f.disc?1:0);}
+
+const GB_PAGE=24,gbLim={};
+function gbPage(key,sig,list){if(gbLim[key]&&gbLim[key].sig!==sig)gbLim[key]=null;const L=gbLim[key]||(gbLim[key]={sig,n:GB_PAGE});return{items:list.slice(0,L.n),more:list.length>L.n,left:list.length-L.n};}
+function gbMore(key){const L=gbLim[key];if(!L)return;L.n+=GB_PAGE;if(key==="all")renderProducts();else renderDeptPage(key);}
+window.gbMore=gbMore;
+function gbMoreBtn(key,left){return `<div class="gb-more"><button type="button" onclick="gbMore('${key}')">আরও দেখান <small>(আরও ${left}টি)</small></button></div>`;}
 function gbCardAct(id,kind){
  const p=getProduct(id);if(!p)return;
  if(pvars(p).length){viewProductDetails(id);setTimeout(()=>gbWarn(gbNeedMsg(p)),120);return;}
@@ -688,7 +695,7 @@ function renderDeptPage(d){
  const ss=$("deptSort_"+d);if(ss)ss.value=f.sort;
  const list=deptFiltered(d);
  gbCardColor=f.colors.length===1?f.colors[0]:"";
- grid.innerHTML=list.length?list.map(deptCard).join(""):`<div class="showcase-empty">${n||f.cat?'No products match these filters.':'No products here yet.'}${n?` <button type="button" class="link-btn" onclick="gbDeptClear('${d}','all','')">Clear all</button>`:""}</div>`;
+ const pg=gbPage(d,JSON.stringify(f),list);grid.innerHTML=list.length?pg.items.map(deptCard).join("")+(pg.more?gbMoreBtn(d,pg.left):""):`<div class="showcase-empty">${n||f.cat?'No products match these filters.':'No products here yet.'}${n?` <button type="button" class="link-btn" onclick="gbDeptClear('${d}','all','')">Clear all</button>`:""}</div>`;
  gbCardColor="";
  if(cnt)cnt.textContent=`${list.length} products`;
 }
