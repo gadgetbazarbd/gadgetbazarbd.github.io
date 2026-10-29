@@ -1277,3 +1277,24 @@ html[data-cols="4"] .products-grid .dept-card .home-card-tools,html[data-cols="5
 .dept-cat i{display:none!important}
 @media(min-width:700px){.dept-side{flex-basis:160px;width:160px}.dept-cat{justify-content:flex-start;text-align:left;padding:12px 14px!important;font-size:13.5px!important}}
 html[data-cols="2"] .products-grid .dept-card .product-actions button,html:not([data-cols]) .products-grid .dept-card .product-actions button{font-size:10.5px!important;padding:8px 2px!important;white-space:nowrap}
+
+/* ===== Update 17b: fixes ===== */
+.products-grid .dept-card .product-img>span:not(.home-discount-badge){display:flex;align-items:center;justify-content:center;width:100%;height:100%}
+.products-grid .dept-card .home-discount-badge{position:absolute;left:6px;top:6px;width:auto!important;height:auto!important;border-radius:8px!important;padding:3px 7px!important;font-size:10px!important;line-height:1.2;display:inline-block!important;z-index:2}
+body[data-view]:not([data-view="home"]) #dealZone:not(.hidden){display:none!important}
+.gb-warn{position:fixed;left:50%;top:calc(var(--gb-top,80px) + 8px);transform:translate(-50%,-14px);z-index:100002;max-width:92vw;background:#e11d48;color:#fff;font-weight:800;font-size:14px;line-height:1.35;padding:11px 18px;border-radius:12px;box-shadow:0 10px 30px rgba(225,29,72,.45);opacity:0;pointer-events:none;transition:.22s;text-align:center}
+.gb-warn.show{opacity:1;transform:translate(-50%,0)}
+/* department pages: page itself never scrolls, only the product pane (rail + filter bar stay put) */
+html:has(body[data-view="clothing"]),html:has(body[data-view="gadget"]),body[data-view="clothing"],body[data-view="gadget"]{overflow:hidden!important;height:100dvh}
+body[data-view="clothing"] .dept-page,body[data-view="gadget"] .dept-page{position:fixed;left:0;right:0;top:var(--gb-top,120px);bottom:var(--gb-bot,70px);z-index:6;display:flex!important;flex-direction:column;overflow:hidden;margin:0;padding:0;background:inherit}
+body[data-view="clothing"] .dept-page .dept-quick,body[data-view="gadget"] .dept-page .dept-quick{display:none!important}
+.dept-page .dept-bar{flex:0 0 auto;width:100%;padding:8px 12px 6px}
+.dept-page .dept-active{flex:0 0 auto}
+.dept-page .dept-body{flex:1 1 auto;min-height:0;width:100%;margin:0 auto;align-items:stretch!important}
+.dept-page .dept-side{position:static!important;max-height:none!important;height:100%;overflow-y:auto;align-self:stretch;flex:0 0 72px;border-radius:0 14px 0 0}
+.dept-page .dept-main{height:100%;overflow-y:auto;overscroll-behavior:contain;padding:0 8px 18px!important;-webkit-overflow-scrolling:touch}
+.dept-page .dept-tools{position:sticky;top:0;z-index:4;background:linear-gradient(#0a1530f2,#0a1530e6);backdrop-filter:blur(6px);margin:0 -8px 6px;padding:6px 8px}
+@media(min-width:700px){.dept-page .dept-side{flex-basis:160px}}
+.dept-page .dept-side{overscroll-behavior:contain}
+body[data-view="clothing"] .site-footer,body[data-view="gadget"] .site-footer,body[data-view="clothing"] footer,body[data-view="gadget"] footer{display:none!important}
+.gb-warn{width:max-content;min-width:min(78vw,360px);font-size:14.5px}
