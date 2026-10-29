@@ -31,7 +31,7 @@
   <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" onload="this.onload=null;this.rel='stylesheet'">
   <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap"></noscript>
 
-  <link rel="stylesheet" href="style.css?v=gbbd-img-20261029a">
+  <link rel="stylesheet" href="style.css?v=gbbd-fast-20261030a">
 
   <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
@@ -60,10 +60,22 @@
     @media(max-width:380px){
       .track-header-btn{width:42px;padding:0;font-size:0}
     }
+
+  #gbSplash{position:fixed;inset:0;z-index:200000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;background:#06121f;color:#fff;transition:opacity .4s ease,visibility .4s}
+  #gbSplash.out{opacity:0;visibility:hidden;pointer-events:none}
+  #gbSplash .sp-logo{margin-bottom:14px;width:84px;height:84px;border-radius:26px;display:grid;place-items:center;font-size:40px;background:linear-gradient(135deg,#25b7ff,#1d6bff);box-shadow:0 0 0 0 rgba(37,183,255,.5);animation:gbPulse 1.4s ease-out infinite}
+  #gbSplash b{font-size:26px;letter-spacing:.02em;font-family:Poppins,system-ui,sans-serif}
+  #gbSplash small{opacity:.7;font-size:13px}
+  #gbSplash .sp-dots{display:flex;gap:7px;margin-top:6px}#gbSplash .sp-dots i{width:8px;height:8px;border-radius:50%;background:#25b7ff;animation:gbBounce 1s infinite ease-in-out}
+  #gbSplash .sp-dots i:nth-child(2){animation-delay:.15s}#gbSplash .sp-dots i:nth-child(3){animation-delay:.3s}
+  @keyframes gbPulse{0%{box-shadow:0 0 0 0 rgba(37,183,255,.55)}100%{box-shadow:0 0 0 26px rgba(37,183,255,0)}}
+  @keyframes gbBounce{0%,80%,100%{transform:translateY(0);opacity:.5}40%{transform:translateY(-8px);opacity:1}}
+  @media (prefers-reduced-motion:reduce){#gbSplash *{animation:none!important}#gbSplash{transition:none}}
   </style>
 </head>
 
 <body data-view="home">
+<div id="gbSplash" aria-hidden="true"><div class="sp-logo">🛍️</div><b>Paboo</b><small>আপনার পছন্দের পণ্য</small><div class="sp-dots"><i></i><i></i><i></i></div></div>
 <script>/* open the right page on the very first paint (no flash of the shop) */(function(){var m={shopCategories:"categories",newArrivals:"new-arrivals",bestSellers:"best-sellers",featuredProducts:"featured",orderTracking:"track",about:"about",policies:"policies",contact:"contact",flashSale:"flash",clothingPage:"clothing",gadgetPage:"gadget"};try{var h=decodeURIComponent(location.hash.slice(1));if(m[h])document.body.setAttribute("data-view",m[h]);}catch(e){}})();</script>
 
 <!-- Icon set (shared by the whole page) -->
@@ -756,8 +768,8 @@
 </footer>
 
 
-<script defer src="script.js?v=gbbd-img-20261029a"></script>
-<script defer src="i18n.js?v=gbbd-img-20261029a"></script>
+<script defer src="script.js?v=gbbd-fast-20261030a"></script>
+<script defer src="i18n.js?v=gbbd-fast-20261030a"></script>
 
 </body>
 </html>

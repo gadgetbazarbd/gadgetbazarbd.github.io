@@ -1308,3 +1308,32 @@ body[data-view="clothing"] .site-footer,body[data-view="gadget"] .site-footer,bo
 .pimg,.product-img img{display:block;width:100%;height:100%;aspect-ratio:1/1;object-fit:contain}
 img{max-width:100%;height:auto}
 .product-img img,.pimg{height:100%}
+
+/* ===== Update 20: skeleton, error, entrance, tap speed ===== */
+@keyframes gbShimmer{0%{background-position:-220px 0}100%{background-position:220px 0}}
+.gb-skel .product-img,.gb-skel h3,.gb-skel .price,.gb-skel .product-actions span{background:linear-gradient(90deg,rgba(13,33,56,.6) 0,rgba(60,100,150,.35) 50%,rgba(13,33,56,.6) 100%);background-size:440px 100%;animation:gbShimmer 1.2s linear infinite;border-radius:10px;border:0}
+.gb-skel .product-img{aspect-ratio:1/1;width:100%}
+.gb-skel h3{height:13px;width:70%;margin:9px 2px 6px}
+.gb-skel .price{height:15px;width:40%;margin:0 2px 8px}
+.gb-skel .product-actions{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.gb-skel .product-actions span{height:32px}
+.gb-skel{pointer-events:none;cursor:default}
+.gb-fail{text-align:center;padding:30px 16px;border-radius:16px;background:rgba(225,29,72,.1);border:1px solid rgba(225,29,72,.35)}
+.gb-fail p{opacity:.8;margin:6px 0 14px}
+.gb-fail button{background:#e11d48;color:#fff;border:0;border-radius:999px;padding:10px 22px;font-weight:800;cursor:pointer;font-family:inherit}
+.checkout-error{display:none;margin:0 0 10px;padding:10px 12px;border-radius:10px;background:#e11d48;color:#fff;font-weight:700;font-size:13.5px;line-height:1.4}
+.checkout-error.show{display:block}
+@keyframes gbUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+html.gb-enter .products-grid .product-card{animation:gbUp .38s ease both}
+html.gb-enter .products-grid .product-card:nth-child(2){animation-delay:.04s}
+html.gb-enter .products-grid .product-card:nth-child(3){animation-delay:.08s}
+html.gb-enter .products-grid .product-card:nth-child(4){animation-delay:.12s}
+html.gb-enter .products-grid .product-card:nth-child(5){animation-delay:.16s}
+html.gb-enter .products-grid .product-card:nth-child(6){animation-delay:.2s}
+html.gb-enter .products-grid .product-card:nth-child(7){animation-delay:.24s}
+html.gb-enter .products-grid .product-card:nth-child(n+8){animation-delay:.28s}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}
+/* instant taps: no 300ms delay, no grey flash */
+a,button,select,input,label,.product-card,.dept-cat{touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+.dept-card:active,.add-btn:active,.buy-btn:active{transition:transform .06s}
+.products-grid .gb-skel .product-img,.products-grid .gb-skel h3,.products-grid .gb-skel .price{background:linear-gradient(90deg,rgba(13,33,56,.6) 0,rgba(60,100,150,.35) 50%,rgba(13,33,56,.6) 100%)!important;background-size:440px 100%!important}

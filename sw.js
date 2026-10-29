@@ -1,10 +1,10 @@
-/* Paboo service worker v3 — fast repeat visits, safe prices.
+/* Paboo service worker v5 — fast repeat visits, safe prices.
    - HTML pages ........ network first (always fresh), cached copy only when offline
    - css/js/icons ...... stale-while-revalidate (file names carry ?v=, so updates arrive at once)
    - product images .... cache first, newest 150 kept
    - Google Fonts ...... cache first
    - Supabase data/API, admin pages ... never cached, always live                          */
-const V='paboo-v3',STATIC=V+'-static',IMG=V+'-img',FONT=V+'-font',MAX_IMG=150;
+const V='paboo-v5',STATIC=V+'-static',IMG=V+'-img',FONT=V+'-font',MAX_IMG=150;
 self.addEventListener('install',e=>{self.skipWaiting()});
 self.addEventListener('activate',e=>e.waitUntil((async()=>{
   const keep=[STATIC,IMG,FONT];
