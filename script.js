@@ -4,7 +4,7 @@ const SUPABASE_KEY="sb_publishable_vYHW5zcCIPipjPS-tuxnRA_dS125qax";
 const sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 
 const $=id=>document.getElementById(id);
-const money=n=>"৳"+Number(n||0).toLocaleString("en-BD");
+const _nf=new Intl.NumberFormat("en-BD"),money=n=>"৳"+_nf.format(Number(n||0));
 
 const DEFAULT_DELIVERY_SETTINGS={dhaka:60,nearby:100,outside:130};
 let DELIVERY_SETTINGS={...DEFAULT_DELIVERY_SETTINGS};
@@ -437,10 +437,10 @@ function gbScrollGet(){return{y:window.scrollY,p:[...document.querySelectorAll("
 function gbScrollSet(st){document.querySelectorAll(".dept-main,.dept-side").forEach((e,i)=>{if(st.p[i]!=null)e.scrollTop=st.p[i];});if(Math.abs(window.scrollY-st.y)>2)window.scrollTo(0,st.y);}
 function gbDebounce(fn,ms){let t;return function(){clearTimeout(t);t=setTimeout(fn,ms);};}
 const gbDebRender=gbDebounce(()=>renderProducts(),220);
-function gbRenderAll(){
- const st=gbScrollGet();
+function gbRenderAll(first){
+ const st=first?null:gbScrollGet();
  renderProducts();renderHomepageShowcases();
- gbScrollSet(st);
+ if(st)gbScrollSet(st);
 }
 async function refreshStore(manual){
  if(!manual&&gbLoad==="ok"&&document.hidden)return;
@@ -459,7 +459,7 @@ async function refreshStore(manual){
   if(changed)gbPending=true;
   /* cheap, state-free parts always */
   updateCart();renderOffers();renderPolicyInfo();renderFlashSale();
-  if(gbPending&&(first||!isUserBusy())){gbPending=false;gbRenderAll();setTimeout(setupLocationPickers,0);}
+  if(gbPending&&(first||!isUserBusy())){gbPending=false;gbRenderAll(first);setTimeout(setupLocationPickers,0);}
   if(pid){const pAfter=JSON.stringify(getProduct(pid)||null);if(first||pAfter!==pBefore){const st=gbScrollGet();handleProductPageRoute();gbScrollSet(st);}}
   else handleProductPageRoute();
   gbSplashHide();
@@ -599,7 +599,7 @@ function renderSavedPanel(){
 }
 function gbSkeleton(n){return Array.from({length:n||8},()=>`<article class="product-card dept-card gb-skel" aria-hidden="true"><div class="product-img"></div><h3></h3><div class="price"></div><div class="product-actions"><span></span><span></span></div></article>`).join("");}
 function gbLoadState(){
- if(gbLoad==="loading")return gbSkeleton(8);
+ if(gbLoad==="loading")return gbSkeleton(12);
  if(gbLoad==="fail")return `<div class="gb-fail" style="grid-column:1/-1"><strong>পণ্য লোড করা যায়নি</strong><p>ইন্টারনেট সংযোগ দেখে আবার চেষ্টা করুন।</p><button type="button" onclick="gbLoad='loading';renderProducts();refreshStore(true)">আবার চেষ্টা করুন</button></div>`;
  return "";
 }
@@ -651,7 +651,7 @@ function renderHomepageShowcases(){
  // This store currently has no verified sales-count field; use admin-featured products first and label the section transparently.
  const topPicks=featured.length?featured:available.slice().sort((a,b)=>Number(b.stock)-Number(a.stock));
  renderHomeProductGrid("bestSellersGrid",topPicks,"Store favourites will appear here when products are available.",24);
- renderDeptPage("clothing");renderDeptPage("gadget");
+ gbDeptDirty.clothing=gbDeptDirty.gadget=true;gbEnsureDept();
 }
 
 
@@ -708,8 +708,8 @@ function deptFiltered(d,ignoreCat){
 function deptActiveCount(d){const f=gbDF[d];return f.sizes.length+f.colors.length+(f.min!=null?1:0)+(f.max!=null?1:0)+(f.stock?1:0)+(f.disc?1:0);}
 
 const GB_PAGE=24,gbLim={};
-function gbPage(key,sig,list){if(gbLim[key]&&gbLim[key].sig!==sig)gbLim[key]=null;const L=gbLim[key]||(gbLim[key]={sig,n:GB_PAGE});return{items:list.slice(0,L.n),more:list.length>L.n,left:list.length-L.n};}
-function gbMore(key){const L=gbLim[key];if(!L)return;L.n+=GB_PAGE;if(key==="all")renderProducts();else renderDeptPage(key);}
+function gbPage(key,sig,list){if(gbLim[key]&&gbLim[key].sig!==sig)gbLim[key]=null;const L=gbLim[key]||(gbLim[key]={sig,n:key==="all"?12:GB_PAGE});return{items:list.slice(0,L.n),more:list.length>L.n,left:list.length-L.n};}
+function gbMore(key){const L=gbLim[key];if(!L)return;L.n+=(key==="all"?12:GB_PAGE);if(key==="all")renderProducts();else renderDeptPage(key);}
 window.gbMore=gbMore;
 function gbMoreBtn(key,left){return `<div class="gb-more"><button type="button" onclick="gbMore('${key}')">আরও দেখান <small>(আরও ${left}টি)</small></button></div>`;}
 function gbCardAct(id,kind){
@@ -725,7 +725,9 @@ function deptCard(p){
   :`<div class="product-actions"><button class="add-btn" type="button" onclick="event.stopPropagation();gbCardAct(${id},'cart')">Add to Cart</button><button class="buy-btn" type="button" onclick="event.stopPropagation();gbCardAct(${id},'buy')">Buy Now</button></div>`;
  return `<article class="product-card home-product-card dept-card" onclick="viewProductDetails(${id})">${saleStrip(p)}<div class="product-img">${productImg(p)}${disc?`<span class="home-discount-badge">${Math.round(Number(p.discount))}% OFF</span>`:""}<div class="home-card-tools"><button type="button" class="home-save-btn ${saved?'is-saved':''}" aria-label="Wishlist" onclick="event.stopPropagation();toggleWishlist(${id})">${saved?'♥':'♡'}</button><button type="button" class="home-save-btn ${cmp?'is-compared':''}" aria-label="Compare" onclick="event.stopPropagation();toggleCompare(${id})">${cmp?'✓':'⇄'}</button></div></div><h3>${esc(p.name)}</h3><div class="price">${money(finalPrice(p))} ${disc?`<del>${money(p.price)}</del>`:""}</div>${btns}</article>`;
 }
-function renderDeptPage(d){
+const gbDeptDirty={clothing:true,gadget:true};
+function gbEnsureDept(){const v=document.body.dataset.view;if((v==="clothing"||v==="gadget")&&gbDeptDirty[v]&&gbLoad==="ok")renderDeptPage(v);}
+function renderDeptPage(d){gbDeptDirty[d]=false;
  const side=$("deptSide_"+d),grid=$("deptGrid_"+d),cnt=$("deptCount_"+d);if(!grid)return;
  gbEagerLeft=2;const f=gbDF[d],names=deptCats(d);
  if(f.cat&&!names.some(n=>categoryKey(n)===categoryKey(f.cat)))f.cat="";
@@ -1421,7 +1423,7 @@ window.gbInstall=gbInstall;window.closeInstallHelp=closeInstallHelp;
   document.documentElement.style.setProperty('--gb-bot',(bb?bb.offsetHeight:70)+'px');}
  const q=()=>{if(!t)t=requestAnimationFrame(fix)};
  addEventListener('resize',q);addEventListener('hashchange',()=>{q();setTimeout(fix,200)});addEventListener('orientationchange',q);
- new MutationObserver(q).observe(document.body,{attributes:true,attributeFilter:['data-view']});
+ new MutationObserver(()=>{q();gbEnsureDept();}).observe(document.body,{attributes:true,attributeFilter:['data-view']});
  setTimeout(fix,200);setTimeout(fix,900);})();
 
 document.addEventListener("visibilitychange",()=>{if(!document.hidden&&Date.now()-gbLastRefresh>60000)refreshStore();});
