@@ -48,22 +48,43 @@ function showLogin(){$('login')?.classList.remove('hidden');$('app')?.classList.
 function showApp(){$('login')?.classList.add('hidden');$('app')?.classList.remove('hidden')}
 
 /* Photos from phones are 3-8 MB. Shrink to max 1200px and WebP before upload so the shop loads fast. */
-async function prepareImage(file,maxSide=1200){
+/* ---- Image optimiser -------------------------------------------------
+   Product photos : fitted into a 1000x1000 square (nothing is cut off, white padding),
+                    saved as WebP and squeezed to roughly 100-150 KB.
+   Other images   : only scaled down to maxSide and converted to WebP.
+   IMG_SQUARE_MODE: 'fit'  = whole photo visible (recommended for clothes)
+                    'crop' = centre-crop to fill the square                          */
+const IMG_SQUARE=1000,IMG_MAX_KB=150,IMG_SQUARE_MODE='fit';
+async function prepareImage(file,opts){
+  opts=typeof opts==='number'?{maxSide:opts}:(opts||{});
   if(!file||!/^image\//.test(file.type)||/svg|gif/.test(file.type))return file;
   try{
     let bmp;
     try{bmp=await createImageBitmap(file,{imageOrientation:'from-image'})}catch(e){bmp=await createImageBitmap(file)}
-    const scale=Math.min(1,maxSide/Math.max(bmp.width,bmp.height));
-    const w=Math.max(1,Math.round(bmp.width*scale)),h=Math.max(1,Math.round(bmp.height*scale));
-    const c=document.createElement('canvas');c.width=w;c.height=h;
-    const ctx=c.getContext('2d');ctx.drawImage(bmp,0,0,w,h);
-    let blob=await new Promise(res=>c.toBlob(res,'image/webp',0.82));
-    let ext='webp';
-    if(!blob||blob.type!=='image/webp'){
-      ctx.globalCompositeOperation='destination-over';ctx.fillStyle='#fff';ctx.fillRect(0,0,w,h);
-      blob=await new Promise(res=>c.toBlob(res,'image/jpeg',0.85));ext='jpg';
+    const c=document.createElement('canvas'),ctx=c.getContext('2d');
+    ctx.imageSmoothingQuality='high';
+    if(opts.square){
+      const S=opts.square;c.width=S;c.height=S;
+      ctx.fillStyle='#fff';ctx.fillRect(0,0,S,S);
+      const fit=(opts.mode||IMG_SQUARE_MODE)==='crop'?Math.max(S/bmp.width,S/bmp.height):Math.min(S/bmp.width,S/bmp.height);
+      const dw=bmp.width*fit,dh=bmp.height*fit;
+      ctx.drawImage(bmp,(S-dw)/2,(S-dh)/2,dw,dh);
+    }else{
+      const maxSide=opts.maxSide||1200,scale=Math.min(1,maxSide/Math.max(bmp.width,bmp.height));
+      c.width=Math.max(1,Math.round(bmp.width*scale));c.height=Math.max(1,Math.round(bmp.height*scale));
+      ctx.drawImage(bmp,0,0,c.width,c.height);
     }
-    if(!blob||(scale===1&&blob.size>=file.size))return file;
+    const toBlob=(type,q)=>new Promise(res=>c.toBlob(res,type,q));
+    let q=opts.square?0.86:0.82,blob=await toBlob('image/webp',q),ext='webp';
+    if(!blob||blob.type!=='image/webp'){            /* very old browsers: JPEG fallback */
+      ctx.globalCompositeOperation='destination-over';ctx.fillStyle='#fff';ctx.fillRect(0,0,c.width,c.height);
+      ext='jpg';q=0.85;blob=await toBlob('image/jpeg',q);
+      while(opts.square&&blob&&blob.size>IMG_MAX_KB*1024&&q>0.5){q-=0.07;blob=await toBlob('image/jpeg',q)}
+    }else if(opts.square){
+      while(blob&&blob.size>IMG_MAX_KB*1024&&q>0.42){q-=0.06;blob=await toBlob('image/webp',q)}
+    }
+    if(!blob)return file;
+    if(!opts.square&&blob.size>=file.size&&bmp.width<=(opts.maxSide||1200)&&bmp.height<=(opts.maxSide||1200))return file;
     return new File([blob],file.name.replace(/\.[^.]+$/,'')+'.'+ext,{type:blob.type});
   }catch(e){console.warn('Image optimisation skipped',e);return file}
 }
@@ -72,10 +93,10 @@ function previewProductImages(input){
   const files=[...(input.files||[])];
   box.innerHTML=files.map(f=>`<div style="display:inline-block;margin:6px 8px 0 0;text-align:center;font-size:11px"><img src="${URL.createObjectURL(f)}" alt="" style="width:72px;height:72px;object-fit:cover;border-radius:10px;display:block"><span>${(f.size/1048576).toFixed(1)} MB</span></div>`).join('')+(files.length?`<div style="font-size:12px;margin-top:6px;color:#64748b">Photos are automatically resized and compressed when you save.</div>`:'');
 }
-async function uploadImage(file,id){
+async function uploadImage(file,id,opts){
   if(!file)return '';
   if(file.size>25*1048576)throw new Error('Image is too large (max 25 MB): '+file.name);
-  file=await prepareImage(file);
+  file=await prepareImage(file,opts);
   const ext=(file.name.split('.').pop()||'jpg').toLowerCase().replace(/[^a-z0-9]/g,'')||'jpg';
   const path=`products/${id}_${Date.now()}.${ext}`;
   const {error}=await sb.storage.from(BUCKET).upload(path,file,{upsert:true,contentType:file.type});
@@ -262,7 +283,7 @@ async function saveProduct(){
     images=[...new Set([imgSrc?.image,...images].filter(x=>typeof x==='string'&&/^https?:\/\//i.test(x)))];
     const remove=new Set([...document.querySelectorAll('.remove-product-image:checked')].map(x=>x.value));
     images=images.filter(x=>!remove.has(x));
-    for(const file of files){const url=await uploadImage(file,id);if(url)images.push(url)}
+    for(const file of files){const url=await uploadImage(file,id,{square:IMG_SQUARE});if(url)images.push(url)}
     images=[...new Set(images)];
     const image=images[0]||'';
     const rawSpecs=$('productSpecifications')?.value.trim()||'';
@@ -426,7 +447,7 @@ const CE_TPL={
   ladies:{label:'লেডিজ টপ / কুর্তি',cols:['বুক','কোমর','দৈর্ঘ্য','কাঁধ'],rows:{S:[34,30,38,14],M:[36,32,39,14.5],L:[38,34,40,15],XL:[40,36,41,15.5],XXL:[42,38,42,16]}}
 };
 function ceAddPreset(i){const c=CE_PAL[i];if(clothState.colors.some(x=>String(x.n).trim().toLowerCase()===c[0].toLowerCase()))return;clothState.colors.push({id:'c'+(++ceUid),n:c[0],h:c[1],i:''});ceRefreshAll()}
-async function ceColorImg(i,inp){const f=inp.files&&inp.files[0];if(!f)return;try{const url=await uploadImage(f,'col'+(editingProductId||'new'));clothState.colors[i].i=url;ceRefreshAll()}catch(e){showError(e)}}
+async function ceColorImg(i,inp){const f=inp.files&&inp.files[0];if(!f)return;try{const url=await uploadImage(f,'col'+(editingProductId||'new'),{square:IMG_SQUARE});clothState.colors[i].i=url;ceRefreshAll()}catch(e){showError(e)}}
 function ceApplyTpl(k){
   const t=CE_TPL[k];if(!t)return;
   const has=clothState.sizes.some(z=>z.v.some(x=>String(x||'').trim()));
