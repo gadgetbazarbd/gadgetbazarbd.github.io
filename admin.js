@@ -1118,6 +1118,14 @@ async function loadStoreSettings(){
   return storeSettingsCache;
 }
 
+function setGroups(s){
+  const G=[['sgAppear','🎨 সাইটের চেহারা','থিম · কার্ট ও চেকআউট রং',themeCard(s)+cartThemeCard(s),!s.has_cart_theme],
+   ['sgSocial','📣 সোশ্যাল ও যোগাযোগ','Facebook · WhatsApp · লিংক',socialCard(s),!s.has_social],
+   ['sgCloth','👕 পোশাক ও পণ্যের অপশন','কালার পিকার · ভ্যারিয়েন্ট · সাইজ গাইড',colsCard(s)+variantsCard(s)+sizeGuideCard(s),!(s.has_cols&&s.has_variants&&s.has_size_guide)],
+   ['sgTrack','🔎 অর্ডার ট্র্যাকিং','কুরিয়ার ট্র্যাকিং দেখানো',trackingCard(s),!s.has_tracking]];
+  const bar=`<div class="set-jump">${G.map(g=>`<a href="#${g[0]}" onclick="event.preventDefault();document.getElementById('${g[0]}').open=true;document.getElementById('${g[0]}').scrollIntoView({behavior:'smooth',block:'start'})">${g[1]}${g[4]?' <i>SQL বাকি</i>':''}</a>`).join('')}</div>`;
+  return bar+G.map(g=>`<details class="set-group" id="${g[0]}" open><summary><span><b>${g[1]}</b><small>${g[2]}</small></span>${g[4]?'<em class="warn">SQL বাকি</em>':'<em class="ok">ঠিক আছে</em>'}</summary>${g[3]}</details>`).join('');
+}
 function settings(){
   const s=storeSettingsCache||{};
   return `<div class="section-head"><div><h3>Store Settings</h3><p>Manage your store contact information</p></div><button class="btn muted" onclick="loadStoreSettings().then(render).catch(showError)">↻ Refresh</button></div>
@@ -1128,7 +1136,7 @@ function settings(){
     <label class="full">Store Address<textarea id="storeAddress" rows="3" maxlength="500" placeholder="Store address">${esc(s.address||'')}</textarea></label>
     <label class="full">Support Hours<input id="storeHours" maxlength="160" value="${esc(s.support_hours||'')}" placeholder="Every day, 10 AM–8 PM"></label>
   </div><div class="btn-row"><button class="btn primary" id="saveStoreSettingsBtn" onclick="saveStoreSettings()">Save Store Settings</button></div>
-  ${s.updated_at?`<p><small>Last updated: ${esc(new Date(s.updated_at).toLocaleString('en-BD'))}</small></p>`:''}</div>${themeCard(s)}${socialCard(s)}${colsCard(s)}${variantsCard(s)}${sizeGuideCard(s)}${cartThemeCard(s)}${trackingCard(s)}`
+  ${s.updated_at?`<p><small>Last updated: ${esc(new Date(s.updated_at).toLocaleString('en-BD'))}</small></p>`:''}</div>${setGroups(s)}`
 }
 
 async function saveStoreSettings(){
@@ -2007,7 +2015,7 @@ async function unblockNumber(k){
   try{const {error}=await sb.from('blocked_phones').delete().eq('phone_key',k);if(error)throw error;await loadProtect();closeModal();render()}catch(e){showError(e)}
 }
 function blockedPage(){
-  return `<div class="section-head"><div><h3>Blocked numbers</h3><p>Orders from these numbers are refused by the server</p></div><button class="btn muted" onclick="loadProtect().then(render)">↻ Refresh</button></div>${setupNote()}
+  return `<div class="section-head"><div><h3>Blocked numbers</h3><p>Orders from these numbers are refused by the server</p></div><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn muted" onclick="loadProtect().then(render)">↻ Refresh</button><button class="btn" onclick="checkLeadSetup()">🔧 সেটআপ পরীক্ষা</button></div></div>${setupNote()}
   <div class="card"><div class="filters"><input class="input" id="blkPhone" placeholder="01XXXXXXXXX" inputmode="tel"><input class="input" id="blkReason" placeholder="Reason (optional)"><button class="btn danger" onclick="blockNumber($('blkPhone').value,$('blkReason').value)">🚫 Block</button></div></div>
   <div class="table-wrap" style="margin-top:12px"><table class="table"><thead><tr><th>Number</th><th>Reason</th><th>Date</th><th></th></tr></thead><tbody>
   ${blockedCache.length?blockedCache.map(b=>`<tr><td><b>${esc(b.phone||b.phone_key)}</b></td><td>${esc(b.reason||'—')}</td><td>${esc(new Date(b.created_at).toLocaleDateString('en-BD'))}</td><td><button class="btn muted" onclick="unblockNumber('${esc(b.phone_key)}')">Unblock</button></td></tr>`).join(''):'<tr><td colspan="4" class="empty">No blocked numbers</td></tr>'}</tbody></table></div>`;
@@ -2017,6 +2025,22 @@ function leadMsg(l){
   const items=(Array.isArray(l.items)?l.items:[]).map(i=>`${i.name||'পণ্য'} x${i.qty||1}`).join(', ');
   return `আসসালামু আলাইকুম ${l.name||''}, Paboo থেকে বলছি। আপনি ${items||'কিছু পণ্য'} অর্ডার করতে চেয়েছিলেন। কোনো সাহায্য লাগলে বলুন, আমরা এখনই অর্ডারটা কনফার্ম করে দিই। 😊`;
 }
+async function checkLeadSetup(){
+  const out=[];
+  try{
+    const t=await sb.from('incomplete_orders').select('phone_key').limit(1);
+    if(t.error){alert('❌ টেবিল পড়া যাচ্ছে না।\nকারণ: '+(t.error.message||t.error)+'\n\nসমাধান: Supabase > SQL Editor এ 8_protect.sql চালান, তারপর আবার পরীক্ষা করুন।');return}
+    out.push('✅ টেবিল ঠিক আছে');
+    const r=await sb.rpc('save_incomplete',{p_name:'TEST',p_phone:'01000000001',p_items:[{name:'test',qty:1}],p_total:1});
+    if(r.error){alert(out.join('\n')+'\n❌ সাইট থেকে সেভ করার ফাংশন কাজ করছে না।\nকারণ: '+(r.error.message||r.error)+'\n\nসমাধান: 8_protect.sql আবার পুরোটা চালান।');return}
+    const c=await sb.from('incomplete_orders').select('phone_key').eq('phone_key','1000000001');
+    if(c.data&&c.data.length){out.push('✅ সাইট থেকে সেভ হচ্ছে');await sb.from('incomplete_orders').delete().eq('phone_key','1000000001')}
+    else out.push('⚠ ফাংশন চলেছে কিন্তু কিছু সেভ হয়নি');
+    out.push('\nসবকিছু চালু আছে। এখন সাইটে কার্টে পণ্য রেখে চেকআউটে নাম ও ১১ সংখ্যার ফোন নম্বর দিন, ২ সেকেন্ড পর Refresh চাপুন।');
+    alert(out.join('\n'));await loadProtect();render();
+  }catch(e){showError(e)}
+}
+window.checkLeadSetup=checkLeadSetup;
 function leadsPage(){
   const rows=leadsCache.map((l,i)=>{
     const items=(Array.isArray(l.items)?l.items:[]).map(x=>`${esc(x.name||'')} ×${Number(x.qty||1)}`).join('<br>');

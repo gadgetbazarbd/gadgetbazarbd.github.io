@@ -1431,3 +1431,11 @@ a,button,select,input,label,.product-card,.dept-cat{touch-action:manipulation;-w
 
 @media (max-width:520px){.cart-drawer{border-radius:20px 0 0 20px}.cart-row{padding:8px!important}}
 @media (prefers-reduced-motion:reduce){.cart-drawer,.cart-row,#transactionBox,#checkoutModal .modal-card,#checkoutModal .pay-option{transition-duration:.01ms!important;animation:none!important}.cart-drawer .primary::after,#checkoutModal form>.primary::after{animation:none!important}}
+
+/* background, borders and glow follow the chosen cart colours */
+@supports (background:color-mix(in srgb,red 50%,blue)){
+:root{--cx-bg1:color-mix(in srgb,var(--cx-b) 26%,#050d1a);--cx-bg2:color-mix(in srgb,var(--cx-b) 11%,#030812);--cx-line:color-mix(in srgb,var(--cx-a) 34%,transparent);--cx-card:color-mix(in srgb,var(--cx-a) 8%,transparent)}
+}
+.cart-drawer .drawer-head{border-bottom:1px solid var(--cx-line)!important}
+#checkoutModal .modal-card{box-shadow:0 20px 70px var(--cx-glow)!important}
+.cart-drawer .qty button,.cart-drawer .close-btn,#checkoutModal .close-btn,.cart-row .mini-img,.cart-row img{background:color-mix(in srgb,var(--cx-a) 14%,#0a1220)!important;border-color:var(--cx-line)!important;color:#fff}
