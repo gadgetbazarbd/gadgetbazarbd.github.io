@@ -12,6 +12,7 @@ const ADMIN_UID='9aa2e054-a19a-4f86-aaf7-25f13e720722';
 
 let productsCache=[];
 let ordersCache=[];
+let orderDept='';
 const selOrders=new Set();
 let categoriesCache=[];
 let offersCache=[];
@@ -45,7 +46,7 @@ async function checkAdmin(){
   return true
 }
 function showLogin(){$('login')?.classList.remove('hidden');$('app')?.classList.add('hidden')}
-function showApp(){$('login')?.classList.add('hidden');$('app')?.classList.remove('hidden')}
+function showApp(){$('login')?.classList.add('hidden');$('app')?.classList.remove('hidden');$('fab')?.classList.remove('hidden');try{adminPollStart()}catch(e){}}
 
 /* Photos from phones are 3-8 MB. Shrink to max 1200px and WebP before upload so the shop loads fast. */
 /* ---- Image optimiser -------------------------------------------------
@@ -640,7 +641,8 @@ function getFilteredOrders(){
   const q=String($('orderSearch')?.value||'').trim().toLowerCase();
   const status=$('orderStatusFilter')?.value||'';
   const payment=$('orderPaymentFilter')?.value||'';
-  return ordersCache.map((o,i)=>({o,i})).filter(x=>orderMatches(x.o,q,status,payment));
+  const pm=orderDept?deptMap():null;
+  return ordersCache.map((o,i)=>({o,i})).filter(x=>orderMatches(x.o,q,status,payment)&&(!orderDept||orderDepts(x.o,pm).has(orderDept)));
 }
 function orderRows(list){
   if(!list.length)return `<tr><td colspan="8" class="empty">No matching orders found</td></tr>`;
@@ -663,7 +665,7 @@ function orderRows(list){
 }
 function orders(){
   const filtered=getFilteredOrders();
-  return `<div class="section-head"><div><h3>Orders</h3><p>Manage, search and update customer orders</p></div><div class="toolbar"><button class="btn muted" onclick="refreshOrders().then(()=>render()).catch(showError)">↻ Refresh</button><button class="btn primary" onclick="exportOrdersCSV()">Export CSV</button></div></div>
+  return `${ordKpi()}<div class="section-head"><div><h3>${orderDept==='clothing'?'👕 পোশাকের অর্ডার':orderDept==='gadget'?'🎧 গ্যাজেটের অর্ডার':'Orders'}</h3><p>Manage, search and update customer orders</p></div><div class="toolbar"><button class="btn muted" onclick="refreshOrders().then(()=>render()).catch(showError)">↻ Refresh</button><button class="btn primary" onclick="exportOrdersCSV()">Export CSV</button></div></div>
   <div class="filters"><div class="search-wrap"><input class="input" id="orderSearch" value="${esc($('orderSearch')?.value||'')}" placeholder="Search order ID, customer, phone, address..." oninput="filterOrders()"></div><select class="select" id="orderStatusFilter" onchange="filterOrders()"><option value="">All Statuses</option>${['Pending','Confirmed','Processing','Shipped','Delivered','Cancelled'].map(s=>`<option value="${s}" ${$('orderStatusFilter')?.value===s?'selected':''}>${s}</option>`).join('')}</select><select class="select" id="orderPaymentFilter" onchange="filterOrders()"><option value="">All Payments</option>${['COD','bKash','Nagad'].map(s=>`<option value="${s}" ${$('orderPaymentFilter')?.value===s?'selected':''}>${s}</option>`).join('')}</select></div>
   <p class="orders-count"><small>Showing ${filtered.length} of ${ordersCache.length} orders.</small></p>
   <div id="bulkBar" class="bulk-bar hidden"></div>
@@ -1183,8 +1185,11 @@ function setNavActive(section){
   }
 }
 function go(section){
+  const navKey=section;orderDept='';
+  if(section==='orders-clothing'){orderDept='clothing';section='orders'}
+  else if(section==='orders-gadget'){orderDept='gadget';section='orders'}
   currentSection=section;
-  setNavActive(section);
+  setNavActive(navKey);openGrpFor(navKey);
 
   const titles={
     dashboard:['Dashboard','Store overview'],
@@ -1202,10 +1207,11 @@ function go(section){
     blocked:['Blocked numbers','Numbers that cannot place orders'],
     delivery:['Delivery','Delivery settings'],
     payments:['Payments','Payment settings'],
-    settings:['Settings','Store settings']
+    settings:['Settings','Store settings'],
+    site:['সাইট নিয়ন্ত্রণ','আপনার ওয়েবসাইটের সবকিছু এক জায়গা থেকে']
   };
 
-  const t=titles[section]||titles.dashboard;
+  const t=(orderDept==='clothing'?['👕 পোশাকের অর্ডার','শুধু পোশাকের অর্ডার']:orderDept==='gadget'?['🎧 গ্যাজেটের অর্ডার','শুধু গ্যাজেটের অর্ডার']:titles[section])||titles.dashboard;
   if($('pageTitle'))$('pageTitle').textContent=t[0];
   if($('pageSub'))$('pageSub').textContent=t[1];
 
@@ -1216,9 +1222,9 @@ function go(section){
 }
 function render(){
   const c=$('content');if(!c)return;
-  const map={dashboard,clothing:()=>deptPage('clothing'),gadget:()=>deptPage('gadget'),products,orders,customers,categories,offers,coupons,reports,policies:policiesPage,leads:leadsPage,blocked:blockedPage,delivery,payments,settings};
+  const map={dashboard,clothing:()=>deptPage('clothing'),gadget:()=>deptPage('gadget'),products,orders,customers,categories,offers,coupons,reports,policies:policiesPage,leads:leadsPage,blocked:blockedPage,delivery,payments,settings,site:sitePage};
   c.innerHTML=(map[currentSection]||dashboard)();
-  updateOrderBadge();
+  updateOrderBadge();updateBell();
   if(currentSection==='orders')bulkBarRender();
 }
 function toggleSidebar(force){
@@ -2119,3 +2125,206 @@ async function saveTrackingSetting(){
   }catch(e){showError(e);if(btn){btn.disabled=false;btn.textContent='Save'}}
 }
 window.courierBox=courierBox;window.saveCourier=saveCourier;window.trackingCard=trackingCard;window.saveTrackingSetting=saveTrackingSetting;
+
+
+/* =====================================================================================
+   Update 24 — admin redesign: grouped sidebar, split orders, search, bell, FAB, site hub
+   ===================================================================================== */
+function deptMap(){const m=new Map();productsCache.forEach(p=>m.set(String(p.id),deptOf(p)));return m}
+function orderDepts(o,pm){
+  pm=pm||deptMap();let it=o.items;
+  if(typeof it==='string'){try{it=JSON.parse(it)}catch(e){it=[]}}
+  const s=new Set();
+  (Array.isArray(it)?it:[]).forEach(x=>{
+    let d=pm.get(String(x&&(x.id||x.product_id)));
+    if(!d){const nm=String((x&&x.name)||'').replace(/\s*\(.*\)\s*$/,'').trim().toLowerCase();const p=nm&&productsCache.find(p=>String(p.name||'').trim().toLowerCase()===nm);d=p?deptOf(p):(x&&x.dept==='clothing'?'clothing':'gadget')}
+    s.add(d)
+  });
+  if(!s.size)s.add('gadget');return s
+}
+function bn(n){try{return Number(n||0).toLocaleString('bn-BD')}catch(e){return String(n)}}
+function tk(n){return '৳'+bn(Math.round(Number(n)||0))}
+function orderTotal(o){return Number(o.total??(Number(o.subtotal||0)+Number(o.delivery_charge??o.delivery_fee??0)))||0}
+function ordKpi(){
+  try{
+    const pm=deptMap(),day=(typeof dhakaDay==='function')?dhakaDay(new Date().toISOString()):new Date().toISOString().slice(0,10);
+    const list=ordersCache.filter(o=>!orderDept||orderDepts(o,pm).has(orderDept));
+    const ok=list.filter(o=>(o.status||'Pending')!=='Cancelled');
+    const today=ok.filter(o=>o.created_at&&((typeof dhakaDay==='function')?dhakaDay(o.created_at):String(o.created_at).slice(0,10))===day);
+    const pend=list.filter(o=>(o.status||'Pending')==='Pending').length;
+    return `<div class="ord-kpi"><div><small>আজকের বিক্রি</small><b>${tk(today.reduce((s,o)=>s+orderTotal(o),0))}</b></div><div><small>আজকের অর্ডার</small><b>${bn(today.length)}</b></div><div><small>Pending</small><b>${bn(pend)}</b></div><div><small>মোট অর্ডার</small><b>${bn(list.length)}</b></div></div>`
+  }catch(e){return ''}
+}
+/* sidebar groups + icon mode + theme */
+function toggleGrp(btn){const g=btn.closest('.grp');if(!g)return;g.classList.toggle('open');saveGrp()}
+function saveGrp(){try{const o={};document.querySelectorAll('.grp').forEach(g=>o[g.dataset.g]=g.classList.contains('open')?1:0);localStorage.setItem('gbbd_admin_grp',JSON.stringify(o))}catch(e){}}
+function loadGrp(){try{const o=JSON.parse(localStorage.getItem('gbbd_admin_grp')||'{}');document.querySelectorAll('.grp').forEach(g=>{if(o[g.dataset.g]===0)g.classList.remove('open')})}catch(e){}}
+function openGrpFor(key){const b=document.querySelector('.nav[data-section="'+key+'"]');const g=b&&b.closest('.grp');if(g&&!g.classList.contains('open')){g.classList.add('open');saveGrp()}}
+function toggleMini(){const d=document.documentElement;const on=d.classList.toggle('sb-mini');try{localStorage.setItem('gbbd_admin_mini',on?'1':'0')}catch(e){}const t=document.querySelector('.mini-btn span');if(t)t.textContent=on?'বড় করুন':'ছোট করুন'}
+function toggleAdminTheme(){const d=document.documentElement;const dk=d.classList.toggle('dk');try{localStorage.setItem('gbbd_admin_theme',dk?'dark':'light')}catch(e){}themeIcon()}
+function themeIcon(){const b=$('themeBtn');if(b)b.textContent=document.documentElement.classList.contains('dk')?'☀':'🌙'}
+/* dept counts on sidebar */
+const _gbUpdBadge=updateOrderBadge;
+updateOrderBadge=function(){
+  _gbUpdBadge();
+  try{
+    const pm=deptMap(),c={clothing:0,gadget:0};
+    ordersCache.forEach(o=>{if((o.status||'Pending')==='Pending')orderDepts(o,pm).forEach(d=>c[d]++)});
+    document.querySelectorAll('.nav-badge[data-cnt]').forEach(e=>{const n=c[e.dataset.cnt]||0;e.textContent=n;e.style.display=n?'':'none'});
+    const b=document.querySelector('.nav[data-section="orders"] .nav-badge');if(b&&!b.classList.contains('cnt-b')&&!b.classList.contains('cnt-g'))b.style.cssText='';
+    if(b&&b.textContent==='0')b.style.display='none'
+  }catch(e){}
+};
+/* ---- notifications (bell) ---- */
+function readSet(){try{return new Set(JSON.parse(localStorage.getItem('gbbd_admin_read')||'[]'))}catch(e){return new Set()}}
+function saveRead(s){try{localStorage.setItem('gbbd_admin_read',JSON.stringify([...s].slice(-400)))}catch(e){}}
+function ago(t){const m=Math.max(0,Math.round((Date.now()-new Date(t).getTime())/60000));if(m<1)return 'এইমাত্র';if(m<60)return bn(m)+' মিনিট আগে';const h=Math.round(m/60);if(h<24)return bn(h)+' ঘণ্টা আগে';return bn(Math.round(h/24))+' দিন আগে'}
+function notifs(){
+  const out=[],now=Date.now(),win=3*864e5;
+  ordersCache.forEach((o,i)=>{
+    if(!o.created_at||now-new Date(o.created_at).getTime()>win)return;
+    const id=o.order_number||o.id,s=o.status||'Pending',nm=o.customer_name||o.name||'';
+    if(s==='Pending')out.push({k:'o:'+o.id,ic:'🛍',t:'নতুন অর্ডার '+id,s:nm+' · '+tk(orderTotal(o))+' · '+ago(o.created_at),go:()=>openOrderSearch(String(id)),at:new Date(o.created_at).getTime()});
+    else if(s==='Cancelled')out.push({k:'c:'+o.id,ic:'✖',t:'অর্ডার বাতিল '+id,s:nm+' · '+ago(o.created_at),go:()=>openOrderSearch(String(id)),at:new Date(o.created_at).getTime()-1});
+  });
+  productsCache.filter(p=>p.active!==false&&Number(p.stock)<=3).slice(0,12).forEach(p=>{const n=Number(p.stock)||0;out.push({k:'p:'+p.id+':'+n,ic:'📦',t:(n<=0?'স্টক শেষ: ':'স্টক কম: ')+p.name,s:n<=0?'এখনই স্টক যোগ করুন':'মাত্র '+bn(n)+'টা বাকি',go:()=>{go(deptOf(p)==='clothing'?'clothing':'gadget')},at:1})});
+  try{const nl=(leadsCache||[]).filter(l=>!l.contacted).length;if(nl)out.push({k:'l:'+nl,ic:'🛒',t:bn(nl)+'টা অসম্পূর্ণ অর্ডার',s:'কাস্টমারকে WhatsApp করুন',go:()=>go('leads'),at:2})}catch(e){}
+  return out.sort((x,y)=>y.at-x.at).slice(0,25)
+}
+function updateBell(){
+  const el=$('bellCount');if(!el)return;
+  const r=readSet(),n=notifs().filter(x=>!r.has(x.k)).length;
+  el.textContent=n>99?'99+':n;el.classList.toggle('hidden',!n);
+  const base='Paboo — Admin Panel';document.title=n?'('+n+') '+base:base
+}
+function renderBell(){
+  const p=$('bellPanel');if(!p)return;const r=readSet(),l=notifs();
+  window.__nt=l;
+  p.innerHTML=`<div class="bp-h"><span>নোটিফিকেশন</span><button type="button" onclick="markAllRead()">সব পড়া হয়েছে</button></div><div class="bp-l">${l.length?l.map((x,i)=>`<div class="bp-i ${r.has(x.k)?'':'un'}" onclick="bellGo(${i})"><i>${x.ic}</i><div><b>${esc(x.t)}</b><small>${esc(x.s)}</small></div></div>`).join(''):'<div class="bp-e">কোনো নতুন খবর নেই 🎉</div>'}</div>`
+}
+function toggleBell(e){
+  if(e)e.stopPropagation();const p=$('bellPanel');if(!p)return;
+  const open=p.classList.contains('hidden');
+  if(open){renderBell();p.classList.remove('hidden')}else p.classList.add('hidden')
+}
+function markAllRead(){const r=readSet();notifs().forEach(x=>r.add(x.k));saveRead(r);renderBell();updateBell()}
+function bellGo(i){const x=(window.__nt||[])[i];if(!x)return;const r=readSet();r.add(x.k);saveRead(r);$('bellPanel')?.classList.add('hidden');updateBell();x.go&&x.go()}
+function openOrderSearch(q){
+  go('orders');
+  setTimeout(()=>{const i=$('orderSearch');if(i){i.value=q;filterOrders()}},30)
+}
+/* ---- quick add (FAB) ---- */
+function toggleFab(e){if(e)e.stopPropagation();$('fab')?.classList.toggle('open')}
+function closeFab(){$('fab')?.classList.remove('open')}
+function fabDo(k){
+  closeFab();
+  if(k==='product')addProduct();
+  else if(k==='category')addCategory();
+  else if(k==='coupon'){addCoupon()}
+  else if(k==='offer')addOffer();
+}
+/* ---- command palette ---- */
+const CK_PAGES=[
+ ['dashboard','▦','Dashboard','হোম ড্যাশবোর্ড হিসাব overview'],['reports','📈','Reports','রিপোর্ট লাভ বিক্রি profit'],
+ ['orders','▤','সব অর্ডার','orders অর্ডার'],['orders-clothing','👕','পোশাকের অর্ডার','clothing অর্ডার জামা'],['orders-gadget','🎧','গ্যাজেটের অর্ডার','gadget অর্ডার'],
+ ['leads','🛒','অসম্পূর্ণ অর্ডার','incomplete leads'],['blocked','🚫','ব্লক নম্বর','blocked fake ফেক'],
+ ['clothing','👕','পোশাক পণ্য','clothing products জামা'],['gadget','🎧','গ্যাজেট পণ্য','gadget products'],['products','▣','All Products','সব পণ্য'],
+ ['categories','🗂','Categories','ক্যাটাগরি'],['offers','🏷','Offers & Deals','অফার ডিল'],['coupons','🎟','Coupons','কুপন ডিসকাউন্ট'],
+ ['customers','♙','Customers','কাস্টমার'],['site','🌐','সাইট নিয়ন্ত্রণ','site control website ওয়েবসাইট'],
+ ['delivery','🚚','Delivery','ডেলিভারি চার্জ'],['payments','৳','Payments','পেমেন্ট bkash nagad bKash নগদ'],['policies','📜','Policies','নীতিমালা ওয়ারেন্টি রিটার্ন'],['settings','⚙','Settings','সেটিংস']
+];
+const CK_SET=[['sgAppear','🎨','রং ও থিম, কার্ট রং','theme color colour রং থিম কার্ট চেকআউট cart'],['sgSocial','📣','সোশ্যাল ও যোগাযোগ','facebook whatsapp tiktok ফেসবুক'],['sgCloth','👕','পোশাক অপশন, সাইজ গাইড','size guide সাইজ কালার variant'],['sgTrack','🔎','অর্ডার ট্র্যাকিং','tracking courier কুরিয়ার']];
+const CK_ACT=[['product','＋','নতুন পণ্য যোগ করুন','add product'],['category','🗂','নতুন ক্যাটাগরি','add category'],['coupon','🎟','নতুন কুপন','add coupon'],['offer','🏷','নতুন অফার','add offer deal']];
+let ckSel=0,ckItems=[];
+function ckNorm(s){return String(s||'').toLowerCase()}
+function ckMatch(h,q){h=ckNorm(h);return q.split(/\s+/).filter(Boolean).every(w=>h.includes(w))}
+function ckBuild(qr){
+  const q=ckNorm(qr).trim(),G=[];
+  const pages=CK_PAGES.filter(p=>!q||ckMatch(p[2]+' '+p[3],q)).slice(0,q?6:8).map(p=>({ic:p[1],t:p[2],s:'পেজ',run:()=>go(p[0])}));
+  const sets=q?CK_SET.filter(p=>ckMatch(p[2]+' '+p[3],q)).map(p=>({ic:p[1],t:p[2],s:'সেটিংস',run:()=>goSettings(p[0])})):[];
+  const acts=CK_ACT.filter(p=>!q||ckMatch(p[2]+' '+p[3],q)).slice(0,q?3:4).map(p=>({ic:p[1],t:p[2],s:'দ্রুত কাজ',run:()=>fabDo(p[0])}));
+  if(q){
+    const os=[];for(let i=0;i<ordersCache.length&&os.length<6;i++){const o=ordersCache[i];const id=String(o.order_number||o.id||'');const nm=String(o.customer_name||o.name||'');const ph=String(o.phone||o.customer_phone||'');if(ckMatch(id+' '+nm+' '+ph+' '+(o.district||''),q))os.push({ic:'▤',t:id+' · '+(nm||'—'),s:(o.status||'Pending')+' · '+tk(orderTotal(o)),run:()=>openOrderSearch(id)})}
+    if(os.length)G.push(['অর্ডার',os]);
+    const seen=new Set(),cs=[];
+    for(const o of ordersCache){const ph=String(o.phone||o.customer_phone||'');const nm=String(o.customer_name||o.name||'');if(!ph||seen.has(ph))continue;if(ckMatch(nm+' '+ph,q)){seen.add(ph);cs.push({ic:'♙',t:(nm||'—')+' · '+ph,s:'কাস্টমার',run:()=>openOrderSearch(ph)});if(cs.length>=5)break}}
+    if(cs.length)G.push(['কাস্টমার',cs]);
+    const ps=[];productsCache.forEach((p,i)=>{if(ps.length<6&&ckMatch((p.name||'')+' '+(p.category||'')+' '+(p.brand||''),q))ps.push({ic:deptOf(p)==='clothing'?'👕':'🎧',t:p.name,s:tk(p.price)+' · স্টক '+bn(p.stock),run:()=>editProduct(i)})});
+    if(ps.length)G.push(['পণ্য',ps]);
+  }
+  if(sets.length)G.push(['সেটিংস',sets]);
+  if(acts.length)G.push(['দ্রুত কাজ',acts]);
+  if(pages.length)G.push(['পেজ',pages]);
+  return G
+}
+function ckRender(){
+  const G=ckBuild($('cmdkInput')?.value||'');ckItems=[];let h='';
+  G.forEach(([n,items])=>{h+='<div class="ck-g">'+esc(n)+'</div>';items.forEach(it=>{const i=ckItems.push(it)-1;h+=`<div class="ck-r" data-i="${i}"><i>${it.ic}</i><span>${esc(it.t)}</span><small>${esc(it.s)}</small></div>`})});
+  $('cmdkList').innerHTML=ckItems.length?h:'<div class="ck-e">কিছু পাওয়া যায়নি</div>';
+  ckSel=0;ckMark()
+}
+function ckMark(){document.querySelectorAll('#cmdkList .ck-r').forEach(e=>e.classList.toggle('on',+e.dataset.i===ckSel));document.querySelector('#cmdkList .ck-r.on')?.scrollIntoView({block:'nearest'})}
+function ckRun(i){const it=ckItems[i];if(!it)return;closeCmdk();setTimeout(()=>it.run(),20)}
+function openCmdk(){const c=$('cmdk');if(!c)return;closeFab();$('bellPanel')?.classList.add('hidden');c.classList.remove('hidden');const i=$('cmdkInput');i.value='';ckRender();setTimeout(()=>i.focus(),10)}
+function closeCmdk(){$('cmdk')?.classList.add('hidden')}
+/* ---- site control hub ---- */
+function goSettings(id){go('settings');setTimeout(()=>{const e=$(id);if(e){e.open=true;e.scrollIntoView({behavior:'smooth',block:'start'})}},60)}
+function sitePage(){
+  const s=storeSettingsCache||{};
+  const T=(ic,t,d,fn,warn)=>`<button class="hub-tile" type="button" onclick="${fn}"><i>${ic}</i><b>${t}</b><small>${d}</small>${warn?'<em>SQL বাকি</em>':''}</button>`;
+  return `<div class="section-head"><div><h3>🌐 সাইট নিয়ন্ত্রণ</h3><p>আপনার ওয়েবসাইটে যা যা দেখা যায়, সব এখান থেকে এক ক্লিকে বদলান</p></div><div class="toolbar"><a class="btn primary" style="text-decoration:none" href="https://paboobd.github.io" target="_blank" rel="noopener">↗ সাইট দেখুন</a></div></div>
+  <div class="hub-h">চেহারা</div><div class="hub-grid">
+  ${T('🎨','থিম ও কার্ট রং','সাইটের থিম, কার্ট ও চেকআউটের রং',"goSettings('sgAppear')",!s.has_cart_theme)}
+  ${T('🏷','অফার ও ডিল','কম্বো অফার, ফ্ল্যাশ সেল, সময়সূচি',"go('offers')")}
+  ${T('📜','নীতিমালা','ওয়ারেন্টি, রিটার্ন, ডেলিভারি কার্ড',"go('policies')")}
+  ${T('📣','সোশ্যাল ও যোগাযোগ','Facebook, WhatsApp, TikTok বাটন',"goSettings('sgSocial')",!s.has_social)}</div>
+  <div class="hub-h">পণ্য</div><div class="hub-grid">
+  ${T('👕','পোশাক','পোশাকের ক্যাটাগরি ও পণ্য',"go('clothing')")}
+  ${T('🎧','গ্যাজেট','গ্যাজেটের ক্যাটাগরি ও পণ্য',"go('gadget')")}
+  ${T('🗂','ক্যাটাগরি','ক্যাটাগরি যোগ, মুছুন',"go('categories')")}
+  ${T('👗','পোশাক অপশন','কালার পিকার, ভ্যারিয়েন্ট, সাইজ গাইড',"goSettings('sgCloth')",!(s.has_cols&&s.has_variants&&s.has_size_guide))}</div>
+  <div class="hub-h">বিক্রি ও অর্ডার</div><div class="hub-grid">
+  ${T('🎟','কুপন','ডিসকাউন্ট কোড বানান',"go('coupons')")}
+  ${T('🚚','ডেলিভারি','ঢাকা, আশেপাশে ও বাইরের চার্জ',"go('delivery')")}
+  ${T('৳','পেমেন্ট','COD, bKash, Nagad চালু বা বন্ধ',"go('payments')")}
+  ${T('🔎','অর্ডার ট্র্যাকিং','কুরিয়ার ট্র্যাকিং দেখানো',"goSettings('sgTrack')",!s.has_tracking)}
+  ${T('🛒','অসম্পূর্ণ অর্ডার','যারা অর্ডার না করে চলে গেছে',"go('leads')")}
+  ${T('🚫','ব্লক নম্বর','ফেক অর্ডার আটকান',"go('blocked')")}</div>
+  <div class="hub-h">স্টোর তথ্য</div><div class="hub-grid">
+  ${T('🏪','স্টোরের নাম, ফোন, ঠিকানা','কন্টাক্ট পেজে যা দেখায়',"go('settings')")}
+  ${T('📈','রিপোর্ট','লাভ, বিক্রি, জনপ্রিয় পণ্য',"go('reports')")}</div>`
+}
+/* ---- wiring ---- */
+document.addEventListener('keydown',e=>{
+  const k=e.key,cm=!$('cmdk')?.classList.contains('hidden');
+  if((e.ctrlKey||e.metaKey)&&String(k).toLowerCase()==='k'){e.preventDefault();cm?closeCmdk():openCmdk();return}
+  if(cm){
+    if(k==='Escape'){closeCmdk();return}
+    if(k==='ArrowDown'){e.preventDefault();ckSel=Math.min(ckItems.length-1,ckSel+1);ckMark()}
+    else if(k==='ArrowUp'){e.preventDefault();ckSel=Math.max(0,ckSel-1);ckMark()}
+    else if(k==='Enter'){e.preventDefault();ckRun(ckSel)}
+    return
+  }
+  if(k==='Escape'){closeFab();$('bellPanel')?.classList.add('hidden')}
+  const t=e.target,typing=t&&/INPUT|TEXTAREA|SELECT/.test(t.tagName);
+  if(k==='/'&&!typing&&!e.ctrlKey&&!e.metaKey&&$('app')&&!$('app').classList.contains('hidden')){e.preventDefault();openCmdk()}
+});
+document.addEventListener('input',e=>{if(e.target&&e.target.id==='cmdkInput')ckRender()});
+document.addEventListener('click',e=>{
+  const r=e.target.closest&&e.target.closest('#cmdkList .ck-r');if(r){ckRun(+r.dataset.i);return}
+  if(!e.target.closest('.bell-wrap'))$('bellPanel')?.classList.add('hidden');
+  if(!e.target.closest('#fab'))closeFab();
+});
+document.addEventListener('DOMContentLoaded',()=>{loadGrp();themeIcon();const t=document.querySelector('.mini-btn span');if(t&&document.documentElement.classList.contains('sb-mini'))t.textContent='বড় করুন'});
+let _gbPoll=0;
+function adminPollStart(){
+  if(_gbPoll)return;
+  _gbPoll=setInterval(async()=>{
+    if(document.hidden||$('app')?.classList.contains('hidden'))return;
+    try{await refreshOrders();updateOrderBadge();updateBell();
+      if(currentSection==='dashboard'&&$('modal')?.classList.contains('hidden'))render();
+      if(currentSection==='orders'&&$('modal')?.classList.contains('hidden')&&!document.activeElement?.closest?.('#content input,#content select,#content textarea')&&!selOrders.size)filterOrders()
+    }catch(e){}
+  },60000);
+}
+Object.assign(window,{toggleGrp,toggleMini,toggleAdminTheme,toggleBell,markAllRead,bellGo,toggleFab,fabDo,openCmdk,closeCmdk,goSettings,sitePage,openOrderSearch,go});

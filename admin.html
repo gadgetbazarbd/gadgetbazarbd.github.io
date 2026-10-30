@@ -4,10 +4,11 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#071426">
+  <script>try{var d=document.documentElement;if(localStorage.getItem("gbbd_admin_theme")!=="light")d.classList.add("dk");if(localStorage.getItem("gbbd_admin_mini")==="1")d.classList.add("sb-mini")}catch(e){document.documentElement.classList.add("dk")}</script>
   <title>Paboo — Admin Panel</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="admin.css?v=set-20261030b">
+  <link rel="stylesheet" href="admin.css?v=redesign-20261030c">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js"></script>
@@ -35,44 +36,73 @@
       <div><b>Paboo</b><small>ADMIN PANEL</small></div>
     </div>
 
-    <nav class="side-nav">
-      <button class="nav active" data-section="dashboard">▦ <span>Dashboard</span></button>
+    <nav class="side-nav" id="sideNav">
+      <button class="nav active" data-section="dashboard" data-tip="Dashboard"><i>▦</i><span>Dashboard</span></button>
+      <button class="nav" data-section="reports" data-tip="Reports"><i>📈</i><span>Reports</span></button>
 
-      <button class="nav nav-parent" id="catalogToggle" onclick="toggleCatalog()">
-        <span class="nav-left">▣ <span>Catalog</span></span>
-        <span id="catalogArrow">⌄</span>
-      </button>
-
-      <div id="catalogMenu" class="subnav open">
-        <button class="subnav-item" data-section="clothing">👕 পোশাক</button>
-        <button class="subnav-item" data-section="gadget">🎧 গ্যাজেট</button>
-        <button class="subnav-item active-sub" data-section="products">All Products</button>
-        <button class="subnav-item" data-section="categories">Categories</button>
+      <div class="grp open" data-g="sales">
+        <button class="gh" type="button" onclick="toggleGrp(this)"><span class="gl">বিক্রি</span><span class="ga">⌄</span></button>
+        <div class="gb"><div class="gbi">
+          <button class="nav" data-section="orders" data-tip="সব অর্ডার"><i>▤</i><span>সব অর্ডার</span><em class="nav-badge"></em></button>
+          <button class="nav" data-section="orders-clothing" data-tip="পোশাকের অর্ডার"><i>👕</i><span>পোশাকের অর্ডার</span><em class="nav-badge cnt-b" data-cnt="clothing"></em></button>
+          <button class="nav" data-section="orders-gadget" data-tip="গ্যাজেটের অর্ডার"><i>🎧</i><span>গ্যাজেটের অর্ডার</span><em class="nav-badge cnt-g" data-cnt="gadget"></em></button>
+          <button class="nav" data-section="leads" data-tip="অসম্পূর্ণ অর্ডার"><i>🛒</i><span>Incomplete orders</span></button>
+          <button class="nav" data-section="blocked" data-tip="ব্লক নম্বর"><i>🚫</i><span>Blocked numbers</span></button>
+        </div></div>
       </div>
 
-      <button class="nav" data-section="offers">🏷 <span>Offers & Deals</span></button>
-      <button class="nav" data-section="orders">▤ <span>Orders</span></button>
-      <button class="nav" data-section="customers">♙ <span>Customers</span></button>
-      <button class="nav" data-section="delivery">⌁ <span>Delivery</span></button>
-      <button class="nav" data-section="payments">৳ <span>Payments</span></button>
-      <button class="nav" data-section="settings">⚙ <span>Settings</span></button>
+      <div class="grp open" data-g="catalog">
+        <button class="gh" type="button" onclick="toggleGrp(this)"><span class="gl">ক্যাটালগ</span><span class="ga">⌄</span></button>
+        <div class="gb"><div class="gbi">
+          <button class="nav" data-section="clothing" data-tip="পোশাক"><i>👕</i><span>পোশাক</span></button>
+          <button class="nav" data-section="gadget" data-tip="গ্যাজেট"><i>🎧</i><span>গ্যাজেট</span></button>
+          <button class="nav" data-section="products" data-tip="All Products"><i>▣</i><span>All Products</span></button>
+          <button class="nav" data-section="categories" data-tip="Categories"><i>🗂</i><span>Categories</span></button>
+          <button class="nav" data-section="offers" data-tip="Offers & Deals"><i>🏷</i><span>Offers &amp; Deals</span></button>
+          <button class="nav" data-section="coupons" data-tip="Coupons"><i>🎟</i><span>Coupons</span></button>
+        </div></div>
+      </div>
+
+      <div class="grp open" data-g="people">
+        <button class="gh" type="button" onclick="toggleGrp(this)"><span class="gl">কাস্টমার</span><span class="ga">⌄</span></button>
+        <div class="gb"><div class="gbi">
+          <button class="nav" data-section="customers" data-tip="Customers"><i>♙</i><span>Customers</span></button>
+        </div></div>
+      </div>
+
+      <div class="grp open" data-g="system">
+        <button class="gh" type="button" onclick="toggleGrp(this)"><span class="gl">সাইট ও সিস্টেম</span><span class="ga">⌄</span></button>
+        <div class="gb"><div class="gbi">
+          <button class="nav" data-section="site" data-tip="সাইট নিয়ন্ত্রণ"><i>🌐</i><span>সাইট নিয়ন্ত্রণ</span></button>
+          <button class="nav" data-section="delivery" data-tip="Delivery"><i>🚚</i><span>Delivery</span></button>
+          <button class="nav" data-section="payments" data-tip="Payments"><i>৳</i><span>Payments</span></button>
+          <button class="nav" data-section="policies" data-tip="Policies"><i>📜</i><span>Policies</span></button>
+          <button class="nav" data-section="settings" data-tip="Settings"><i>⚙</i><span>Settings</span></button>
+        </div></div>
+      </div>
     </nav>
 
     <div class="side-bottom">
-      <button onclick="exportData()">⇩ Export Data</button>
-      <button onclick="importData()">⇧ Import Data</button>
-      <button onclick="logout()">↪ Logout</button>
+      <button onclick="toggleMini()" class="mini-btn" data-tip="সাইডবার ছোট/বড়"><i>⇤</i><span>ছোট করুন</span></button>
+      <button onclick="exportData()" data-tip="Export Data"><i>⇩</i><span>Export Data</span></button>
+      <button onclick="importData()" data-tip="Import Data"><i>⇧</i><span>Import Data</span></button>
+      <button onclick="logout()" data-tip="Logout"><i>↪</i><span>Logout</span></button>
     </div>
   </aside>
 
   <main class="main">
     <header>
       <div class="header-left">
-        <button class="mobile-menu" onclick="toggleSidebar()">☰</button>
-        <div><h2 id="pageTitle">Dashboard</h2><span id="pageSub">Store overview</span></div>
+        <button class="mobile-menu" onclick="toggleSidebar()" aria-label="Menu">☰</button>
+        <button class="mini-toggle" onclick="toggleMini()" aria-label="Collapse sidebar" title="সাইডবার ছোট/বড়">☰</button>
+        <div class="ttl-box"><h2 id="pageTitle">Dashboard</h2><span id="pageSub">Store overview</span></div>
       </div>
+      <button class="cmd-trigger" type="button" onclick="openCmdk()" aria-label="Search"><span>🔍</span><span class="ct-t">অর্ডার, কাস্টমার, পণ্য খুঁজুন...</span><kbd>Ctrl K</kbd></button>
       <div class="header-actions">
         <span class="live" id="connectionStatus">● Connected</span>
+        <a class="hbtn" id="viewSite" href="https://paboobd.github.io" target="_blank" rel="noopener" title="সাইট দেখুন">↗</a>
+        <button class="hbtn" id="themeBtn" type="button" onclick="toggleAdminTheme()" title="ডার্ক / লাইট">🌙</button>
+        <div class="bell-wrap"><button class="hbtn" id="bellBtn" type="button" onclick="toggleBell(event)" aria-label="Notifications">🔔<b id="bellCount" class="hidden">0</b></button><div id="bellPanel" class="bell-panel hidden"></div></div>
         <button class="header-add" onclick="addProduct()">＋ Add Product</button>
       </div>
     </header>
@@ -90,6 +120,23 @@
   </div>
 </div>
 
-<script src="admin.js?v=cart-20261030b"></script>
+
+<div id="cmdk" class="cmdk hidden" onclick="if(event.target===this)closeCmdk()">
+  <div class="cmdk-box" role="dialog" aria-label="Search">
+    <div class="cmdk-in"><span>🔍</span><input id="cmdkInput" autocomplete="off" placeholder="অর্ডার নম্বর, কাস্টমার, ফোন, পণ্য বা পেজের নাম লিখুন..."><kbd>Esc</kbd></div>
+    <div id="cmdkList" class="cmdk-list"></div>
+    <div class="cmdk-foot"><span>↑↓ বাছুন</span><span>Enter খুলুন</span><span>Esc বন্ধ</span></div>
+  </div>
+</div>
+<div id="fab" class="fab-wrap hidden">
+  <div class="fab-menu" id="fabMenu">
+    <button type="button" onclick="fabDo('offer')"><span>নতুন অফার</span><i>🏷</i></button>
+    <button type="button" onclick="fabDo('coupon')"><span>নতুন কুপন</span><i>🎟</i></button>
+    <button type="button" onclick="fabDo('category')"><span>নতুন ক্যাটাগরি</span><i>🗂</i></button>
+    <button type="button" onclick="fabDo('product')"><span>নতুন পণ্য</span><i>＋</i></button>
+  </div>
+  <button type="button" class="fab-btn" id="fabBtn" onclick="toggleFab(event)" aria-label="Quick add">+</button>
+</div>
+<script src="admin.js?v=redesign-20261030c"></script>
 </body>
 </html>
