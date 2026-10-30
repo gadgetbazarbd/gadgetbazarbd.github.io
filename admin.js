@@ -496,7 +496,32 @@ async function saveSizeGuide(){
     alert('Saved. Refresh your website to see the change.');render();
   }catch(e){showError(e);if(btn){btn.disabled=false;btn.textContent='Save'}}
 }
-Object.assign(window,{ceAddPreset,ceColorImg,ceApplyTpl,ceFillStock,copyProduct,saveSizeGuide});
+/* ----- Cart & checkout colours (Settings) ----- */
+const CART_PRESETS=[['Ocean Blue','#27c4ff','#1676e8'],['Gold','#f3d77a','#c79a2c'],['Neon Glass','#4df3ff','#a24dff'],['Orange','#ff9a4d','#e0702b'],['Pink Pro','#ff5fa2','#7a5cff'],['Emerald','#34e0a1','#0f9d6e']];
+function cartThemeCard(s){
+  const t=s.cart_theme||{},a=/^#[0-9a-f]{6}$/i.test(t.a||'')?t.a:'#27c4ff',b=/^#[0-9a-f]{6}$/i.test(t.b||'')?t.b:'#1676e8',dis=s.has_cart_theme?'':'disabled';
+  return `<div class="card" style="margin-top:16px"><h3>🛒 কার্ট ও চেকআউটের রং</h3>
+  <p>কার্ট, চেকআউট ও Place Order বাটনের রং এখান থেকে বদলান। বেছে নিন বা নিজের রং দিন, তারপর Save।</p>
+  ${s.has_cart_theme?'':'<p style="color:#b45309"><b>One-time setup needed:</b> run <code>16_cart_theme.sql</code> in Supabase &gt; SQL Editor, then press Refresh.</p>'}
+  <div style="display:flex;flex-wrap:wrap;gap:8px;margin:10px 0">${CART_PRESETS.map(p=>`<button type="button" class="btn" ${dis} onclick="ctPick('${p[1]}','${p[2]}')" style="background:linear-gradient(135deg,${p[1]},${p[2]});color:#fff;border:0">${p[0]}</button>`).join('')}</div>
+  <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap"><label>রং ১<input type="color" id="ctA" value="${a}" ${dis} oninput="ctPrev()"></label><label>রং ২<input type="color" id="ctB" value="${b}" ${dis} oninput="ctPrev()"></label>
+  <div id="ctPrev" style="flex:1;min-width:140px;height:42px;border-radius:12px;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;background:linear-gradient(135deg,${a},${b})">Place Order</div></div>
+  <div style="margin-top:12px;display:flex;gap:8px"><button class="btn primary" id="saveCtBtn" onclick="saveCartTheme()" ${dis}>Save</button><button class="btn" onclick="saveCartTheme(true)" ${dis}>ডিফল্টে ফিরুন</button></div></div>`;
+}
+function ctPick(a,b){$('ctA').value=a;$('ctB').value=b;ctPrev()}
+function ctPrev(){const p=$('ctPrev');if(p)p.style.background=`linear-gradient(135deg,${$('ctA').value},${$('ctB').value})`}
+async function saveCartTheme(reset){
+  const s=storeSettingsCache||{},btn=$('saveCtBtn');
+  try{
+    if(btn){btn.disabled=true;btn.textContent='Saving...'}
+    const cart_theme=reset?null:{a:$('ctA').value,b:$('ctB').value};
+    const {error}=await sb.from('store_settings').upsert({id:1,store_name:s.store_name||'Paboo',cart_theme,updated_at:new Date().toISOString()},{onConflict:'id'});
+    if(error)throw error;
+    storeSettingsCache={...s,cart_theme:cart_theme||{}};
+    alert('Saved. Refresh your website to see the change.');render();
+  }catch(e){showError(e);if(btn){btn.disabled=false;btn.textContent='Save'}}
+}
+Object.assign(window,{ceAddPreset,ceColorImg,ceApplyTpl,ceFillStock,copyProduct,saveSizeGuide,ctPick,ctPrev,saveCartTheme});
 Object.assign(window,{deptPage,deptChange,ceAddColor,ceDelColor,ceToggleSize,ceAddSize,ceDelSize,ceAddCol,ceDelCol,ceStk,ceRefreshStock});
 /* ---- CSV import / export ---- */
 const CSV_COLS=['name','category','price','discount','stock','buying_price','brand','description'];
@@ -1086,6 +1111,8 @@ async function loadStoreSettings(){
     has_social:!!data&&('social' in data),
     size_guide:(()=>{let v=data&&data.size_guide;if(typeof v==='string'){try{v=JSON.parse(v)}catch(e){v=null}}return v&&typeof v==='object'?v:{}})(),
     has_size_guide:!!data&&('size_guide' in data),
+    cart_theme:(()=>{let v=data&&data.cart_theme;if(typeof v==='string'){try{v=JSON.parse(v)}catch(e){v=null}}return v&&typeof v==='object'?v:{}})(),
+    has_cart_theme:!!data&&('cart_theme' in data),
     has_variants:!!data&&('variants_on' in data)
   };
   return storeSettingsCache;
@@ -1101,7 +1128,7 @@ function settings(){
     <label class="full">Store Address<textarea id="storeAddress" rows="3" maxlength="500" placeholder="Store address">${esc(s.address||'')}</textarea></label>
     <label class="full">Support Hours<input id="storeHours" maxlength="160" value="${esc(s.support_hours||'')}" placeholder="Every day, 10 AM–8 PM"></label>
   </div><div class="btn-row"><button class="btn primary" id="saveStoreSettingsBtn" onclick="saveStoreSettings()">Save Store Settings</button></div>
-  ${s.updated_at?`<p><small>Last updated: ${esc(new Date(s.updated_at).toLocaleString('en-BD'))}</small></p>`:''}</div>${themeCard(s)}${socialCard(s)}${colsCard(s)}${variantsCard(s)}${sizeGuideCard(s)}${trackingCard(s)}`
+  ${s.updated_at?`<p><small>Last updated: ${esc(new Date(s.updated_at).toLocaleString('en-BD'))}</small></p>`:''}</div>${themeCard(s)}${socialCard(s)}${colsCard(s)}${variantsCard(s)}${sizeGuideCard(s)}${cartThemeCard(s)}${trackingCard(s)}`
 }
 
 async function saveStoreSettings(){

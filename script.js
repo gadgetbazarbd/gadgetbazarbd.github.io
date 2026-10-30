@@ -421,6 +421,7 @@ async function loadStoreInfo(){
   GB_VARS_ON=!!(data&&data.variants_on);
   POLICIES=gbParsePol(data&&data.policies);
   SOCIAL=gbParsePol(data&&data.social);
+  try{gbApplyCartTheme(gbParsePol(data&&data.cart_theme),true);}catch(_){}
   {const g=gbParsePol(data&&data.size_guide);SIZE_GUIDE={text:String(g.text||"").trim(),image:/^https?:\/\//i.test(String(g.image||""))?g.image:""};}
   REMOTE_STORE=data?{phone:String(data.phone||"").trim(),email:String(data.email||"").trim(),address:String(data.address||"").trim(),hours:String(data.support_hours||"").trim()}:{};
  }catch(e){console.warn("store_settings not available, using STORE_INFO",e?.message||e);REMOTE_STORE={};}
@@ -819,10 +820,10 @@ function updateCart(){
    const offer=getOffer(item.offerId);if(!offer)return"";
    const matched=offerProducts(offer),price=offerUnitPrice(offer),offerId=esc(offer.id);
    const names=matched.map(p=>p.name).join(" + ");
-   return `<div class="cart-row combo-cart-row"><div class="mini-img">🎁</div><div><h4>${esc(offer.title||"Combo Deal")}</h4><small class="combo-cart-products">${esc(names)}</small><small>${money(price)} per combo</small><div class="qty"><button onclick="changeComboQty('${offerId}',-1)" aria-label="Decrease combo quantity">−</button><b>${item.qty}</b><button onclick="changeComboQty('${offerId}',1)" aria-label="Increase combo quantity">+</button><button class="remove" onclick="removeComboFromCart('${offerId}')">Remove</button></div></div><strong>${money(price*item.qty)}</strong></div>`;
+   return `<div class="cart-row combo-cart-row"><div class="mini-img">🎁</div><div><h4>${esc(offer.title||"Combo Deal")}</h4><small class="combo-cart-products">${esc(names)}</small><small>${money(price)} per combo</small><div class="qty"><button onclick="cxDec(this,()=>changeComboQty('${offerId}',-1))" aria-label="Decrease combo quantity">−</button><b>${item.qty}</b><button onclick="changeComboQty('${offerId}',1)" aria-label="Increase combo quantity">+</button><button class="remove" onclick="cxRm(this,()=>removeComboFromCart('${offerId}'))">Remove</button></div></div><strong>${money(price*item.qty)}</strong></div>`;
   }
   const p=getProduct(item.id);if(!p)return"";const id=String(p.id).replace(/'/g,"\\'"),vq=item.variant?","+esc(jsArg(item.variant)):"",fp=finalPrice(p,item.variant);
-  return `<div class="cart-row"><div class="mini-img">${p.image?`<img src="${esc(p.image)}" alt="" style="width:100%;height:100%;object-fit:contain;border-radius:10px">`:imgPlaceholder()}</div><div><h4>${esc(p.name)}${item.variant?` <small class="cart-variant">(${esc(item.variant)})</small>`:''}</h4><small>${money(fp)} each</small><div class="qty"><button onclick="changeQty('${id}',-1${vq})">−</button><b>${item.qty}</b><button onclick="changeQty('${id}',1${vq})">+</button><button class="remove" onclick="removeItem('${id}'${vq})">Remove</button></div></div><strong>${money(fp*item.qty)}</strong></div>`;
+  return `<div class="cart-row"><div class="mini-img">${p.image?`<img src="${esc(p.image)}" alt="" style="width:100%;height:100%;object-fit:contain;border-radius:10px">`:imgPlaceholder()}</div><div><h4>${esc(p.name)}${item.variant?` <small class="cart-variant">(${esc(item.variant)})</small>`:''}</h4><small>${money(fp)} each</small><div class="qty"><button onclick="cxDec(this,()=>changeQty('${id}',-1${vq}))">−</button><b>${item.qty}</b><button onclick="changeQty('${id}',1${vq})">+</button><button class="remove" onclick="cxRm(this,()=>removeItem('${id}'${vq}))">Remove</button></div></div><strong>${money(fp*item.qty)}</strong></div>`;
  }).join(""):`<div class="empty">Your cart is empty.</div>`;
 }
 
@@ -862,7 +863,7 @@ function isPaymentMethodEnabled(v){return enabledPaymentTypes().includes(ptype({
 
 function openMenu(){$("sideMenu")?.classList.add("open");$("overlay")?.classList.remove("hidden");}
 function closeMenu(){$("sideMenu")?.classList.remove("open");let o=$("overlay"),c=$("cartDrawer");if(o&&(!c||!c.classList.contains("open")))o.classList.add("hidden");}
-function openCart(){$("cartDrawer")?.classList.add("open");$("overlay")?.classList.remove("hidden");updateCart();}
+function openCart(){const d=$("cartDrawer");if(d){d.classList.add("cx-enter");clearTimeout(d._cx);d._cx=setTimeout(()=>d.classList.remove("cx-enter"),1100);d.classList.add("open");}$("overlay")?.classList.remove("hidden");updateCart();}
 function closeCart(){$("cartDrawer")?.classList.remove("open");let o=$("overlay"),m=$("sideMenu");if(o&&(!m||!m.classList.contains("open")))o.classList.add("hidden");}
 function openCheckout(){if(!cart.length)return;closeCart();$("checkoutModal")?.classList.remove("hidden");applyPaymentSettings();updateCart();}
 function openHeaderCheckout(){if(!cart.length){openCart();toast("Add a product to continue to checkout");return;}openCheckout();}
@@ -984,7 +985,7 @@ function initCustomerUI(){
   e.preventDefault();if(!cart.length)return;if(e.target.dataset.busy==="1")return;hideCheckoutError();let f=new FormData(e.target),payment=String(f.get("payment")||""),tid=String(f.get("transactionId")||"").trim(),type=ptype({value:payment});
   if(!isPaymentMethodEnabled(payment))return showCheckoutError("The selected payment method is currently unavailable.");
   if((type==="bkash"||type==="nagad")&&!tid)return showCheckoutError("Please enter the transaction ID for the selected payment method.");
-  if(!selectedDistrict||!selectedUpazila)return showCheckoutError("Please select a district and upazila from the suggestions.");
+  if(!selectedDistrict||!selectedUpazila){cxMark(["districtInput","upazilaInput"]);return showCheckoutError("Please select a district and upazila from the suggestions.");}
   let t=totals(),o={orderId:makeOrderId(),createdAt:new Date().toISOString(),customer:{name:String(f.get("name")||"").trim(),phone:String(f.get("phone")||"").trim(),district:selectedDistrict,area:selectedUpazila,address:String(f.get("address")||"").trim()},paymentMethod:payment,transactionId:type==="cod"?"":tid,note:String(f.get("note")||"").trim(),couponCode:appliedCoupon||"",items:cart.map(item=>{
    if(item.type==="combo"){
     const offer=getOffer(item.offerId);if(!offer)return null;
@@ -993,8 +994,8 @@ function initCustomerUI(){
    const p=getProduct(item.id);return p?{id:p.id,name:p.name+(item.variant?` (${item.variant})`:""),price:finalPrice(p,item.variant),qty:item.qty}:null;
   }).filter(Boolean),subtotal:t.subtotal,delivery:t.delivery,total:t.total};
   const sbtn=e.target.querySelector('button[type="submit"]'),sTxt=sbtn?sbtn.textContent:"";
-  e.target.dataset.busy="1";if(sbtn){sbtn.disabled=true;sbtn.textContent="অর্ডার হচ্ছে...";}
-  const unbusy=()=>{e.target.dataset.busy="";if(sbtn){sbtn.disabled=false;sbtn.textContent=sTxt;}};
+  e.target.dataset.busy="1";if(sbtn){sbtn.disabled=true;sbtn.classList.add("is-loading");sbtn.textContent="অর্ডার হচ্ছে...";}
+  const unbusy=()=>{e.target.dataset.busy="";if(sbtn){sbtn.disabled=false;sbtn.classList.remove("is-loading");sbtn.textContent=sTxt;}};
   try{await submitOrderToSupabase(o);}catch(err){console.error(err);unbusy();if(err&&err.code==="P0001"){refreshStore(true);return showCheckoutError(err.message);}return showCheckoutError("ORDER ERROR — "+(err.message||"Unknown")+(err.code?" ("+err.code+")":""));}
   unbusy();
   localStorage.setItem("gbbd_last_order",JSON.stringify(o));try{gbTrack("Purchase",{value:Number(o.total)||0,ids:(o.items||[]).map(i=>String(i.id)),count:(o.items||[]).reduce((a,i)=>a+(Number(i.qty)||1),0),order:o.orderId})}catch(_){}let orders=JSON.parse(localStorage.getItem("gbbd_orders")||"[]");orders.unshift(o);localStorage.setItem("gbbd_orders",JSON.stringify(orders));
@@ -1432,3 +1433,61 @@ setInterval(()=>{if(gbPending&&!isUserBusy()){gbPending=false;gbRenderAll();}},4
 let gbSplashT=0;
 function gbSplashHide(){const sp=$("gbSplash");if(!sp||sp.dataset.done)return;sp.dataset.done="1";sp.classList.add("out");setTimeout(()=>sp.remove(),450);document.documentElement.classList.add("gb-enter");setTimeout(()=>document.documentElement.classList.remove("gb-enter"),1400);}
 setTimeout(gbSplashHide,1800);
+
+/* ===== Update 22: cart & checkout animations ===================================== */
+function gbApplyCartTheme(t,save){
+ const ok=h=>/^#[0-9a-f]{6}$/i.test(String(h||""));const r=document.documentElement.style;
+ if(!t||!ok(t.a)||!ok(t.b)){r.removeProperty("--cx-a");r.removeProperty("--cx-b");r.removeProperty("--cx-glow");r.removeProperty("--cx-t");if(save)try{localStorage.removeItem("gbbd_cart_theme");}catch(_){}return;}
+ const rgb=h=>[1,3,5].map(i=>parseInt(h.substr(i,2),16)),[R,G,B]=rgb(t.a),lum=(0.299*R+0.587*G+0.114*B)/255;
+ r.setProperty("--cx-a",t.a);r.setProperty("--cx-b",t.b);r.setProperty("--cx-glow",`rgba(${R},${G},${B},.38)`);r.setProperty("--cx-t",lum>0.68?"#1a1200":"#fff");
+ if(save)try{localStorage.setItem("gbbd_cart_theme",JSON.stringify({a:t.a,b:t.b}));}catch(_){}
+}
+window.gbApplyCartTheme=gbApplyCartTheme;
+const cxNum=t=>Number(String(t||"").replace(/[^\d.]/g,""))||0;
+const cxReduced=()=>matchMedia("(prefers-reduced-motion: reduce)").matches;
+function cxCount(el,from,to,ms){
+ if(!el||from===to||cxReduced()){if(el)el.textContent=money(to);return;}
+ const t0=performance.now(),d=ms||420;el.classList.add("cx-tick");
+ (function step(now){const k=Math.min(1,(now-t0)/d),e=1-Math.pow(1-k,3);el.textContent=money(Math.round(from+(to-from)*e));if(k<1)requestAnimationFrame(step);else{el.textContent=money(to);el.classList.remove("cx-tick");}})(t0);
+}
+/* wrap updateCart: bounce the quantity, count the prices up/down */
+const _cxUpdate=updateCart;
+updateCart=function(){
+ const open=$("cartDrawer")?.classList.contains("open")||!$("checkoutModal")?.classList.contains("hidden");
+ let prevRows=null,prevTot=null;
+ if(open&&!document.hidden){
+  prevRows={};document.querySelectorAll("#cartItems .cart-row").forEach(r=>{const k=r.querySelector("h4")?.textContent||"";prevRows[k]=[cxNum(r.querySelector(".qty b")?.textContent),cxNum(r.lastElementChild?.textContent)];});
+  prevTot={};["cartSubtotal","cartDelivery","cartTotal","checkoutTotal"].forEach(id=>prevTot[id]=cxNum($(id)?.textContent));
+ }
+ const r=_cxUpdate.apply(this,arguments);
+ if(prevRows){
+  document.querySelectorAll("#cartItems .cart-row").forEach(row=>{
+   const k=row.querySelector("h4")?.textContent||"",p=prevRows[k];if(!p)return;
+   const q=row.querySelector(".qty b"),pr=row.lastElementChild,nq=cxNum(q?.textContent),np=cxNum(pr?.textContent);
+   if(q&&nq!==p[0]){q.classList.add("cx-bump");}
+   if(pr&&np!==p[1])cxCount(pr,p[1],np,380);
+  });
+  ["cartSubtotal","cartDelivery","cartTotal","checkoutTotal"].forEach(id=>{const e=$(id);if(!e)return;const n=cxNum(e.textContent);if(prevTot[id]!==n)cxCount(e,prevTot[id],n,420);});
+ }
+ return r;
+};
+window.updateCart=updateCart;
+/* quantity "-" : at 1 it becomes a remove animation */
+function cxDec(btn,fn){const row=btn.closest(".cart-row"),q=cxNum(row?.querySelector(".qty b")?.textContent);if(row&&q<=1)return cxRm(btn,fn);fn();}
+/* remove: fade + slide left, then collapse, then really remove */
+function cxRm(btn,fn){
+ const row=btn.closest(".cart-row");if(!row||cxReduced()||row.dataset.rm){return fn();}
+ row.dataset.rm="1";const h=row.offsetHeight;row.style.height=h+"px";row.classList.add("cx-out");
+ setTimeout(()=>{row.style.height="0px";row.style.marginTop="0";row.style.marginBottom="0";row.style.paddingTop="0";row.style.paddingBottom="0";row.style.borderWidth="0";},260);
+ setTimeout(fn,520);
+}
+window.cxDec=cxDec;window.cxRm=cxRm;
+/* validation: red + shake instead of the grey browser bubble */
+function cxMark(ids){let first=null;ids.forEach(id=>{const e=typeof id==="string"?$(id):id;if(!e)return;e.classList.remove("cx-err");void e.offsetWidth;e.classList.add("cx-err");if(!first)first=e;});if(first){try{first.focus({preventScroll:false});}catch(_){}}}
+document.addEventListener("invalid",e=>{
+ const f=e.target;if(!f.closest||!f.closest("#checkoutForm"))return;e.preventDefault();
+ const box=$("checkoutForm");if(!box.dataset.cxFirst){box.dataset.cxFirst="1";setTimeout(()=>{delete box.dataset.cxFirst;},60);
+  const bad=[...box.querySelectorAll(":invalid")];cxMark(bad);try{showCheckoutError("দয়া করে লাল ঘরগুলো পূরণ করুন");}catch(_){}}
+ },true);
+document.addEventListener("input",e=>{if(e.target.classList&&e.target.classList.contains("cx-err"))e.target.classList.remove("cx-err");},true);
+document.addEventListener("animationend",e=>{if(e.target.classList&&e.target.classList.contains("cx-bump"))e.target.classList.remove("cx-bump");},true);

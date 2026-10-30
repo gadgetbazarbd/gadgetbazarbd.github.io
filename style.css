@@ -1337,3 +1337,97 @@ html.gb-enter .products-grid .product-card:nth-child(n+8){animation-delay:.28s}
 a,button,select,input,label,.product-card,.dept-cat{touch-action:manipulation;-webkit-tap-highlight-color:transparent}
 .dept-card:active,.add-btn:active,.buy-btn:active{transition:transform .06s}
 .products-grid .gb-skel .product-img,.products-grid .gb-skel h3,.products-grid .gb-skel .price{background:linear-gradient(90deg,rgba(13,33,56,.6) 0,rgba(60,100,150,.35) 50%,rgba(13,33,56,.6) 100%)!important;background-size:440px 100%!important}
+
+/* =====================================================================================
+   Update 22 — Cart drawer & Checkout: premium look + animation
+   Change the two colours from the admin panel (Settings > Cart & Checkout colours),
+   or edit --cx-a / --cx-b here.  Only transform / opacity are animated (smooth on phones).
+   ===================================================================================== */
+:root{
+  --cx-a:var(--t-a1,#27c4ff);--cx-b:var(--t-a2,#1676e8);--cx-glow:rgba(39,196,255,.38);--cx-t:#fff;
+  --cx-ease:cubic-bezier(.34,1.38,.5,1);--cx-out:cubic-bezier(.4,0,.9,.6);
+  --cx-bg1:#0d2a4a;--cx-bg2:#081b34;--cx-line:rgba(80,170,255,.25);--cx-card:rgba(255,255,255,.05);
+}
+@keyframes cxFade{from{opacity:0}to{opacity:1}}
+@keyframes cxUp{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:none}}
+@keyframes cxPop{from{opacity:0;transform:translateY(14px) scale(.92)}to{opacity:1;transform:none}}
+@keyframes cxBump{0%{transform:scale(1)}40%{transform:scale(1.55)}100%{transform:scale(1)}}
+@keyframes cxShake{0%,100%{transform:translateX(0)}15%{transform:translateX(-7px)}30%{transform:translateX(6px)}45%{transform:translateX(-5px)}60%{transform:translateX(4px)}75%{transform:translateX(-2px)}}
+@keyframes cxShine{0%{transform:translateX(-140%) skewX(-20deg)}55%,100%{transform:translateX(420%) skewX(-20deg)}}
+@keyframes cxSpin{to{transform:rotate(360deg)}}
+@keyframes cxPulse{0%,100%{transform:scale(1)}50%{transform:scale(.975)}}
+@keyframes cxRing{0%{box-shadow:0 0 0 0 var(--cx-glow)}100%{box-shadow:0 0 0 14px transparent}}
+
+/* overlay + drawer */
+#overlay:not(.hidden){animation:cxFade .3s ease both}
+.cart-drawer{
+  background:linear-gradient(165deg,var(--cx-bg1),var(--cx-bg2))!important;border-left:1px solid var(--cx-line)!important;
+  box-shadow:-18px 0 60px rgba(0,0,0,.5)!important;border-radius:22px 0 0 22px;
+  transition:transform .52s var(--cx-ease)!important;will-change:transform}
+.cart-drawer:not(.open){transition:transform .34s var(--cx-out)!important}
+.cart-drawer .drawer-head strong{font-size:19px;letter-spacing:.01em}
+.cart-drawer .close-btn,#checkoutModal .close-btn{transition:transform .25s var(--cx-ease),background .2s}
+.cart-drawer .close-btn:hover,#checkoutModal .close-btn:hover{transform:rotate(90deg) scale(1.08)}
+
+/* cart rows: staggered rise when the drawer opens */
+.cart-row{position:relative;background:var(--cx-card);border:1px solid var(--cx-line);border-radius:14px;padding:9px!important;margin:8px 0;
+  transition:transform .28s ease,opacity .26s ease,height .26s ease,margin .26s ease,padding .26s ease,border-width .26s ease;overflow:hidden}
+.cart-drawer.cx-enter .cart-row{animation:cxUp .5s var(--cx-ease) both}
+.cart-drawer.cx-enter .cart-row:nth-child(2){animation-delay:.07s}
+.cart-drawer.cx-enter .cart-row:nth-child(3){animation-delay:.14s}
+.cart-drawer.cx-enter .cart-row:nth-child(4){animation-delay:.21s}
+.cart-drawer.cx-enter .cart-row:nth-child(5){animation-delay:.28s}
+.cart-drawer.cx-enter .cart-row:nth-child(n+6){animation-delay:.34s}
+.cart-row.cx-out{transform:translateX(-46px);opacity:0}
+.cart-row .qty b{display:inline-block;min-width:18px;text-align:center}
+.cart-row .qty b.cx-bump{animation:cxBump .36s var(--cx-ease)}
+.cart-row .qty button{transition:transform .15s,background .2s}
+.cart-row .qty button:active{transform:scale(.86)}
+.cart-row>strong,.cart-summary strong{font-variant-numeric:tabular-nums}
+.cx-tick{color:var(--cx-a)}
+.cart-summary{background:var(--cx-card);border:1px solid var(--cx-line);border-radius:16px;padding:12px 14px!important}
+.cart-summary .total strong{color:var(--cx-a);font-size:1.15em}
+
+/* main buttons (Checkout / Place Order): accent gradient + travelling shine */
+.cart-drawer .primary,#checkoutModal .primary:not(#applyCouponBtn){
+  position:relative;overflow:hidden;color:var(--cx-t)!important;border:0;
+  background:linear-gradient(135deg,var(--cx-a),var(--cx-b))!important;
+  box-shadow:0 8px 24px var(--cx-glow),inset 0 1px rgba(255,255,255,.25)!important;
+  transition:transform .2s var(--cx-ease),box-shadow .25s,filter .2s}
+.cart-drawer .primary::after,#checkoutModal form>.primary::after{content:"";position:absolute;top:0;bottom:0;left:0;width:34%;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.55),transparent);pointer-events:none;animation:cxShine 3.2s ease-in-out infinite}
+.cart-drawer .primary:hover,#checkoutModal form>.primary:hover{transform:translateY(-2px) scale(1.015);box-shadow:0 12px 30px var(--cx-glow)!important}
+.cart-drawer .primary:active,#checkoutModal form>.primary:active{transform:scale(.97);filter:brightness(.95)}
+.cart-drawer .primary:disabled{opacity:.5;animation:none}.cart-drawer .primary:disabled::after{display:none}
+#checkoutModal form>.primary.is-loading{animation:cxPulse 1s ease-in-out infinite;pointer-events:none}
+#checkoutModal form>.primary.is-loading::after{display:none}
+#checkoutModal form>.primary.is-loading::before{content:"";display:inline-block;width:16px;height:16px;margin-right:9px;vertical-align:-3px;
+  border:2.5px solid rgba(255,255,255,.35);border-top-color:#fff;border-radius:50%;animation:cxSpin .7s linear infinite}
+
+/* checkout: pops in after the drawer starts leaving */
+#checkoutModal:not(.hidden){animation:cxFade .3s ease both}
+#checkoutModal:not(.hidden) .modal-card{animation:cxPop .46s .1s var(--cx-ease) both}
+#checkoutModal .modal-card{background:linear-gradient(160deg,var(--cx-bg1),var(--cx-bg2))!important;border:1px solid var(--cx-line)!important;border-radius:22px!important}
+#checkoutModal h3{color:var(--cx-a)}
+
+/* inputs: glow on focus, label brightens, errors shake */
+#checkoutModal label{transition:color .2s}
+#checkoutModal label:focus-within{color:var(--cx-a)}
+#checkoutModal input,#checkoutModal textarea{transition:border-color .2s,box-shadow .25s,background .2s}
+#checkoutModal input:focus,#checkoutModal textarea:focus{outline:0;border-color:var(--cx-a)!important;box-shadow:0 0 0 3px var(--cx-glow)}
+#checkoutModal .cx-err{border-color:#ff5470!important;box-shadow:0 0 0 3px rgba(255,84,112,.28)!important;background:rgba(255,84,112,.07)!important;animation:cxShake .45s ease both}
+.checkout-error.show{animation:cxShake .45s ease both}
+
+/* payment cards */
+#checkoutModal .pay-option{transition:transform .25s var(--cx-ease),border-color .2s,background .2s,box-shadow .25s}
+#checkoutModal .pay-option:hover{transform:translateY(-1px)}
+#checkoutModal .pay-option:has(input:checked){border-color:var(--cx-a)!important;background:linear-gradient(135deg,rgba(255,255,255,.07),rgba(255,255,255,.02))!important;
+  transform:scale(1.025);box-shadow:0 0 0 2px var(--cx-glow),0 10px 28px var(--cx-glow)}
+#checkoutModal .pay-option:has(input:checked) .ic{color:var(--cx-a)}
+/* transaction id: slides down / up instead of popping */
+#transactionBox{max-height:300px;opacity:1;overflow:hidden;transition:max-height .45s var(--cx-ease),opacity .3s ease,margin .3s ease,visibility 0s}
+#transactionBox.hidden{display:block!important;max-height:0;opacity:0;margin-top:0;margin-bottom:0;visibility:hidden;pointer-events:none;transition:max-height .3s ease,opacity .2s ease,visibility 0s .3s}
+.coupon-box,.checkout-total{transition:border-color .2s}
+
+@media (max-width:520px){.cart-drawer{border-radius:20px 0 0 20px}.cart-row{padding:8px!important}}
+@media (prefers-reduced-motion:reduce){.cart-drawer,.cart-row,#transactionBox,#checkoutModal .modal-card,#checkoutModal .pay-option{transition-duration:.01ms!important;animation:none!important}.cart-drawer .primary::after,#checkoutModal form>.primary::after{animation:none!important}}
