@@ -2328,3 +2328,23 @@ function adminPollStart(){
   },60000);
 }
 Object.assign(window,{toggleGrp,toggleMini,toggleAdminTheme,toggleBell,markAllRead,bellGo,toggleFab,fabDo,openCmdk,closeCmdk,goSettings,sitePage,openOrderSearch,go});
+
+/* phone card tables: copy each column title onto its cells (CSS shows it as a label) */
+function labelTables(root){
+  try{
+    (root||document).querySelectorAll('#content table.table').forEach(t=>{
+      const hs=[...t.querySelectorAll('thead th')].map(h=>(h.textContent||'').trim());
+      if(!hs.length)return;
+      t.querySelectorAll('tbody tr').forEach(tr=>{
+        if(tr.dataset.lb===String(hs.length))return;
+        [...tr.children].forEach((td,i)=>{if(td.tagName==='TD'&&!td.hasAttribute('colspan'))td.setAttribute('data-label',hs[i]||'')});
+        tr.dataset.lb=String(hs.length)
+      })
+    })
+  }catch(e){}
+}
+(function(){
+  let t=0;const run=()=>{t=0;labelTables()};
+  const start=()=>{const c=document.getElementById('content');if(!c)return;new MutationObserver(()=>{if(!t)t=requestAnimationFrame(run)}).observe(c,{childList:true,subtree:true});run()};
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start);else start()
+})();

@@ -333,3 +333,27 @@ html.dk .ord-var{background:rgba(245,158,11,.2);color:#ffd68a}
 html.dk .form-grid label.admin-checkline,html.dk .admin-checkline{background:rgba(39,196,255,.08);border-color:var(--line);color:var(--text)}
 html.dk .stat-card .stat-label{color:var(--muted)}
 .header-add{white-space:nowrap}.ttl-box span{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:34vw}
+
+/* ---------- phone: tables become cards (no sideways swiping needed) ---------- */
+.table-wrap{-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain}
+@media(max-width:720px){
+  .table-wrap{overflow:visible;background:transparent!important;border:0!important;box-shadow:none!important}
+  .table{min-width:0!important;width:100%;display:block}
+  .table thead{display:none}
+  .table tbody{display:grid;gap:12px}
+  .table tr{display:block;background:#fff;border:1px solid var(--line);border-radius:16px;padding:10px 12px;box-shadow:0 4px 14px rgba(20,50,100,.06)}
+  .table td{display:flex;align-items:center;justify-content:space-between;gap:12px;border:0!important;padding:7px 2px!important;text-align:right!important;min-width:0}
+  .table td::before{content:attr(data-label);flex:0 0 34%;max-width:34%;text-align:left;color:var(--muted);font-weight:700;font-size:11px}
+  .table td[data-label=""]::before,.table td:not([data-label])::before{display:none}
+  .table td.sel-cell{width:auto;justify-content:flex-start}
+  .table td>*{min-width:0;max-width:100%}
+  .table td.actions{flex-wrap:wrap;justify-content:flex-start!important;text-align:left!important;gap:6px}
+  .table td.actions::before{flex:0 0 100%;max-width:100%}
+  .table td.actions .btn{margin:0}
+  .table td.empty{justify-content:center;text-align:center!important}
+  html.dk .table tr{background:var(--card);box-shadow:none}
+  .table td img.thumb{width:56px;height:56px}
+}
+#content label{max-width:100%}#content input[type=file]{max-width:100%;min-width:0}
+#content .set-group,#content .card{min-width:0}
+@media(max-width:720px){.main section{padding-bottom:96px}}
