@@ -921,7 +921,7 @@ function isMissingRpc(err){return !!err&&(err.code==="PGRST202"||err.code==="428
 async function legacyInsertOrder(o){
  // Used only until "1_place_order.sql" has been run in Supabase. Prices are NOT verified by the server in this mode.
  let row={order_number:o.orderId,customer_name:o.customer.name,phone:o.customer.phone,district:o.customer.district,upazila:o.customer.area,address:o.customer.address,note:[o.note,o.couponCode?`Coupon: ${o.couponCode}`:""].filter(Boolean).join(" | ")||null,items:o.items,subtotal:Number(o.subtotal)||0,delivery_charge:Number(o.delivery)||0,total:Number(o.total)||0,payment_method:o.paymentMethod||"Cash on Delivery",transaction_id:o.transactionId||null,status:"Pending"};
- let {data,error}=await sb.from("orders").insert(row).select();if(error)throw error;console.log("ORDER SAVED (legacy mode)",data);
+ let {data,error}=await sb.from("orders").insert(row).select();if(error)throw error;
 }
 async function submitOrderToSupabase(o){
  // The server looks up real prices, checks stock, applies the coupon and saves the order.
@@ -940,7 +940,7 @@ async function submitOrderToSupabase(o){
   o.orderId=data.order_number;o.subtotal=Number(data.subtotal)||0;o.delivery=Number(data.delivery_charge)||0;o.total=Number(data.total)||0;o.discount=Number(data.discount)||0;
   if(Array.isArray(data.items))o.items=data.items;
  }
- console.log("ORDER SAVED",data);
+ 
 }
 
 function couponLines(){return Object.entries(COUPONS).map(([code,c])=>`<li><b>${esc(code)}</b> ${c.type==="percent"?c.value+"% off":money(c.value)+" off"} on orders of ${money(c.min)} or more</li>`).join("");}

@@ -1991,7 +1991,7 @@ async function loadProtect(){
     blockedCache=b.data||[];expensesCache=e.data||[];leadsCache=l.data||[];protectReady=true;
   }catch(err){protectReady=false;console.warn('8_protect.sql not run yet:',err?.message||err)}
 }
-function setupNote(){return protectReady?'':'<div class="card" style="border-color:#f59e0b;margin-bottom:12px"><b>One-time setup:</b> run <code>8_protect.sql</code> in Supabase &gt; SQL Editor, then press Refresh.</div>'}
+function setupNote(){return protectReady?'':'<div class="card" style="border-color:#f59e0b;margin-bottom:12px"><b>One-time setup:</b> run <code>8b_incomplete_only.sql</code> in Supabase &gt; SQL Editor, then press Refresh.</div>'}
 function isBlocked(v){const k=phoneKey(v);return !!k&&blockedCache.some(b=>b.phone_key===k)}
 function riskBadge(o){
   const ph=o.phone||o.customer_phone||'';const k=phoneKey(ph);if(!k)return '';
@@ -2035,10 +2035,10 @@ async function checkLeadSetup(){
   const out=[];
   try{
     const t=await sb.from('incomplete_orders').select('phone_key').limit(1);
-    if(t.error){alert('❌ টেবিল পড়া যাচ্ছে না।\nকারণ: '+(t.error.message||t.error)+'\n\nসমাধান: Supabase > SQL Editor এ 8_protect.sql চালান, তারপর আবার পরীক্ষা করুন।');return}
+    if(t.error){alert('❌ টেবিল পড়া যাচ্ছে না।\nকারণ: '+(t.error.message||t.error)+'\n\nসমাধান: Supabase > SQL Editor এ 8b_incomplete_only.sql চালান, তারপর আবার পরীক্ষা করুন।');return}
     out.push('✅ টেবিল ঠিক আছে');
     const r=await sb.rpc('save_incomplete',{p_name:'TEST',p_phone:'01000000001',p_items:[{name:'test',qty:1}],p_total:1});
-    if(r.error){alert(out.join('\n')+'\n❌ সাইট থেকে সেভ করার ফাংশন কাজ করছে না।\nকারণ: '+(r.error.message||r.error)+'\n\nসমাধান: 8_protect.sql আবার পুরোটা চালান।');return}
+    if(r.error){alert(out.join('\n')+'\n❌ সাইট থেকে সেভ করার ফাংশন কাজ করছে না।\nকারণ: '+(r.error.message||r.error)+'\n\nসমাধান: 8b_incomplete_only.sql চালান।');return}
     const c=await sb.from('incomplete_orders').select('phone_key').eq('phone_key','1000000001');
     if(c.data&&c.data.length){out.push('✅ সাইট থেকে সেভ হচ্ছে');await sb.from('incomplete_orders').delete().eq('phone_key','1000000001')}
     else out.push('⚠ ফাংশন চলেছে কিন্তু কিছু সেভ হয়নি');
