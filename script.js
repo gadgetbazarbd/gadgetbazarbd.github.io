@@ -152,13 +152,15 @@ function normalizeProduct(r){const _w=saleWindow(r);return{
 
 
 
+let offersRaw=[],_offSig="";
+function offersNow(){const n=Date.now();return offersRaw.filter(o=>(!o.starts_at||Date.parse(o.starts_at)<=n)&&(!o.ends_at||Date.parse(o.ends_at)>n));}
 async function loadOffers(){
  const grid=$("offersGrid");
  try{
   const {data,error}=await sb.from("offers").select("*").eq("active",true).order("created_at",{ascending:false});
   if(error)throw error;
-  const now=Date.now();
-  storeOffers=(data||[]).filter(o=>(!o.starts_at||new Date(o.starts_at).getTime()<=now)&&(!o.ends_at||new Date(o.ends_at).getTime()>=now));
+  offersRaw=data||[];
+  storeOffers=offersNow();_offSig=storeOffers.map(o=>o.id).join(",");
   renderOffers();
  }catch(e){
   // Keep the site working if the optional offers table has not been created yet.
@@ -781,7 +783,7 @@ function gbFPrice(d){
 Object.assign(window,{gbDeptCat,gbDeptSort,gbDeptClear,gbOpenFilter,gbCloseFilter,gbFToggle,gbFPrice});
 function renderSmartRecommendations(){let old=$("smartRecommendations");if(old)old.remove();if(!products.length)return;let seed=products.find(p=>p.featured)||products[0];let picks=products.filter(p=>p.cat===seed.cat&&String(p.id)!==String(seed.id)&&p.stock>0).slice(0,3);if(!picks.length)picks=products.filter(p=>String(p.id)!==String(seed.id)&&p.stock>0).slice(0,3);if(!picks.length)return;let section=document.createElement("section");section.id="smartRecommendations";section.dataset.v="home";section.className="shop smart-recommendations";section.innerHTML=`<div class="section-head"><h2>Smart Picks For You</h2><span>Based on product category and availability</span></div><div class="products-grid">${picks.map(p=>`<article class="product-card"><div class="product-img">${p.image?`<img src="${esc(p.image)}" alt="${esc(p.name)}" style="width:100%;height:100%;object-fit:contain">`:imgPlaceholder()}</div><div class="category">${esc(p.cat)}</div><h3>${esc(p.name)}</h3><div class="price">${money(finalPrice(p))}</div><button class="add-btn" onclick="addToCart('${String(p.id).replace(/'/g,"\'")}')">Add to Cart</button></article>`).join("")}</div>`;$("products")?.insertAdjacentElement("afterend",section);}
 function getProduct(id){return products.find(p=>String(p.id)===String(id));}
-function finalPrice(p,vn){const v=vOf(p,vn),base=v&&v.price>0?v.price:p.price;return p.discount>0?Math.max(0,base-base*p.discount/100):base;}
+function finalPrice(p,vn){const v=vOf(p,vn),base=v&&v.price>0?v.price:p.price;return Math.round(p.discount>0?Math.max(0,base-base*p.discount/100):base);}
 function cartUnitPrice(item){if(item?.type==="combo"){const offer=getOffer(item.offerId);return offer?offerUnitPrice(offer):0;}const p=getProduct(item?.id);return p?finalPrice(p,item.variant):0;}
 
 function gbNeedMsg(p){const a=isCloth(p)?clothAxes(p):null;if(a){if(a.colors.length&&a.sizes.length)return"দয়া করে সাইজ ও কালার সিলেক্ট করুন";if(a.colors.length)return"দয়া করে কালার সিলেক্ট করুন";if(a.sizes.length)return"দয়া করে সাইজ সিলেক্ট করুন";}return"দয়া করে একটি অপশন বেছে নিন";}
@@ -1291,7 +1293,7 @@ function gbTrack(ev,d){
 /* =========================================================
    FLASH SALE: timed discounts (set in Admin > Products; the server enforces the same window)
 ========================================================= */
-function isSale(p){return !!(p&&p.saleEndMs&&p.saleEndMs>Date.now()&&Number(p.discount)>0);}
+function isSale(p){const n=Date.now();return !!(p&&p.saleEndMs&&p.saleEndMs>n&&(!p.saleStartMs||p.saleStartMs<=n)&&Number(p.discount)>0);}
 function saleParts(end){let t=Math.max(0,Math.floor((end-Date.now())/1000));const d=Math.floor(t/86400);t%=86400;return{d,h:Math.floor(t/3600),m:Math.floor(t%3600/60),s:t%60};}
 const two=n=>String(n).padStart(2,"0");
 function saleLeftText(end){const x=saleParts(end);return (x.d?x.d+" দিন ":"")+two(x.h)+":"+two(x.m)+":"+two(x.s);}
@@ -1300,7 +1302,7 @@ function saleStrip(p){return isSale(p)?`<div class="sale-strip"><span>⚡ ফ্
 function saleStock(p){if(!isSale(p))return"";const n=Math.max(0,Math.floor(Number(p.stock)||0));if(n<=0||n>10)return"";return `<div class="sale-stock"><div class="sale-bar"><i style="width:${Math.max(8,Math.round(n/10*100))}%"></i></div><small>🔥 মাত্র ${n}টি বাকি</small></div>`;}
 function saleBox(p){if(!isSale(p))return"";const n=Math.max(0,Math.floor(Number(p.stock)||0));const low=n>0&&n<=10;return `<div class="sale-box"><div class="sale-box-top"><span>⏱ ফ্ল্যাশ সেল শেষ হতে বাকি</span>${low?`<span class="sale-low">🔥 মাত্র ${n}টি বাকি</span>`:""}</div><div class="sale-boxes" data-sale-boxes="${p.saleEndMs}">${saleBoxesHtml(p.saleEndMs)}</div>${low?`<div class="sale-bar"><i style="width:${Math.max(8,Math.round(n/10*100))}%"></i></div>`:""}</div>`;}
 function renderFlashSale(){
- const list=(typeof products!=="undefined"?products:[]).filter(p=>isSale(p)&&Number(p.stock)>0);
+ const list=(typeof products!=="undefined"?products:[]).filter(p=>isSale(p)&&Number(p.stock)>0&&p.active!==false);
  const on=list.length>0;
  document.querySelectorAll(".needs-flash").forEach(el=>el.classList.toggle("hidden",!on));
  if(on){
@@ -1308,7 +1310,7 @@ function renderFlashSale(){
   const bt=$("flashBarTime");if(bt){bt.dataset.saleEnd=end;bt.textContent=saleLeftText(end);}
   const bx=$("flashBoxes");if(bx){bx.dataset.saleBoxes=end;bx.innerHTML=saleBoxesHtml(end);}
   renderHomeProductGrid("flashSaleGrid",list,"",48);
- }else if(document.body.dataset.view==="flash"){try{gbGo("home")}catch(e){}}
+ }else{const g=$("flashSaleGrid");if(g)g.innerHTML="";if(document.body.dataset.view==="flash"){try{gbGo("home")}catch(e){}}}
 }
 let _saleSig;
 function saleTick(){
@@ -1321,6 +1323,16 @@ function saleTick(){
   try{saveCart();renderProducts();renderHomepageShowcases();updateCart();renderOffers();renderFlashSale();if(new URLSearchParams(location.search).get("product"))handleProductPageRoute();}catch(e){console.warn(e);}
  }
  _saleSig=sig;
+ /* offers/deals: hide an offer the moment its end time passes (no refresh needed) */
+ const nowOffers=offersNow(),osig=nowOffers.map(o=>o.id).join(",");
+ if(osig!==_offSig){
+  _offSig=osig;storeOffers=nowOffers;
+  try{
+   const n0=cart.length;cart=cart.filter(x=>x.type!=="combo"||(getOffer(x.offerId)&&offerProducts(getOffer(x.offerId)).length>0));
+   saveCart();renderOffers();renderHomepageShowcases();updateCart();updateDealsVisibility();
+   if(cart.length<n0)try{gbWarn("⏱ একটি অফারের সময় শেষ, কার্ট থেকে বাদ দেওয়া হলো");}catch(_){}
+  }catch(e){console.warn(e);}
+ }
 }
 setInterval(saleTick,1000);
 
