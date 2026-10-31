@@ -1,915 +1,116 @@
-/* =========================================================
-   PABOO — FINAL ADMIN PANEL
-   Supabase + mobile responsive + Catalog UI
-   Delivery Settings management added
-========================================================= */
+const SUPABASE_URL="https://vwwysrdqexjtlmpmevub.supabase.co",SUPABASE_KEY="sb_publishable_vYHW5zcCIPipjPS-tuxnRA_dS125qax",sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY),BUCKET="product images",ADMIN_UID="9aa2e054-a19a-4f86-aaf7-25f13e720722";let productsCache=[],ordersCache=[],orderDept="";const selOrders=new Set;let categoriesCache=[],offersCache=[],editingOfferId=null,deliverySettingsCache=null,storeSettingsCache={store_name:"Paboo",phone:"",email:"",address:"",support_hours:""},currentSection="dashboard",editingProductId=null,catalogOpen=!0;function $(e){return document.getElementById(e)}function esc(e){return String(e??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#039;")}function money(e){return"৳"+Number(e||0).toLocaleString("en-BD")}function showError(e){console.error(e),alert(`Something went wrong.
 
-const SUPABASE_URL='https://vwwysrdqexjtlmpmevub.supabase.co';
-const SUPABASE_KEY='sb_publishable_vYHW5zcCIPipjPS-tuxnRA_dS125qax';
-const sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
-const BUCKET='product images';
-const ADMIN_UID='9aa2e054-a19a-4f86-aaf7-25f13e720722';
-
-let productsCache=[];
-let ordersCache=[];
-let orderDept='';
-const selOrders=new Set();
-let categoriesCache=[];
-let offersCache=[];
-let editingOfferId=null;
-let deliverySettingsCache=null;
-let storeSettingsCache={store_name:'Paboo',phone:'',email:'',address:'',support_hours:''};
-let currentSection='dashboard';
-let editingProductId=null;
-let catalogOpen=true;
-
-function $(id){return document.getElementById(id)}
-function esc(v){return String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;')}
-function money(v){return '৳'+Number(v||0).toLocaleString('en-BD')}
-function showError(e){console.error(e);alert('Something went wrong.\n\n'+(e?.message||e||'Unknown error'))}
-function closeModal(){$('modal')?.classList.add('hidden')}
-function openModal(title,body){
-  if($('modalTitle'))$('modalTitle').textContent=title;
-  if($('modalBody'))$('modalBody').innerHTML=body;
-  $('modal')?.classList.remove('hidden')
-}
-
-async function checkAdmin(){
-  const {data:{session}}=await sb.auth.getSession();
-  if(!session){showLogin();return false}
-  if(session.user.id!==ADMIN_UID){
-    await sb.auth.signOut();
-    showLogin();
-    alert('You are not authorized as admin.');
-    return false
-  }
-  return true
-}
-function showLogin(){$('login')?.classList.remove('hidden');$('app')?.classList.add('hidden')}
-function showApp(){$('login')?.classList.add('hidden');$('app')?.classList.remove('hidden');$('fab')?.classList.remove('hidden');try{adminPollStart()}catch(e){}}
-
-/* Photos from phones are 3-8 MB. Shrink to max 1200px and WebP before upload so the shop loads fast. */
-/* ---- Image optimiser -------------------------------------------------
-   Product photos : fitted into a 1000x1000 square (nothing is cut off, white padding),
-                    saved as WebP and squeezed to roughly 100-150 KB.
-   Other images   : only scaled down to maxSide and converted to WebP.
-   IMG_SQUARE_MODE: 'fit'  = whole photo visible (recommended for clothes)
-                    'crop' = centre-crop to fill the square                          */
-const IMG_SQUARE=1000,IMG_MAX_KB=150,IMG_SQUARE_MODE='fit';
-async function prepareImage(file,opts){
-  opts=typeof opts==='number'?{maxSide:opts}:(opts||{});
-  if(!file||!/^image\//.test(file.type)||/svg|gif/.test(file.type))return file;
-  try{
-    let bmp;
-    try{bmp=await createImageBitmap(file,{imageOrientation:'from-image'})}catch(e){bmp=await createImageBitmap(file)}
-    const c=document.createElement('canvas'),ctx=c.getContext('2d');
-    ctx.imageSmoothingQuality='high';
-    if(opts.square){
-      const S=opts.square;c.width=S;c.height=S;
-      ctx.fillStyle='#fff';ctx.fillRect(0,0,S,S);
-      const fit=(opts.mode||IMG_SQUARE_MODE)==='crop'?Math.max(S/bmp.width,S/bmp.height):Math.min(S/bmp.width,S/bmp.height);
-      const dw=bmp.width*fit,dh=bmp.height*fit;
-      ctx.drawImage(bmp,(S-dw)/2,(S-dh)/2,dw,dh);
-    }else{
-      const maxSide=opts.maxSide||1200,scale=Math.min(1,maxSide/Math.max(bmp.width,bmp.height));
-      c.width=Math.max(1,Math.round(bmp.width*scale));c.height=Math.max(1,Math.round(bmp.height*scale));
-      ctx.drawImage(bmp,0,0,c.width,c.height);
-    }
-    const toBlob=(type,q)=>new Promise(res=>c.toBlob(res,type,q));
-    let q=opts.square?0.86:0.82,blob=await toBlob('image/webp',q),ext='webp';
-    if(!blob||blob.type!=='image/webp'){            /* very old browsers: JPEG fallback */
-      ctx.globalCompositeOperation='destination-over';ctx.fillStyle='#fff';ctx.fillRect(0,0,c.width,c.height);
-      ext='jpg';q=0.85;blob=await toBlob('image/jpeg',q);
-      while(opts.square&&blob&&blob.size>IMG_MAX_KB*1024&&q>0.5){q-=0.07;blob=await toBlob('image/jpeg',q)}
-    }else if(opts.square){
-      while(blob&&blob.size>IMG_MAX_KB*1024&&q>0.42){q-=0.06;blob=await toBlob('image/webp',q)}
-    }
-    if(!blob)return file;
-    if(!opts.square&&blob.size>=file.size&&bmp.width<=(opts.maxSide||1200)&&bmp.height<=(opts.maxSide||1200))return file;
-    return new File([blob],file.name.replace(/\.[^.]+$/,'')+'.'+ext,{type:blob.type});
-  }catch(e){console.warn('Image optimisation skipped',e);return file}
-}
-function previewProductImages(input){
-  const box=$('productImagePreview');if(!box)return;
-  const files=[...(input.files||[])];
-  box.innerHTML=files.map(f=>`<div style="display:inline-block;margin:6px 8px 0 0;text-align:center;font-size:11px"><img src="${URL.createObjectURL(f)}" alt="" style="width:72px;height:72px;object-fit:cover;border-radius:10px;display:block"><span>${(f.size/1048576).toFixed(1)} MB</span></div>`).join('')+(files.length?`<div style="font-size:12px;margin-top:6px;color:#64748b">Photos are automatically resized and compressed when you save.</div>`:'');
-}
-async function uploadImage(file,id,opts){
-  if(!file)return '';
-  if(file.size>25*1048576)throw new Error('Image is too large (max 25 MB): '+file.name);
-  file=await prepareImage(file,opts);
-  const ext=(file.name.split('.').pop()||'jpg').toLowerCase().replace(/[^a-z0-9]/g,'')||'jpg';
-  const path=`products/${id}_${Date.now()}.${ext}`;
-  const {error}=await sb.storage.from(BUCKET).upload(path,file,{upsert:true,contentType:file.type});
-  if(error)throw error;
-  return sb.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
-}
-
-/* =========================================================
-   CLOUD DATA
-========================================================= */
-
-async function loadDeliverySettings(){
-  const {data,error}=await sb
-    .from('delivery_settings')
-    .select('*')
-    .order('id',{ascending:true})
-    .limit(1);
-
-  if(error)throw error;
-  deliverySettingsCache=data?.[0]||null;
-}
-
-async function loadCloud(){
-  const [p,o,c,d,of]=await Promise.all([
-    sb.from('products').select('*').order('created_at',{ascending:false}),
-    sb.from('orders').select('*').order('created_at',{ascending:false}),
-    sb.from('categories').select('*').order('name',{ascending:true}),
-    sb.from('delivery_settings').select('*').order('id',{ascending:true}).limit(1),
-    sb.from('offers').select('*').order('created_at',{ascending:false})
-  ]);
-
-  if(p.error)throw p.error;
-  if(o.error)throw o.error;
-  if(c.error)throw c.error;
-  if(d.error)throw d.error;
-
-  productsCache=p.data||[];
-  await loadCosts();
-  await loadProtect();
-  ordersCache=o.data||[];
-  categoriesCache=c.data||[];
-  deliverySettingsCache=d.data?.[0]||null;
-  // Offers are optional: a missing table or permission must not block login or the dashboard.
-  if(of.error){offersCache=[];console.warn('Offers table permission/schema issue:',of.error.message)}
-  else offersCache=of.data||[];
-
-  if($('connectionStatus')){
-    $('connectionStatus').textContent=of.error?'● Connected (offers need setup)':'● Connected';
-    $('connectionStatus').className='live'
-  }
-}
-
-async function refreshProducts(){
-  const {data,error}=await sb.from('products').select('*').order('created_at',{ascending:false});
-  if(error)throw error;
-  productsCache=data||[]
-}
-async function refreshOrders(){
-  const {data,error}=await sb.from('orders').select('*').order('created_at',{ascending:false});
-  if(error)throw error;
-  ordersCache=data||[];
-}
-async function refreshDeliverySettings(){
-  await loadDeliverySettings();
-  render();
-}
-
-function statusClass(s){return s==='Delivered'?'green':s==='Cancelled'?'red':s==='Pending'?'yellow':'blue'}
-
-/* =========================================================
-   DASHBOARD
-========================================================= */
-
-function dashboard(){
-  const total=productsCache.length;
-  const active=productsCache.filter(p=>p.active!==false).length;
-  const stock=productsCache.reduce((n,p)=>n+Number(p.stock||0),0);
-  const totalOrders=ordersCache.length;
-  const pending=ordersCache.filter(o=>(o.status||'Pending')==='Pending').length;
-  const delivered=ordersCache.filter(o=>(o.status||'')==='Delivered').length;
-  const revenue=ordersCache
-    .filter(o=>(o.status||'')!=='Cancelled')
-    .reduce((s,o)=>s+Number(o.total??(Number(o.subtotal||0)+Number(o.delivery_charge||0))),0);
-  const recent=ordersCache.slice(0,6);
-
-  return `<div class="section-head"><div><h3>Dashboard</h3><p>Paboo overview</p></div><button class="btn muted" onclick="refreshDashboard()">↻ Refresh</button></div>
+`+(e?.message||e||"Unknown error"))}function closeModal(){$("modal")?.classList.add("hidden")}function openModal(e,t){$("modalTitle")&&($("modalTitle").textContent=e),$("modalBody")&&($("modalBody").innerHTML=t),$("modal")?.classList.remove("hidden")}async function checkAdmin(){const{data:{session:e}}=await sb.auth.getSession();return e?e.user.id!==ADMIN_UID?(await sb.auth.signOut(),showLogin(),alert("You are not authorized as admin."),!1):!0:(showLogin(),!1)}function showLogin(){$("login")?.classList.remove("hidden"),$("app")?.classList.add("hidden")}function showApp(){$("login")?.classList.add("hidden"),$("app")?.classList.remove("hidden"),$("fab")?.classList.remove("hidden");try{adminPollStart()}catch{}}const IMG_SQUARE=1e3,IMG_MAX_KB=150,IMG_SQUARE_MODE="fit";async function prepareImage(e,t){if(t=typeof t=="number"?{maxSide:t}:t||{},!e||!/^image\//.test(e.type)||/svg|gif/.test(e.type))return e;try{let o;try{o=await createImageBitmap(e,{imageOrientation:"from-image"})}catch{o=await createImageBitmap(e)}const n=document.createElement("canvas"),a=n.getContext("2d");if(a.imageSmoothingQuality="high",t.square){const l=t.square;n.width=l,n.height=l,a.fillStyle="#fff",a.fillRect(0,0,l,l);const d=(t.mode||IMG_SQUARE_MODE)==="crop"?Math.max(l/o.width,l/o.height):Math.min(l/o.width,l/o.height),u=o.width*d,m=o.height*d;a.drawImage(o,(l-u)/2,(l-m)/2,u,m)}else{const l=t.maxSide||1200,d=Math.min(1,l/Math.max(o.width,o.height));n.width=Math.max(1,Math.round(o.width*d)),n.height=Math.max(1,Math.round(o.height*d)),a.drawImage(o,0,0,n.width,n.height)}const r=(l,d)=>new Promise(u=>n.toBlob(u,l,d));let s=t.square?.86:.82,i=await r("image/webp",s),c="webp";if(!i||i.type!=="image/webp")for(a.globalCompositeOperation="destination-over",a.fillStyle="#fff",a.fillRect(0,0,n.width,n.height),c="jpg",s=.85,i=await r("image/jpeg",s);t.square&&i&&i.size>IMG_MAX_KB*1024&&s>.5;)s-=.07,i=await r("image/jpeg",s);else if(t.square)for(;i&&i.size>IMG_MAX_KB*1024&&s>.42;)s-=.06,i=await r("image/webp",s);return!i||!t.square&&i.size>=e.size&&o.width<=(t.maxSide||1200)&&o.height<=(t.maxSide||1200)?e:new File([i],e.name.replace(/\.[^.]+$/,"")+"."+c,{type:i.type})}catch(o){return console.warn("Image optimisation skipped",o),e}}function previewProductImages(e){const t=$("productImagePreview");if(!t)return;const o=[...e.files||[]];t.innerHTML=o.map(n=>`<div style="display:inline-block;margin:6px 8px 0 0;text-align:center;font-size:11px"><img src="${URL.createObjectURL(n)}" alt="" style="width:72px;height:72px;object-fit:cover;border-radius:10px;display:block"><span>${(n.size/1048576).toFixed(1)} MB</span></div>`).join("")+(o.length?'<div style="font-size:12px;margin-top:6px;color:#64748b">Photos are automatically resized and compressed when you save.</div>':"")}async function uploadImage(e,t,o){if(!e)return"";if(e.size>25*1048576)throw new Error("Image is too large (max 25 MB): "+e.name);e=await prepareImage(e,o);const n=(e.name.split(".").pop()||"jpg").toLowerCase().replace(/[^a-z0-9]/g,"")||"jpg",a=`products/${t}_${Date.now()}.${n}`,{error:r}=await sb.storage.from(BUCKET).upload(a,e,{upsert:!0,contentType:e.type});if(r)throw r;return sb.storage.from(BUCKET).getPublicUrl(a).data.publicUrl}async function loadDeliverySettings(){const{data:e,error:t}=await sb.from("delivery_settings").select("*").order("id",{ascending:!0}).limit(1);if(t)throw t;deliverySettingsCache=e?.[0]||null}async function loadCloud(){const[e,t,o,n,a]=await Promise.all([sb.from("products").select("*").order("created_at",{ascending:!1}),sb.from("orders").select("*").order("created_at",{ascending:!1}),sb.from("categories").select("*").order("name",{ascending:!0}),sb.from("delivery_settings").select("*").order("id",{ascending:!0}).limit(1),sb.from("offers").select("*").order("created_at",{ascending:!1})]);if(e.error)throw e.error;if(t.error)throw t.error;if(o.error)throw o.error;if(n.error)throw n.error;productsCache=e.data||[],await loadCosts(),await loadProtect(),ordersCache=t.data||[],categoriesCache=o.data||[],deliverySettingsCache=n.data?.[0]||null,a.error?(offersCache=[],console.warn("Offers table permission/schema issue:",a.error.message)):offersCache=a.data||[],$("connectionStatus")&&($("connectionStatus").textContent=a.error?"● Connected (offers need setup)":"● Connected",$("connectionStatus").className="live")}async function refreshProducts(){const{data:e,error:t}=await sb.from("products").select("*").order("created_at",{ascending:!1});if(t)throw t;productsCache=e||[]}async function refreshOrders(){const{data:e,error:t}=await sb.from("orders").select("*").order("created_at",{ascending:!1});if(t)throw t;ordersCache=e||[]}async function refreshDeliverySettings(){await loadDeliverySettings(),render()}function statusClass(e){return e==="Delivered"?"green":e==="Cancelled"?"red":e==="Pending"?"yellow":"blue"}function dashboard(){const e=productsCache.length,t=productsCache.filter(c=>c.active!==!1).length,o=productsCache.reduce((c,l)=>c+Number(l.stock||0),0),n=ordersCache.length,a=ordersCache.filter(c=>(c.status||"Pending")==="Pending").length,r=ordersCache.filter(c=>(c.status||"")==="Delivered").length,s=ordersCache.filter(c=>(c.status||"")!=="Cancelled").reduce((c,l)=>c+Number(l.total??Number(l.subtotal||0)+Number(l.delivery_charge||0)),0),i=ordersCache.slice(0,6);return`<div class="section-head"><div><h3>Dashboard</h3><p>Paboo overview</p></div><button class="btn muted" onclick="refreshDashboard()">↻ Refresh</button></div>
   <div class="stats-grid">
-    ${stat('▣','Total Products',total)}${stat('✓','Active Products',active)}${stat('▤','Total Orders',totalOrders)}${stat('!','Pending Orders',pending)}
-    ${stat('✓','Delivered',delivered)}${stat('৳','Revenue',money(revenue))}${stat('◉','Total Stock',stock)}${stat('⌁','Categories',categoriesCache.length)}
+    ${stat("▣","Total Products",e)}${stat("✓","Active Products",t)}${stat("▤","Total Orders",n)}${stat("!","Pending Orders",a)}
+    ${stat("✓","Delivered",r)}${stat("৳","Revenue",money(s))}${stat("◉","Total Stock",o)}${stat("⌁","Categories",categoriesCache.length)}
   </div>
   <div class="section-head"><div><h3>Recent Orders</h3><p>Latest customer orders</p></div><button class="btn primary" onclick="go('orders')">View All Orders</button></div>
   <div class="table-wrap"><table class="table"><thead><tr><th>Order ID</th><th>Customer</th><th>Phone</th><th>Total</th><th>Status</th></tr></thead><tbody>
-  ${recent.length?recent.map(o=>{const s=o.status||'Pending';const id=o.order_number||o.order_id||o.id||'';const total=o.total??(Number(o.subtotal||0)+Number(o.delivery_charge||0));return `<tr><td>${esc(id)}</td><td>${esc(o.customer_name||o.customer?.name||o.name||'—')}</td><td>${esc(o.phone||o.customer_phone||o.customer?.phone||'—')}</td><td>${money(total)}</td><td><span class="pill ${statusClass(s)}">${esc(s)}</span></td></tr>`}).join(''):`<tr><td colspan="5" class="empty">No orders yet</td></tr>`}
-  </tbody></table></div>`
-}
-function stat(icon,label,value){return `<div class="stat-card"><div class="stat-icon">${icon}</div><div class="stat-label">${label}</div><div class="stat-value">${value}</div></div>`}
-
-/* =========================================================
-   PRODUCTS
-========================================================= */
-
-function products(){
-  curDept='';
-  return `<div class="section-head"><div><h3>Products</h3><p>Manage your product catalog</p></div><div class="toolbar"><button class="btn primary" onclick="addProduct()">＋ Add Product</button><button class="btn muted" onclick="csvImportOpen()">⬆ CSV Import</button><button class="btn muted" onclick="csvExport()">⬇ CSV Export</button><button class="btn muted" onclick="refreshProducts().then(render).catch(showError)">↻ Refresh</button></div></div>
-  <div class="filters"><div class="search-wrap"><input class="input" id="productSearch" placeholder="Search products..." oninput="filterProducts()"></div><select class="select" id="productCategoryFilter" onchange="filterProducts()"><option value="">All Categories</option>${categoriesCache.map(c=>`<option value="${esc(c.name)}">${esc(c.name)}</option>`).join('')}</select><select class="select" id="productStockFilter" onchange="filterProducts()"><option value="">All Stock</option><option value="in">In Stock</option><option value="out">Out of Stock</option></select></div>
-  <div class="table-wrap"><table class="table"><thead><tr><th>Image</th><th>Product</th><th>Category</th><th>Price</th><th>Buy → Profit</th><th>Stock</th><th>Status</th><th>Actions</th></tr></thead><tbody id="productRows">${productRows(productsCache)}</tbody></table></div>`
-}
-function productRows(list){
-  if(!list.length)return `<tr><td colspan="8" class="empty">No products found</td></tr>`;
-  return list.map(p=>`<tr><td>${p.image?`<img class="thumb" src="${esc(p.image)}" alt="">`:'—'}</td><td><b>${esc(p.name)}</b></td><td>${esc(p.category||'—')} <small title="${deptOf(p)}">${deptOf(p)==='clothing'?'👕':'🎧'}</small></td><td>${money(p.price)}</td><td>${marginCell(p)}</td><td>${Number(p.stock||0)}</td><td><span class="pill ${p.active!==false?'green':'red'}">${p.active!==false?'Active':'Inactive'}</span></td><td class="actions"><button class="btn primary" onclick="openPostBuilder(${productsCache.indexOf(p)})">📣 Post</button><button class="btn muted" onclick="editProduct(${productsCache.indexOf(p)})">Edit</button><button class="btn muted" title="Copy product" onclick="copyProduct(${productsCache.indexOf(p)})">⧉ Copy</button><button class="btn danger" onclick="deleteProduct(${productsCache.indexOf(p)})">Delete</button></td></tr>`).join('')
-}
-function filterProducts(){
-  const q=($('productSearch')?.value||'').toLowerCase().trim();
-  const cat=$('productCategoryFilter')?.value||'';
-  const stock=$('productStockFilter')?.value||'';
-  const list=productsCache.filter(p=>{
-    const text=`${p.name||''} ${p.category||''}`.toLowerCase();
-    const stockOk=!stock||(stock==='in'?Number(p.stock||0)>0:Number(p.stock||0)<=0);
-    return text.includes(q)&&(!cat||p.category===cat)&&stockOk&&(!curDept||deptOf(p)===curDept);
-  });
-  const rows=$('productRows');if(rows)rows.innerHTML=productRows(list)
-}
-
-function addProduct(d){copySrc=null;newDept=(typeof d==='string'&&d)?d:(curDept||'gadget');editingProductId=null;openModal('Add Product',productForm());deptChange()}
-function editProduct(i){const p=productsCache[i];if(!p)return;editingProductId=p.id;copySrc=null;openModal('Edit Product',productForm(p));deptChange()}
-function saleDt(v){if(!v)return '';const d=new Date(v);if(isNaN(d))return '';return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,16)}
-function productForm(p={}){
-  const dept=p.id?deptOf(p):newDept;clothInit(p);
-  const opts=categoriesCache.map(c=>`<option value="${esc(c.name)}" ${p.category===c.name?'selected':''}>${esc(c.name)}</option>`).join('');
-  let gallery=p.images??p.gallery??p.image_urls??[];
-  if(typeof gallery==='string'){try{gallery=JSON.parse(gallery)}catch(e){gallery=[]}}
-  if(!Array.isArray(gallery))gallery=[];
-  const currentImages=[...new Set([p.image,...gallery].filter(x=>typeof x==='string'&&/^https?:\/\//i.test(x)))];
-  const specs=p.specifications??p.specs??'';
-  const specsText=typeof specs==='string'?specs:(Array.isArray(specs)?specs.map(x=>typeof x==='object'&&x?`${x.name||x.label||'Feature'}: ${x.value||x.detail||''}`:String(x)).join('\n'):JSON.stringify(specs,null,2));
-  return `<div class="form-grid">
-    <label>Product Name<input id="productName" value="${esc(p.name||'')}" placeholder="e.g. TWS AirBuds Pro" required></label>
-    <label>Department (বিভাগ)<select id="productDept" onchange="deptChange()"><option value="gadget" ${dept==='gadget'?'selected':''}>🎧 গ্যাজেট</option><option value="clothing" ${dept==='clothing'?'selected':''}>👕 পোশাক</option></select></label>
-    <label>Category<span class="cat-wrap"><input id="productCategory" autocomplete="off" value="${esc(p.category||'')}" placeholder="Select or type a new category" onfocus="showCatSuggest()" oninput="showCatSuggest()" onblur="setTimeout(hideCatSuggest,180)"><div id="catSuggest" class="cat-suggest hidden"></div></span></label>
-    <label>Price (৳)<input id="productPrice" type="number" min="0" value="${Number(p.price||0)}"></label>
-    <label>Discount (%)<input id="productDiscount" type="number" min="0" max="100" value="${Number(p.discount||0)}"></label>
-    <label>Flash sale starts (optional)<input id="productSaleStart" type="datetime-local" value="${saleDt(p.sale_starts_at)}"></label>
-    <label>Flash sale ends (optional)<input id="productSaleEnd" type="datetime-local" value="${saleDt(p.sale_ends_at)}"></label>
+  ${i.length?i.map(c=>{const l=c.status||"Pending",d=c.order_number||c.order_id||c.id||"",u=c.total??Number(c.subtotal||0)+Number(c.delivery_charge||0);return`<tr><td>${esc(d)}</td><td>${esc(c.customer_name||c.customer?.name||c.name||"—")}</td><td>${esc(c.phone||c.customer_phone||c.customer?.phone||"—")}</td><td>${money(u)}</td><td><span class="pill ${statusClass(l)}">${esc(l)}</span></td></tr>`}).join(""):'<tr><td colspan="5" class="empty">No orders yet</td></tr>'}
+  </tbody></table></div>`}function stat(e,t,o){return`<div class="stat-card"><div class="stat-icon">${e}</div><div class="stat-label">${t}</div><div class="stat-value">${o}</div></div>`}function products(){return curDept="",`<div class="section-head"><div><h3>Products</h3><p>Manage your product catalog</p></div><div class="toolbar"><button class="btn primary" onclick="addProduct()">＋ Add Product</button><button class="btn muted" onclick="csvImportOpen()">⬆ CSV Import</button><button class="btn muted" onclick="csvExport()">⬇ CSV Export</button><button class="btn muted" onclick="refreshProducts().then(render).catch(showError)">↻ Refresh</button></div></div>
+  <div class="filters"><div class="search-wrap"><input class="input" id="productSearch" placeholder="Search products..." oninput="filterProducts()"></div><select class="select" id="productCategoryFilter" onchange="filterProducts()"><option value="">All Categories</option>${categoriesCache.map(e=>`<option value="${esc(e.name)}">${esc(e.name)}</option>`).join("")}</select><select class="select" id="productStockFilter" onchange="filterProducts()"><option value="">All Stock</option><option value="in">In Stock</option><option value="out">Out of Stock</option></select></div>
+  <div class="table-wrap"><table class="table"><thead><tr><th>Image</th><th>Product</th><th>Category</th><th>Price</th><th>Buy → Profit</th><th>Stock</th><th>Status</th><th>Actions</th></tr></thead><tbody id="productRows">${productRows(productsCache)}</tbody></table></div>`}function productRows(e){return e.length?e.map(t=>`<tr><td>${t.image?`<img class="thumb" src="${esc(t.image)}" alt="">`:"—"}</td><td><b>${esc(t.name)}</b></td><td>${esc(t.category||"—")} <small title="${deptOf(t)}">${deptOf(t)==="clothing"?"👕":"🎧"}</small></td><td>${money(t.price)}</td><td>${marginCell(t)}</td><td>${Number(t.stock||0)}</td><td><span class="pill ${t.active!==!1?"green":"red"}">${t.active!==!1?"Active":"Inactive"}</span></td><td class="actions"><button class="btn primary" onclick="openPostBuilder(${productsCache.indexOf(t)})">📣 Post</button><button class="btn muted" onclick="editProduct(${productsCache.indexOf(t)})">Edit</button><button class="btn muted" title="Copy product" onclick="copyProduct(${productsCache.indexOf(t)})">⧉ Copy</button><button class="btn danger" onclick="deleteProduct(${productsCache.indexOf(t)})">Delete</button></td></tr>`).join(""):'<tr><td colspan="8" class="empty">No products found</td></tr>'}function filterProducts(){const e=($("productSearch")?.value||"").toLowerCase().trim(),t=$("productCategoryFilter")?.value||"",o=$("productStockFilter")?.value||"",n=productsCache.filter(r=>{const s=`${r.name||""} ${r.category||""}`.toLowerCase(),i=!o||(o==="in"?Number(r.stock||0)>0:Number(r.stock||0)<=0);return s.includes(e)&&(!t||r.category===t)&&i&&(!curDept||deptOf(r)===curDept)}),a=$("productRows");a&&(a.innerHTML=productRows(n))}function addProduct(e){copySrc=null,newDept=typeof e=="string"&&e?e:curDept||"gadget",editingProductId=null,openModal("Add Product",productForm()),deptChange()}function editProduct(e){const t=productsCache[e];t&&(editingProductId=t.id,copySrc=null,openModal("Edit Product",productForm(t)),deptChange())}function saleDt(e){if(!e)return"";const t=new Date(e);return isNaN(t)?"":new Date(t.getTime()-t.getTimezoneOffset()*6e4).toISOString().slice(0,16)}function productForm(e={}){const t=e.id?deptOf(e):newDept;clothInit(e);const o=categoriesCache.map(i=>`<option value="${esc(i.name)}" ${e.category===i.name?"selected":""}>${esc(i.name)}</option>`).join("");let n=e.images??e.gallery??e.image_urls??[];if(typeof n=="string")try{n=JSON.parse(n)}catch{n=[]}Array.isArray(n)||(n=[]);const a=[...new Set([e.image,...n].filter(i=>typeof i=="string"&&/^https?:\/\//i.test(i)))],r=e.specifications??e.specs??"",s=typeof r=="string"?r:Array.isArray(r)?r.map(i=>typeof i=="object"&&i?`${i.name||i.label||"Feature"}: ${i.value||i.detail||""}`:String(i)).join(`
+`):JSON.stringify(r,null,2);return`<div class="form-grid">
+    <label>Product Name<input id="productName" value="${esc(e.name||"")}" placeholder="e.g. TWS AirBuds Pro" required></label>
+    <label>Department (বিভাগ)<select id="productDept" onchange="deptChange()"><option value="gadget" ${t==="gadget"?"selected":""}>🎧 গ্যাজেট</option><option value="clothing" ${t==="clothing"?"selected":""}>👕 পোশাক</option></select></label>
+    <label>Category<span class="cat-wrap"><input id="productCategory" autocomplete="off" value="${esc(e.category||"")}" placeholder="Select or type a new category" onfocus="showCatSuggest()" oninput="showCatSuggest()" onblur="setTimeout(hideCatSuggest,180)"><div id="catSuggest" class="cat-suggest hidden"></div></span></label>
+    <label>Price (৳)<input id="productPrice" type="number" min="0" value="${Number(e.price||0)}"></label>
+    <label>Discount (%)<input id="productDiscount" type="number" min="0" max="100" value="${Number(e.discount||0)}"></label>
+    <label>Flash sale starts (optional)<input id="productSaleStart" type="datetime-local" value="${saleDt(e.sale_starts_at)}"></label>
+    <label>Flash sale ends (optional)<input id="productSaleEnd" type="datetime-local" value="${saleDt(e.sale_ends_at)}"></label>
     <p class="hint" style="grid-column:1/-1;margin:-4px 0 4px;font-size:12px;color:#64748b">⚡ Set both times to run a timed Flash Sale. The Discount (%) above applies only inside this window; before and after it the full price is charged. Leave both blank for a normal always-on discount. (Run 5_flash_sale.sql once first.)</p>
-    <label>Buying price ৳ (private)<input id="productCost" type="number" min="0" step="any" value="${costOf(p.id)||''}" placeholder="what you paid"><small>Only you can see this. Used for profit reports.</small></label>
-    <label id="stockLbl">Stock<input id="productStock" type="number" min="0" value="${Number(p.stock||0)}"></label>
+    <label>Buying price ৳ (private)<input id="productCost" type="number" min="0" step="any" value="${costOf(e.id)||""}" placeholder="what you paid"><small>Only you can see this. Used for profit reports.</small></label>
+    <label id="stockLbl">Stock<input id="productStock" type="number" min="0" value="${Number(e.stock||0)}"></label>
     <div class="full" id="clothBox" style="display:none">${clothHtml()}</div>
-    <label id="gadgetVarLbl" style="grid-column:1/-1">Variants — colour / size (optional)<textarea id="productVariants" rows="4" placeholder="One per line:  Name | Stock | Price (optional)&#10;Black | 5&#10;White | 3 | 1200&#10;Size L | 10">${esc(variantsToText(p.variants))}</textarea><small>If you add variants, the total Stock is calculated automatically from them. Customers see these only when <b>Settings &gt; Product variants</b> is ON. Leave empty for a normal product.</small></label>
-    <label>Status<select id="productActive"><option value="true" ${p.active!==false?'selected':''}>Active</option><option value="false" ${p.active===false?'selected':''}>Inactive</option></select></label>
-    <label>Brand<input id="productBrand" value="${esc(p.brand||'')}" placeholder="e.g. Xiaomi"></label>
-    <label>Model<input id="productModel" value="${esc(p.model||'')}" placeholder="e.g. Redmi Buds"></label>
-    <label>Warranty<input id="productWarranty" value="${esc(p.warranty||'')}" placeholder="e.g. 7 days replacement"></label>
-    <label>Color<input id="productColor" value="${esc(p.color||'')}" placeholder="Black"></label>
-    <label>Connectivity<input id="productConnectivity" value="${esc(p.connectivity||'')}" placeholder="Bluetooth 5.3 / USB-C"></label>
-    <label>Battery life<input id="productBatteryLife" value="${esc(p.battery_life||'')}" placeholder="e.g. Up to 20 hours"></label>
-    <label class="full">Compatibility<input id="productCompatibility" value="${esc(p.compatibility||'')}" placeholder="Compatible devices / systems"></label>
-    <label class="full">Full Description<textarea id="productDescription" rows="4" placeholder="Write the full product description...">${esc(p.description||'')}</textarea></label>
-    <label class="full">Specifications (one per line: Feature: Value)<textarea id="productSpecifications" rows="5" placeholder="Bluetooth: 5.3&#10;Battery: 400mAh&#10;Charging: USB-C">${esc(specsText||'')}</textarea><small>Write one specification per line. You do not need to open Supabase Table Editor for each product.</small></label>
+    <label id="gadgetVarLbl" style="grid-column:1/-1">Variants — colour / size (optional)<textarea id="productVariants" rows="4" placeholder="One per line:  Name | Stock | Price (optional)&#10;Black | 5&#10;White | 3 | 1200&#10;Size L | 10">${esc(variantsToText(e.variants))}</textarea><small>If you add variants, the total Stock is calculated automatically from them. Customers see these only when <b>Settings &gt; Product variants</b> is ON. Leave empty for a normal product.</small></label>
+    <label>Status<select id="productActive"><option value="true" ${e.active!==!1?"selected":""}>Active</option><option value="false" ${e.active===!1?"selected":""}>Inactive</option></select></label>
+    <label>Brand<input id="productBrand" value="${esc(e.brand||"")}" placeholder="e.g. Xiaomi"></label>
+    <label>Model<input id="productModel" value="${esc(e.model||"")}" placeholder="e.g. Redmi Buds"></label>
+    <label>Warranty<input id="productWarranty" value="${esc(e.warranty||"")}" placeholder="e.g. 7 days replacement"></label>
+    <label>Color<input id="productColor" value="${esc(e.color||"")}" placeholder="Black"></label>
+    <label>Connectivity<input id="productConnectivity" value="${esc(e.connectivity||"")}" placeholder="Bluetooth 5.3 / USB-C"></label>
+    <label>Battery life<input id="productBatteryLife" value="${esc(e.battery_life||"")}" placeholder="e.g. Up to 20 hours"></label>
+    <label class="full">Compatibility<input id="productCompatibility" value="${esc(e.compatibility||"")}" placeholder="Compatible devices / systems"></label>
+    <label class="full">Full Description<textarea id="productDescription" rows="4" placeholder="Write the full product description...">${esc(e.description||"")}</textarea></label>
+    <label class="full">Specifications (one per line: Feature: Value)<textarea id="productSpecifications" rows="5" placeholder="Bluetooth: 5.3&#10;Battery: 400mAh&#10;Charging: USB-C">${esc(s||"")}</textarea><small>Write one specification per line. You do not need to open Supabase Table Editor for each product.</small></label>
     <label class="full">Product Images (select multiple)<input id="productImages" type="file" accept="image/*" multiple onchange="previewProductImages(this)"><small>Choose multiple photos. Existing photos are kept unless you remove them below.</small><div id="productImagePreview"></div></label>
-    ${currentImages.length?`<div class="full admin-current-gallery"><strong>Saved images</strong><div class="admin-gallery-grid">${currentImages.map((src,i)=>`<label class="admin-gallery-item"><img src="${esc(src)}" alt="Saved product image ${i+1}"><span><input type="checkbox" class="remove-product-image" value="${esc(src)}"> Remove</span></label>`).join('')}</div></div>`:''}
-    <label class="full admin-checkline"><input id="productIsDeal" type="checkbox" ${p.is_deal||Number(p.discount)>=70?'checked':''}> Show this product in the 70% OFF Deals page (it will also remain in Home and its category)</label>
-  </div><div class="btn-row"><button class="btn muted" onclick="closeModal()">Cancel</button><button class="btn primary" id="saveProductBtn" onclick="saveProduct()">Save Product</button></div>`
-}
-function variantsToText(v){if(typeof v==='string'){try{v=JSON.parse(v)}catch(e){v=[]}}if(!Array.isArray(v))return'';return v.map(x=>[x.name,Number(x.stock)||0,Number(x.price)>0?Number(x.price):''].join(' | ').replace(/ \| $/,'')).join('\n');}
-function parseVariants(t){const out=[];const seen=new Set();for(const line of String(t||'').split(/\r?\n/)){const l=line.trim();if(!l)continue;const [n,st,pr]=l.split('|').map(x=>x.trim());if(!n)continue;const stock=Math.max(0,Math.floor(Number(st||0)));const price=Number(pr||0);if(!Number.isFinite(stock)||(pr&&!(price>=0)))throw new Error('Variant line is not valid: "'+l+'". Use: Name | Stock | Price(optional)');if(seen.has(n.toLowerCase()))throw new Error('Variant name repeated: '+n);seen.add(n.toLowerCase());const v={name:n,stock};if(price>0)v.price=price;out.push(v);}return out;}
-async function saveProduct(){
-  const name=$('productName')?.value.trim(),category=$('productCategory')?.value.trim();
-  const priceRaw=$('productPrice')?.value ?? '0',discountRaw=$('productDiscount')?.value ?? '0',stockRaw=$('productStock')?.value ?? '0';
-  const price=Number(priceRaw),discount=Number(discountRaw),stock=Number(stockRaw);
-  if(!Number.isFinite(price)||!Number.isFinite(discount)||!Number.isFinite(stock)||price<0||discount<0||discount>100||stock<0){
-    alert('Enter valid values: price and stock must be 0 or more, discount must be between 0 and 100.');return;
-  }
-  if(price>999999999999||stock>2147483647){alert('The number is too large.');return;}
-  const active=$('productActive')?.value==='true';
-  const files=[...($('productImages')?.files||[])];
-  if(!name){alert('Product name is required.');return}
-  try{
-    const isEdit=!!editingProductId,id=editingProductId||crypto.randomUUID(),old=productsCache.find(p=>String(p.id)===String(id));
-    const btn=$('saveProductBtn');if(btn){btn.disabled=true;btn.textContent='Saving...'}
-    const imgSrc=old||copySrc;
-    let images=imgSrc?.images??imgSrc?.gallery??imgSrc?.image_urls??[];
-    if(typeof images==='string'){try{images=JSON.parse(images)}catch(e){images=[]}}
-    if(!Array.isArray(images))images=[];
-    images=[...new Set([imgSrc?.image,...images].filter(x=>typeof x==='string'&&/^https?:\/\//i.test(x)))];
-    const remove=new Set([...document.querySelectorAll('.remove-product-image:checked')].map(x=>x.value));
-    images=images.filter(x=>!remove.has(x));
-    for(const file of files){const url=await uploadImage(file,id,{square:IMG_SQUARE});if(url)images.push(url)}
-    images=[...new Set(images)];
-    const image=images[0]||'';
-    const rawSpecs=$('productSpecifications')?.value.trim()||'';
-    const specifications=rawSpecs.split(/\r?\n/).map(line=>line.trim()).filter(Boolean).map(line=>{
-      const at=line.indexOf(':');return at<0?{name:line,value:''}:{name:line.slice(0,at).trim(),value:line.slice(at+1).trim()};
-    }).filter(x=>x.name);
-    const product={
-      id,name,category,price,discount,stock,active,image,images,
-      brand:$('productBrand')?.value.trim()||'',
-      model:$('productModel')?.value.trim()||'',
-      warranty:$('productWarranty')?.value.trim()||'',
-      color:$('productColor')?.value.trim()||'',
-      connectivity:$('productConnectivity')?.value.trim()||'',
-      battery_life:$('productBatteryLife')?.value.trim()||'',
-      compatibility:$('productCompatibility')?.value.trim()||'',
-      description:$('productDescription')?.value.trim()||'',
-      specifications,
-      is_deal:!!$('productIsDeal')?.checked
-    };
-    const dept=$('productDept')?.value==='clothing'?'clothing':'gadget';
-    if(dept==='clothing'&&!hasDeptCol())throw new Error('Run 14_clothing.sql in Supabase > SQL Editor first (Update 14), then try again.');
-    if(hasDeptCol())product.dept=dept;
-    if(dept==='clothing'){
-      const cc=clothCollect();
-      if(!cc.variants.length)throw new Error('Add at least one colour or one size (turn a size ON) for a clothing product.');
-      product.colors=cc.colors;product.size_chart=cc.size_chart;product.variants=cc.variants;
-      product.stock=cc.variants.reduce((a,v)=>a+v.stock,0);
-    }else if(hasDeptCol()&&old&&deptOf(old)==='clothing'){product.colors=null;product.size_chart=null;}
-    if(dept!=='clothing'){
-      const vars=parseVariants($('productVariants')?.value);
-      if(vars.length||(old&&('variants' in old))){
-        product.variants=vars;
-        if(vars.length)product.stock=vars.reduce((a,v)=>a+v.stock,0);
-      }
-    }
-    {
-      const sv=$('productSaleStart')?.value,ev=$('productSaleEnd')?.value;
-      if(sv&&ev&&new Date(ev)<=new Date(sv))throw new Error('Flash sale end time must be after the start time.');
-      if(sv||ev||old&&('sale_ends_at' in old)){
-        product.sale_starts_at=sv?new Date(sv).toISOString():null;
-        product.sale_ends_at=ev?new Date(ev).toISOString():null;
-      }
-    }
-    if(category){
-      const hit=categoriesCache.find(c=>String(c.name).trim().toLowerCase()===category.toLowerCase());
-      if(hit){product.category=hit.name}
-      else{
-        const slug=category.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')||('cat-'+Date.now());
-        const {error:ce}=await sb.from('categories').insert(hasDeptCol()?{name:category,slug,dept}:{name:category,slug});
-        if(ce&&!/duplicate|23505/i.test((ce.code||'')+(ce.message||'')))throw ce;
-        const cr=await sb.from('categories').select('*').order('name');
-        if(!cr.error&&cr.data)categoriesCache=cr.data;
-      }
-    }
-    const {error}=await sb.from('products').upsert(product,{onConflict:'id'});
-    if(!error)await saveCost(id,$('productCost')?.value);
-    if(error)throw error;
-    await refreshProducts();closeModal();render();
-    alert(isEdit?'Product updated successfully.':'Product added successfully.');
-  }catch(e){
-    showError(e);
-    const btn=$('saveProductBtn');if(btn){btn.disabled=false;btn.textContent='Save Product'}
-  }
-}
-
-/* =========================================================
-   UPDATE 14: DEPARTMENTS (পোশাক / গ্যাজেট) + CLOTHING EDITOR
-========================================================= */
-let curDept='',newDept='gadget',clothState=null,ceUid=0;
-const CE_SIZES=['S','M','L','XL','XXL'];
-function hasDeptCol(){return productsCache.some(x=>'dept' in x)||categoriesCache.some(x=>'dept' in x)}
-function deptOf(x){return x&&x.dept==='clothing'?'clothing':'gadget'}
-function deptLabel(d){return d==='clothing'?'👕 পোশাক':'🎧 গ্যাজেট'}
-function deptPage(d){
-  curDept=d;
-  const cats=categoriesCache.map((c,i)=>({c,i})).filter(x=>deptOf(x.c)===d);
-  const list=productsCache.filter(p=>deptOf(p)===d);
-  const note=hasDeptCol()?'':'<p class="hint" style="color:#b45309">⚠ Run <b>14_clothing.sql</b> in Supabase first, so the department can be saved.</p>';
-  return `<div class="section-head"><div><h3>${deptLabel(d)}</h3><p>${d==='clothing'?'Clothing categories and products (colours, sizes, measurements)':'Gadget categories and products'}</p></div><div class="toolbar"><button class="btn primary" onclick="addProduct('${d}')">＋ Add Product</button><button class="btn muted" onclick="addCategory('${d}')">＋ Add Category</button></div></div>${note}
-  <div class="dept-cats"><b>Categories</b><div class="dept-chips">${cats.length?cats.map(x=>`<span class="dept-chip">${esc(x.c.name)}<button type="button" title="Delete category" onclick="deleteCategory(${x.i})">×</button></span>`).join(''):'<span class="empty">No categories yet. Add one above.</span>'}</div></div>
-  <div class="filters"><div class="search-wrap"><input class="input" id="productSearch" placeholder="Search products..." oninput="filterProducts()"></div><select class="select" id="productCategoryFilter" onchange="filterProducts()"><option value="">All Categories</option>${cats.map(x=>`<option value="${esc(x.c.name)}">${esc(x.c.name)}</option>`).join('')}</select><select class="select" id="productStockFilter" onchange="filterProducts()"><option value="">All Stock</option><option value="in">In Stock</option><option value="out">Out of Stock</option></select></div>
-  <div class="table-wrap"><table class="table"><thead><tr><th>Image</th><th>Product</th><th>Category</th><th>Price</th><th>Buy → Profit</th><th>Stock</th><th>Status</th><th>Actions</th></tr></thead><tbody id="productRows">${productRows(list)}</tbody></table></div>`;
-}
-function ceJson(v,d){if(typeof v!=='string')return v??d;try{return JSON.parse(v)}catch(e){return d}}
-function clothInit(p){
-  let colors=ceJson(p.colors,[]);if(!Array.isArray(colors))colors=[];
-  let ch=ceJson(p.size_chart,null);if(!ch||typeof ch!=='object')ch=null;
-  const cols=ch&&Array.isArray(ch.cols)&&ch.cols.length?ch.cols.map(String):['বুক','দৈর্ঘ্য','কাঁধ','হাতা'];
-  const byS={};((ch&&ch.rows)||[]).forEach(r=>{if(r&&r.s)byS[r.s]={s:String(r.s),on:r.on!==false,v:cols.map((_,i)=>String(((r.v||[])[i])??''))}});
-  const sizes=CE_SIZES.map((s,i)=>byS[s]||{s,on:!ch&&i<4,v:cols.map(()=>'')});
-  Object.keys(byS).forEach(k=>{if(!CE_SIZES.includes(k))sizes.push(byS[k])});
-  const cl=colors.filter(c=>c&&c.n).map(c=>({id:'c'+(++ceUid),n:String(c.n),h:/^#[0-9a-f]{6}$/i.test(c.h||'')?c.h:'#999999',i:/^https?:\/\//i.test(c.i||'')?c.i:''}));
-  const stock={};
-  (Array.isArray(ceJson(p.variants,[]))?ceJson(p.variants,[]):[]).forEach(v=>{if(!v||(!v.c&&!v.s))return;const c=cl.find(x=>x.n===v.c);stock[(c?c.id:'')+'|'+(v.s||'')]=Math.max(0,Math.floor(Number(v.stock)||0))});
-  clothState={unit:ch&&ch.unit!=null?String(ch.unit):'ইঞ্চি',cols,sizes,colors:cl,stock};
-}
-function deptChange(){
-  const d=$('productDept')?.value;const cl=d==='clothing';
-  const box=$('clothBox');if(box)box.style.display=cl?'':'none';
-  ['stockLbl','gadgetVarLbl'].forEach(id=>{const e=$(id);if(e)e.style.display=cl?'none':''});
-}
-function clothHtml(){
-  return `<div class="cloth-ed"><h4>👕 পোশাকের রং, সাইজ ও মাপ</h4>
-  <div class="ce-block"><b>১) রং (Colours)</b><small>নিচের রঙে চাপলেই যোগ হবে। প্রতি রঙের ছবি দিলে ওয়েবসাইটে রং বাছলে সেই ছবি দেখাবে (📷)।</small><div class="ce-pal">${CE_PAL.map((x,i)=>`<button type="button" class="ce-pbtn" title="${x[0]}" style="background:${x[1]}" onclick="ceAddPreset(${i})"></button>`).join('')}</div><div id="ceColors">${ceColorsHtml()}</div><button type="button" class="btn muted" onclick="ceAddColor()">＋ অন্য রং যোগ করুন</button></div>
+    ${a.length?`<div class="full admin-current-gallery"><strong>Saved images</strong><div class="admin-gallery-grid">${a.map((i,c)=>`<label class="admin-gallery-item"><img src="${esc(i)}" alt="Saved product image ${c+1}"><span><input type="checkbox" class="remove-product-image" value="${esc(i)}"> Remove</span></label>`).join("")}</div></div>`:""}
+    <label class="full admin-checkline"><input id="productIsDeal" type="checkbox" ${e.is_deal||Number(e.discount)>=70?"checked":""}> Show this product in the 70% OFF Deals page (it will also remain in Home and its category)</label>
+  </div><div class="btn-row"><button class="btn muted" onclick="closeModal()">Cancel</button><button class="btn primary" id="saveProductBtn" onclick="saveProduct()">Save Product</button></div>`}function variantsToText(e){if(typeof e=="string")try{e=JSON.parse(e)}catch{e=[]}return Array.isArray(e)?e.map(t=>[t.name,Number(t.stock)||0,Number(t.price)>0?Number(t.price):""].join(" | ").replace(/ \| $/,"")).join(`
+`):""}function parseVariants(e){const t=[],o=new Set;for(const n of String(e||"").split(/\r?\n/)){const a=n.trim();if(!a)continue;const[r,s,i]=a.split("|").map(u=>u.trim());if(!r)continue;const c=Math.max(0,Math.floor(Number(s||0))),l=Number(i||0);if(!Number.isFinite(c)||i&&!(l>=0))throw new Error('Variant line is not valid: "'+a+'". Use: Name | Stock | Price(optional)');if(o.has(r.toLowerCase()))throw new Error("Variant name repeated: "+r);o.add(r.toLowerCase());const d={name:r,stock:c};l>0&&(d.price=l),t.push(d)}return t}async function saveProduct(){const e=$("productName")?.value.trim(),t=$("productCategory")?.value.trim(),o=$("productPrice")?.value??"0",n=$("productDiscount")?.value??"0",a=$("productStock")?.value??"0",r=Number(o),s=Number(n),i=Number(a);if(!Number.isFinite(r)||!Number.isFinite(s)||!Number.isFinite(i)||r<0||s<0||s>100||i<0){alert("Enter valid values: price and stock must be 0 or more, discount must be between 0 and 100.");return}if(r>999999999999||i>2147483647){alert("The number is too large.");return}const c=$("productActive")?.value==="true",l=[...$("productImages")?.files||[]];if(!e){alert("Product name is required.");return}try{const d=!!editingProductId,u=editingProductId||crypto.randomUUID(),m=productsCache.find(p=>String(p.id)===String(u)),g=$("saveProductBtn");g&&(g.disabled=!0,g.textContent="Saving...");const v=m||copySrc;let f=v?.images??v?.gallery??v?.image_urls??[];if(typeof f=="string")try{f=JSON.parse(f)}catch{f=[]}Array.isArray(f)||(f=[]),f=[...new Set([v?.image,...f].filter(p=>typeof p=="string"&&/^https?:\/\//i.test(p)))];const y=new Set([...document.querySelectorAll(".remove-product-image:checked")].map(p=>p.value));f=f.filter(p=>!y.has(p));for(const p of l){const b=await uploadImage(p,u,{square:IMG_SQUARE});b&&f.push(b)}f=[...new Set(f)];const w=f[0]||"",C=($("productSpecifications")?.value.trim()||"").split(/\r?\n/).map(p=>p.trim()).filter(Boolean).map(p=>{const b=p.indexOf(":");return b<0?{name:p,value:""}:{name:p.slice(0,b).trim(),value:p.slice(b+1).trim()}}).filter(p=>p.name),S={id:u,name:e,category:t,price:r,discount:s,stock:i,active:c,image:w,images:f,brand:$("productBrand")?.value.trim()||"",model:$("productModel")?.value.trim()||"",warranty:$("productWarranty")?.value.trim()||"",color:$("productColor")?.value.trim()||"",connectivity:$("productConnectivity")?.value.trim()||"",battery_life:$("productBatteryLife")?.value.trim()||"",compatibility:$("productCompatibility")?.value.trim()||"",description:$("productDescription")?.value.trim()||"",specifications:C,is_deal:!!$("productIsDeal")?.checked},x=$("productDept")?.value==="clothing"?"clothing":"gadget";if(x==="clothing"&&!hasDeptCol())throw new Error("Run 14_clothing.sql in Supabase > SQL Editor first (Update 14), then try again.");if(hasDeptCol()&&(S.dept=x),x==="clothing"){const p=clothCollect();if(!p.variants.length)throw new Error("Add at least one colour or one size (turn a size ON) for a clothing product.");S.colors=p.colors,S.size_chart=p.size_chart,S.variants=p.variants,S.stock=p.variants.reduce((b,_)=>b+_.stock,0)}else hasDeptCol()&&m&&deptOf(m)==="clothing"&&(S.colors=null,S.size_chart=null);if(x!=="clothing"){const p=parseVariants($("productVariants")?.value);(p.length||m&&"variants"in m)&&(S.variants=p,p.length&&(S.stock=p.reduce((b,_)=>b+_.stock,0)))}{const p=$("productSaleStart")?.value,b=$("productSaleEnd")?.value;if(p&&b&&new Date(b)<=new Date(p))throw new Error("Flash sale end time must be after the start time.");(p||b||m&&"sale_ends_at"in m)&&(S.sale_starts_at=p?new Date(p).toISOString():null,S.sale_ends_at=b?new Date(b).toISOString():null)}if(t){const p=categoriesCache.find(b=>String(b.name).trim().toLowerCase()===t.toLowerCase());if(p)S.category=p.name;else{const b=t.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"")||"cat-"+Date.now(),{error:_}=await sb.from("categories").insert(hasDeptCol()?{name:t,slug:b,dept:x}:{name:t,slug:b});if(_&&!/duplicate|23505/i.test((_.code||"")+(_.message||"")))throw _;const P=await sb.from("categories").select("*").order("name");!P.error&&P.data&&(categoriesCache=P.data)}}const{error:h}=await sb.from("products").upsert(S,{onConflict:"id"});if(h||await saveCost(u,$("productCost")?.value),h)throw h;await refreshProducts(),closeModal(),render(),alert(d?"Product updated successfully.":"Product added successfully.")}catch(d){showError(d);const u=$("saveProductBtn");u&&(u.disabled=!1,u.textContent="Save Product")}}let curDept="",newDept="gadget",clothState=null,ceUid=0;const CE_SIZES=["S","M","L","XL","XXL"];function hasDeptCol(){return productsCache.some(e=>"dept"in e)||categoriesCache.some(e=>"dept"in e)}function deptOf(e){return e&&e.dept==="clothing"?"clothing":"gadget"}function deptLabel(e){return e==="clothing"?"👕 পোশাক":"🎧 গ্যাজেট"}function deptPage(e){curDept=e;const t=categoriesCache.map((a,r)=>({c:a,i:r})).filter(a=>deptOf(a.c)===e),o=productsCache.filter(a=>deptOf(a)===e),n=hasDeptCol()?"":'<p class="hint" style="color:#b45309">⚠ Run <b>14_clothing.sql</b> in Supabase first, so the department can be saved.</p>';return`<div class="section-head"><div><h3>${deptLabel(e)}</h3><p>${e==="clothing"?"Clothing categories and products (colours, sizes, measurements)":"Gadget categories and products"}</p></div><div class="toolbar"><button class="btn primary" onclick="addProduct('${e}')">＋ Add Product</button><button class="btn muted" onclick="addCategory('${e}')">＋ Add Category</button></div></div>${n}
+  <div class="dept-cats"><b>Categories</b><div class="dept-chips">${t.length?t.map(a=>`<span class="dept-chip">${esc(a.c.name)}<button type="button" title="Delete category" onclick="deleteCategory(${a.i})">×</button></span>`).join(""):'<span class="empty">No categories yet. Add one above.</span>'}</div></div>
+  <div class="filters"><div class="search-wrap"><input class="input" id="productSearch" placeholder="Search products..." oninput="filterProducts()"></div><select class="select" id="productCategoryFilter" onchange="filterProducts()"><option value="">All Categories</option>${t.map(a=>`<option value="${esc(a.c.name)}">${esc(a.c.name)}</option>`).join("")}</select><select class="select" id="productStockFilter" onchange="filterProducts()"><option value="">All Stock</option><option value="in">In Stock</option><option value="out">Out of Stock</option></select></div>
+  <div class="table-wrap"><table class="table"><thead><tr><th>Image</th><th>Product</th><th>Category</th><th>Price</th><th>Buy → Profit</th><th>Stock</th><th>Status</th><th>Actions</th></tr></thead><tbody id="productRows">${productRows(o)}</tbody></table></div>`}function ceJson(e,t){if(typeof e!="string")return e??t;try{return JSON.parse(e)}catch{return t}}function clothInit(e){let t=ceJson(e.colors,[]);Array.isArray(t)||(t=[]);let o=ceJson(e.size_chart,null);(!o||typeof o!="object")&&(o=null);const n=o&&Array.isArray(o.cols)&&o.cols.length?o.cols.map(String):["বুক","দৈর্ঘ্য","কাঁধ","হাতা"],a={};(o&&o.rows||[]).forEach(c=>{c&&c.s&&(a[c.s]={s:String(c.s),on:c.on!==!1,v:n.map((l,d)=>String((c.v||[])[d]??""))})});const r=CE_SIZES.map((c,l)=>a[c]||{s:c,on:!o&&l<4,v:n.map(()=>"")});Object.keys(a).forEach(c=>{CE_SIZES.includes(c)||r.push(a[c])});const s=t.filter(c=>c&&c.n).map(c=>({id:"c"+ ++ceUid,n:String(c.n),h:/^#[0-9a-f]{6}$/i.test(c.h||"")?c.h:"#999999",i:/^https?:\/\//i.test(c.i||"")?c.i:""})),i={};(Array.isArray(ceJson(e.variants,[]))?ceJson(e.variants,[]):[]).forEach(c=>{if(!c||!c.c&&!c.s)return;const l=s.find(d=>d.n===c.c);i[(l?l.id:"")+"|"+(c.s||"")]=Math.max(0,Math.floor(Number(c.stock)||0))}),clothState={unit:o&&o.unit!=null?String(o.unit):"ইঞ্চি",cols:n,sizes:r,colors:s,stock:i}}function deptChange(){const t=$("productDept")?.value==="clothing",o=$("clothBox");o&&(o.style.display=t?"":"none"),["stockLbl","gadgetVarLbl"].forEach(n=>{const a=$(n);a&&(a.style.display=t?"none":"")})}function clothHtml(){return`<div class="cloth-ed"><h4>👕 পোশাকের রং, সাইজ ও মাপ</h4>
+  <div class="ce-block"><b>১) রং (Colours)</b><small>নিচের রঙে চাপলেই যোগ হবে। প্রতি রঙের ছবি দিলে ওয়েবসাইটে রং বাছলে সেই ছবি দেখাবে (📷)।</small><div class="ce-pal">${CE_PAL.map((e,t)=>`<button type="button" class="ce-pbtn" title="${e[0]}" style="background:${e[1]}" onclick="ceAddPreset(${t})"></button>`).join("")}</div><div id="ceColors">${ceColorsHtml()}</div><button type="button" class="btn muted" onclick="ceAddColor()">＋ অন্য রং যোগ করুন</button></div>
   <div class="ce-block"><b>২) সাইজ ও মাপ</b><small>বাঁ দিকের টিক দিলে সাইজটি ওয়েবসাইটে দেখাবে। টিক তুললে লুকানো থাকবে।</small>
-  <div class="ce-unit">টেমপ্লেট: <select id="ceTpl" onchange="ceApplyTpl(this.value)"><option value="">— একটি বেছে নিন —</option>${Object.keys(CE_TPL).map(k=>`<option value="${k}">${CE_TPL[k].label}</option>`).join('')}</select> <small>(নমুনা মাপ, ইঞ্চিতে। নিজের কাপড় মেপে বদলে নিন)</small></div>
+  <div class="ce-unit">টেমপ্লেট: <select id="ceTpl" onchange="ceApplyTpl(this.value)"><option value="">— একটি বেছে নিন —</option>${Object.keys(CE_TPL).map(e=>`<option value="${e}">${CE_TPL[e].label}</option>`).join("")}</select> <small>(নমুনা মাপ, ইঞ্চিতে। নিজের কাপড় মেপে বদলে নিন)</small></div>
   <div class="ce-unit">মাপের একক: <input id="ceUnit" value="${esc(clothState.unit)}" oninput="clothState.unit=this.value" placeholder="ইঞ্চি"></div>
   <div id="ceSizes" class="ce-scroll">${ceSizesHtml()}</div>
   <div class="ce-add"><input id="ceNewSize" placeholder="নতুন সাইজ (যেমন 30, 3XL)"><button type="button" class="btn muted" onclick="ceAddSize()">＋ সাইজ</button><button type="button" class="btn muted" onclick="ceAddCol()">＋ মাপের কলাম (যেমন গলা)</button></div></div>
-  <div class="ce-block"><b>৩) স্টক (প্রতিটি রং ও সাইজের)</b> <button type="button" class="btn muted" style="padding:2px 10px" onclick="ceFillStock()">সব ঘরে একই সংখ্যা</button><div id="ceStock" class="ce-scroll">${ceStockHtml()}</div></div></div>`;
-}
-function ceColorsHtml(){
-  const c=clothState.colors;if(!c.length)return '<div class="empty">কোনো রং নেই। রং না থাকলে শুধু সাইজ দিয়ে চলবে।</div>';
-  return c.map((x,i)=>`<div class="ce-row"><input type="color" value="${esc(x.h)}" oninput="clothState.colors[${i}].h=this.value"><input value="${esc(x.n)}" placeholder="রঙের নাম (যেমন নীল)" oninput="clothState.colors[${i}].n=this.value" onchange="ceRefreshStock()"><label class="ce-img" title="এই রঙের ছবি">${x.i?`<img src="${esc(x.i)}" alt="">`:'📷'}<input type="file" accept="image/*" onchange="ceColorImg(${i},this)"></label>${x.i?`<button type="button" class="ce-x" title="ছবি সরান" onclick="clothState.colors[${i}].i='';ceRefreshAll()">🗑</button>`:''}<button type="button" class="btn danger" onclick="ceDelColor(${i})">✕</button></div>`).join('');
-}
-function ceSizesHtml(){
-  const st=clothState;
-  return `<table class="ce-table"><thead><tr><th>চালু</th><th>সাইজ</th>${st.cols.map((n,i)=>`<th><input class="ce-colname" value="${esc(n)}" oninput="clothState.cols[${i}]=this.value"><button type="button" class="ce-x" title="কলাম মুছুন" onclick="ceDelCol(${i})">×</button></th>`).join('')}<th></th></tr></thead><tbody>${st.sizes.map((z,i)=>`<tr class="${z.on?'':'off'}"><td><input type="checkbox" ${z.on?'checked':''} onchange="ceToggleSize(${i},this.checked)"></td><th>${esc(z.s)}</th>${st.cols.map((_,ci)=>`<td><input value="${esc(z.v[ci]||'')}" oninput="clothState.sizes[${i}].v[${ci}]=this.value" placeholder="—"></td>`).join('')}<td>${CE_SIZES.includes(z.s)?'':`<button type="button" class="ce-x" title="সাইজ মুছুন" onclick="ceDelSize(${i})">×</button>`}</td></tr>`).join('')}</tbody></table>`;
-}
-function ceStockHtml(){
-  const st=clothState,sizes=st.sizes.filter(z=>z.on).map(z=>z.s);
-  const rows=st.colors.length?st.colors:[{id:'',n:'(সব রং)'}];
-  if(!st.colors.length&&!sizes.length)return '<div class="empty">কমপক্ষে একটি রং যোগ করুন বা একটি সাইজ চালু করুন।</div>';
-  const cs=sizes.length?sizes:[''];
-  return `<table class="ce-table"><thead><tr><th>রং \\ সাইজ</th>${cs.map(z=>`<th>${esc(z||'স্টক')}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>`<tr><th>${r.id?`<span class="ce-sw" style="background:${esc(r.h)}"></span>`:''}${esc(r.n||'(নাম নেই)')}</th>${cs.map(z=>`<td><input type="number" min="0" value="${Number(st.stock[r.id+'|'+z]||0)}" data-c="${esc(r.id)}" data-s="${esc(z)}" oninput="ceStk(this)"></td>`).join('')}</tr>`).join('')}</tbody></table>`;
-}
-function ceStk(el){clothState.stock[el.dataset.c+'|'+el.dataset.s]=Math.max(0,Math.floor(Number(el.value)||0))}
-function ceRefreshStock(){const e=$('ceStock');if(e)e.innerHTML=ceStockHtml()}
-function ceRefreshAll(){const a=$('ceColors'),b=$('ceSizes');if(a)a.innerHTML=ceColorsHtml();if(b)b.innerHTML=ceSizesHtml();ceRefreshStock()}
-function ceAddColor(){clothState.colors.push({id:'c'+(++ceUid),n:'',h:'#1d4ed8'});ceRefreshAll();const ins=document.querySelectorAll('#ceColors .ce-row input:not([type=color]):not([type=file])');ins[ins.length-1]?.focus()}
-function ceDelColor(i){clothState.colors.splice(i,1);ceRefreshAll()}
-function ceToggleSize(i,on){clothState.sizes[i].on=on;ceRefreshAll()}
-function ceAddSize(){const inp=$('ceNewSize');const n=(inp?.value||'').trim();if(!n)return;if(clothState.sizes.some(z=>z.s.toLowerCase()===n.toLowerCase())){alert('এই সাইজ আগে থেকেই আছে।');return}clothState.sizes.push({s:n,on:true,v:clothState.cols.map(()=>'')});inp.value='';ceRefreshAll()}
-function ceDelSize(i){clothState.sizes.splice(i,1);ceRefreshAll()}
-function ceAddCol(){const n=prompt('মাপের নাম লিখুন (যেমন গলা, কোমর, উচ্চতা):');if(!n||!n.trim())return;clothState.cols.push(n.trim());clothState.sizes.forEach(z=>z.v.push(''));ceRefreshAll()}
-function ceDelCol(i){if(!confirm('এই কলাম মুছবেন?'))return;clothState.cols.splice(i,1);clothState.sizes.forEach(z=>z.v.splice(i,1));ceRefreshAll()}
-function clothCollect(){
-  const st=clothState;
-  const colors=st.colors.map(c=>({id:c.id,n:String(c.n||'').trim(),h:c.h,i:c.i||''})).filter(c=>c.n);
-  const seen=new Set();colors.forEach(c=>{const k=c.n.toLowerCase();if(seen.has(k))throw new Error('একই রঙের নাম দুইবার আছে: '+c.n);seen.add(k)});
-  const keep=st.cols.map((n,i)=>({n:String(n||'').trim(),i})).filter(x=>x.n);
-  const cols=keep.map(x=>x.n);
-  const rows=st.sizes.map(z=>({s:z.s,on:!!z.on,v:keep.map(x=>String(z.v[x.i]||'').trim())}));
-  const onSizes=rows.filter(r=>r.on).map(r=>r.s);
-  const variants=[];
-  const cs=colors.length?colors:[{id:'',n:''}],ss=onSizes.length?onSizes:[''];
-  if(colors.length||onSizes.length)cs.forEach(c=>ss.forEach(z=>{
-    const name=[c.n,z].filter(Boolean).join(' / ');
-    const v={name,stock:Math.max(0,Math.floor(Number(st.stock[c.id+'|'+z])||0))};
-    if(c.n)v.c=c.n;if(z)v.s=z;variants.push(v);
-  }));
-  return{colors:colors.map(c=>c.i?{n:c.n,h:c.h,i:c.i}:{n:c.n,h:c.h}),size_chart:{unit:String(st.unit||'').trim(),cols,rows},variants};
-}
-
-const CE_PAL=[['কালো','#111111'],['সাদা','#ffffff'],['নেভি','#1e3a8a'],['নীল','#2563eb'],['আকাশি','#7dd3fc'],['লাল','#dc2626'],['মেরুন','#7f1d1d'],['সবুজ','#16a34a'],['অলিভ','#6b7a2e'],['হলুদ','#facc15'],['কমলা','#f97316'],['গোলাপি','#ec4899'],['বেগুনি','#7c3aed'],['ধূসর','#6b7280'],['বাদামি','#78350f'],['বেইজ','#d6c5a0']];
-const CE_TPL={
-  shirt:{label:'শার্ট (ফরমাল/ক্যাজুয়াল)',cols:['বুক','দৈর্ঘ্য','কাঁধ','হাতা'],rows:{S:[38,27,17,24],M:[40,28,17.5,25],L:[42,29,18,25.5],XL:[44,30,18.5,26],XXL:[46,31,19,26.5]}},
-  tee:{label:'টি-শার্ট / পোলো',cols:['বুক','দৈর্ঘ্য','কাঁধ'],rows:{S:[36,26,16],M:[38,27,17],L:[40,28,18],XL:[42,29,19],XXL:[44,30,20]}},
-  pant:{label:'প্যান্ট / জিন্স',cols:['কোমর','দৈর্ঘ্য','হিপ','ঊরু'],rows:{'28':[28,39,36,22],'30':[30,40,38,23],'32':[32,41,40,24],'34':[34,42,42,25],'36':[36,42,44,26]}},
-  jacket:{label:'জ্যাকেট / হুডি',cols:['বুক','দৈর্ঘ্য','কাঁধ','হাতা'],rows:{S:[40,25,17,24],M:[42,26,18,25],L:[44,27,19,25.5],XL:[46,28,20,26],XXL:[48,29,21,26.5]}},
-  ladies:{label:'লেডিজ টপ / কুর্তি',cols:['বুক','কোমর','দৈর্ঘ্য','কাঁধ'],rows:{S:[34,30,38,14],M:[36,32,39,14.5],L:[38,34,40,15],XL:[40,36,41,15.5],XXL:[42,38,42,16]}}
-};
-function ceAddPreset(i){const c=CE_PAL[i];if(clothState.colors.some(x=>String(x.n).trim().toLowerCase()===c[0].toLowerCase()))return;clothState.colors.push({id:'c'+(++ceUid),n:c[0],h:c[1],i:''});ceRefreshAll()}
-async function ceColorImg(i,inp){const f=inp.files&&inp.files[0];if(!f)return;try{const url=await uploadImage(f,'col'+(editingProductId||'new'),{square:IMG_SQUARE});clothState.colors[i].i=url;ceRefreshAll()}catch(e){showError(e)}}
-function ceApplyTpl(k){
-  const t=CE_TPL[k];if(!t)return;
-  const has=clothState.sizes.some(z=>z.v.some(x=>String(x||'').trim()));
-  if(has&&!confirm('এই টেমপ্লেট বসালে এখনকার মাপগুলো বদলে যাবে। বসাবেন?')){const e=$('ceTpl');if(e)e.value='';return}
-  clothState.cols=t.cols.slice();clothState.unit='ইঞ্চি';
-  const sizes=Object.keys(t.rows).map(sz=>({s:sz,on:true,v:t.rows[sz].map(String)}));
-  CE_SIZES.forEach(sz=>{if(!t.rows[sz])sizes.push({s:sz,on:false,v:t.cols.map(()=> '')})});
-  clothState.sizes=sizes;
-  const u=$('ceUnit');if(u)u.value='ইঞ্চি';
-  ceRefreshAll();const e=$('ceTpl');if(e)e.value='';
-}
-function ceFillStock(){
-  const n=prompt('প্রতিটি রং ও সাইজে কত পিস দেবেন?','10');if(n===null)return;const q=Math.max(0,Math.floor(Number(n)));if(!Number.isFinite(q))return;
-  const st=clothState,sizes=st.sizes.filter(z=>z.on).map(z=>z.s),rows=st.colors.length?st.colors.map(c=>c.id):[''],cs=sizes.length?sizes:[''];
-  rows.forEach(r=>cs.forEach(z=>{st.stock[r+'|'+z]=q}));ceRefreshStock();
-}
-let copySrc=null;
-function copyProduct(i){
-  const p=productsCache[i];if(!p)return;
-  newDept=deptOf(p);editingProductId=null;copySrc=p;
-  const c={...p};delete c.id;c.name=(p.name||'')+' (copy)';
-  openModal('Copy Product',productForm(c));deptChange();
-}
-/* ----- Size guide (Settings) ----- */
-function sizeGuideCard(s){
-  const g=s.size_guide||{},dis=s.has_size_guide?'':'disabled';
-  return `<div class="card" style="margin-top:16px"><h3>📏 সাইজ গাইড (কীভাবে মাপবেন)</h3>
+  <div class="ce-block"><b>৩) স্টক (প্রতিটি রং ও সাইজের)</b> <button type="button" class="btn muted" style="padding:2px 10px" onclick="ceFillStock()">সব ঘরে একই সংখ্যা</button><div id="ceStock" class="ce-scroll">${ceStockHtml()}</div></div></div>`}function ceColorsHtml(){const e=clothState.colors;return e.length?e.map((t,o)=>`<div class="ce-row"><input type="color" value="${esc(t.h)}" oninput="clothState.colors[${o}].h=this.value"><input value="${esc(t.n)}" placeholder="রঙের নাম (যেমন নীল)" oninput="clothState.colors[${o}].n=this.value" onchange="ceRefreshStock()"><label class="ce-img" title="এই রঙের ছবি">${t.i?`<img src="${esc(t.i)}" alt="">`:"📷"}<input type="file" accept="image/*" onchange="ceColorImg(${o},this)"></label>${t.i?`<button type="button" class="ce-x" title="ছবি সরান" onclick="clothState.colors[${o}].i='';ceRefreshAll()">🗑</button>`:""}<button type="button" class="btn danger" onclick="ceDelColor(${o})">✕</button></div>`).join(""):'<div class="empty">কোনো রং নেই। রং না থাকলে শুধু সাইজ দিয়ে চলবে।</div>'}function ceSizesHtml(){const e=clothState;return`<table class="ce-table"><thead><tr><th>চালু</th><th>সাইজ</th>${e.cols.map((t,o)=>`<th><input class="ce-colname" value="${esc(t)}" oninput="clothState.cols[${o}]=this.value"><button type="button" class="ce-x" title="কলাম মুছুন" onclick="ceDelCol(${o})">×</button></th>`).join("")}<th></th></tr></thead><tbody>${e.sizes.map((t,o)=>`<tr class="${t.on?"":"off"}"><td><input type="checkbox" ${t.on?"checked":""} onchange="ceToggleSize(${o},this.checked)"></td><th>${esc(t.s)}</th>${e.cols.map((n,a)=>`<td><input value="${esc(t.v[a]||"")}" oninput="clothState.sizes[${o}].v[${a}]=this.value" placeholder="—"></td>`).join("")}<td>${CE_SIZES.includes(t.s)?"":`<button type="button" class="ce-x" title="সাইজ মুছুন" onclick="ceDelSize(${o})">×</button>`}</td></tr>`).join("")}</tbody></table>`}function ceStockHtml(){const e=clothState,t=e.sizes.filter(a=>a.on).map(a=>a.s),o=e.colors.length?e.colors:[{id:"",n:"(সব রং)"}];if(!e.colors.length&&!t.length)return'<div class="empty">কমপক্ষে একটি রং যোগ করুন বা একটি সাইজ চালু করুন।</div>';const n=t.length?t:[""];return`<table class="ce-table"><thead><tr><th>রং \\ সাইজ</th>${n.map(a=>`<th>${esc(a||"স্টক")}</th>`).join("")}</tr></thead><tbody>${o.map(a=>`<tr><th>${a.id?`<span class="ce-sw" style="background:${esc(a.h)}"></span>`:""}${esc(a.n||"(নাম নেই)")}</th>${n.map(r=>`<td><input type="number" min="0" value="${Number(e.stock[a.id+"|"+r]||0)}" data-c="${esc(a.id)}" data-s="${esc(r)}" oninput="ceStk(this)"></td>`).join("")}</tr>`).join("")}</tbody></table>`}function ceStk(e){clothState.stock[e.dataset.c+"|"+e.dataset.s]=Math.max(0,Math.floor(Number(e.value)||0))}function ceRefreshStock(){const e=$("ceStock");e&&(e.innerHTML=ceStockHtml())}function ceRefreshAll(){const e=$("ceColors"),t=$("ceSizes");e&&(e.innerHTML=ceColorsHtml()),t&&(t.innerHTML=ceSizesHtml()),ceRefreshStock()}function ceAddColor(){clothState.colors.push({id:"c"+ ++ceUid,n:"",h:"#1d4ed8"}),ceRefreshAll();const e=document.querySelectorAll("#ceColors .ce-row input:not([type=color]):not([type=file])");e[e.length-1]?.focus()}function ceDelColor(e){clothState.colors.splice(e,1),ceRefreshAll()}function ceToggleSize(e,t){clothState.sizes[e].on=t,ceRefreshAll()}function ceAddSize(){const e=$("ceNewSize"),t=(e?.value||"").trim();if(t){if(clothState.sizes.some(o=>o.s.toLowerCase()===t.toLowerCase())){alert("এই সাইজ আগে থেকেই আছে।");return}clothState.sizes.push({s:t,on:!0,v:clothState.cols.map(()=>"")}),e.value="",ceRefreshAll()}}function ceDelSize(e){clothState.sizes.splice(e,1),ceRefreshAll()}function ceAddCol(){const e=prompt("মাপের নাম লিখুন (যেমন গলা, কোমর, উচ্চতা):");!e||!e.trim()||(clothState.cols.push(e.trim()),clothState.sizes.forEach(t=>t.v.push("")),ceRefreshAll())}function ceDelCol(e){confirm("এই কলাম মুছবেন?")&&(clothState.cols.splice(e,1),clothState.sizes.forEach(t=>t.v.splice(e,1)),ceRefreshAll())}function clothCollect(){const e=clothState,t=e.colors.map(d=>({id:d.id,n:String(d.n||"").trim(),h:d.h,i:d.i||""})).filter(d=>d.n),o=new Set;t.forEach(d=>{const u=d.n.toLowerCase();if(o.has(u))throw new Error("একই রঙের নাম দুইবার আছে: "+d.n);o.add(u)});const n=e.cols.map((d,u)=>({n:String(d||"").trim(),i:u})).filter(d=>d.n),a=n.map(d=>d.n),r=e.sizes.map(d=>({s:d.s,on:!!d.on,v:n.map(u=>String(d.v[u.i]||"").trim())})),s=r.filter(d=>d.on).map(d=>d.s),i=[],c=t.length?t:[{id:"",n:""}],l=s.length?s:[""];return(t.length||s.length)&&c.forEach(d=>l.forEach(u=>{const g={name:[d.n,u].filter(Boolean).join(" / "),stock:Math.max(0,Math.floor(Number(e.stock[d.id+"|"+u])||0))};d.n&&(g.c=d.n),u&&(g.s=u),i.push(g)})),{colors:t.map(d=>d.i?{n:d.n,h:d.h,i:d.i}:{n:d.n,h:d.h}),size_chart:{unit:String(e.unit||"").trim(),cols:a,rows:r},variants:i}}const CE_PAL=[["কালো","#111111"],["সাদা","#ffffff"],["নেভি","#1e3a8a"],["নীল","#2563eb"],["আকাশি","#7dd3fc"],["লাল","#dc2626"],["মেরুন","#7f1d1d"],["সবুজ","#16a34a"],["অলিভ","#6b7a2e"],["হলুদ","#facc15"],["কমলা","#f97316"],["গোলাপি","#ec4899"],["বেগুনি","#7c3aed"],["ধূসর","#6b7280"],["বাদামি","#78350f"],["বেইজ","#d6c5a0"]],CE_TPL={shirt:{label:"শার্ট (ফরমাল/ক্যাজুয়াল)",cols:["বুক","দৈর্ঘ্য","কাঁধ","হাতা"],rows:{S:[38,27,17,24],M:[40,28,17.5,25],L:[42,29,18,25.5],XL:[44,30,18.5,26],XXL:[46,31,19,26.5]}},tee:{label:"টি-শার্ট / পোলো",cols:["বুক","দৈর্ঘ্য","কাঁধ"],rows:{S:[36,26,16],M:[38,27,17],L:[40,28,18],XL:[42,29,19],XXL:[44,30,20]}},pant:{label:"প্যান্ট / জিন্স",cols:["কোমর","দৈর্ঘ্য","হিপ","ঊরু"],rows:{28:[28,39,36,22],30:[30,40,38,23],32:[32,41,40,24],34:[34,42,42,25],36:[36,42,44,26]}},jacket:{label:"জ্যাকেট / হুডি",cols:["বুক","দৈর্ঘ্য","কাঁধ","হাতা"],rows:{S:[40,25,17,24],M:[42,26,18,25],L:[44,27,19,25.5],XL:[46,28,20,26],XXL:[48,29,21,26.5]}},ladies:{label:"লেডিজ টপ / কুর্তি",cols:["বুক","কোমর","দৈর্ঘ্য","কাঁধ"],rows:{S:[34,30,38,14],M:[36,32,39,14.5],L:[38,34,40,15],XL:[40,36,41,15.5],XXL:[42,38,42,16]}}};function ceAddPreset(e){const t=CE_PAL[e];clothState.colors.some(o=>String(o.n).trim().toLowerCase()===t[0].toLowerCase())||(clothState.colors.push({id:"c"+ ++ceUid,n:t[0],h:t[1],i:""}),ceRefreshAll())}async function ceColorImg(e,t){const o=t.files&&t.files[0];if(o)try{const n=await uploadImage(o,"col"+(editingProductId||"new"),{square:IMG_SQUARE});clothState.colors[e].i=n,ceRefreshAll()}catch(n){showError(n)}}function ceApplyTpl(e){const t=CE_TPL[e];if(!t)return;if(clothState.sizes.some(s=>s.v.some(i=>String(i||"").trim()))&&!confirm("এই টেমপ্লেট বসালে এখনকার মাপগুলো বদলে যাবে। বসাবেন?")){const s=$("ceTpl");s&&(s.value="");return}clothState.cols=t.cols.slice(),clothState.unit="ইঞ্চি";const n=Object.keys(t.rows).map(s=>({s,on:!0,v:t.rows[s].map(String)}));CE_SIZES.forEach(s=>{t.rows[s]||n.push({s,on:!1,v:t.cols.map(()=>"")})}),clothState.sizes=n;const a=$("ceUnit");a&&(a.value="ইঞ্চি"),ceRefreshAll();const r=$("ceTpl");r&&(r.value="")}function ceFillStock(){const e=prompt("প্রতিটি রং ও সাইজে কত পিস দেবেন?","10");if(e===null)return;const t=Math.max(0,Math.floor(Number(e)));if(!Number.isFinite(t))return;const o=clothState,n=o.sizes.filter(s=>s.on).map(s=>s.s),a=o.colors.length?o.colors.map(s=>s.id):[""],r=n.length?n:[""];a.forEach(s=>r.forEach(i=>{o.stock[s+"|"+i]=t})),ceRefreshStock()}let copySrc=null;function copyProduct(e){const t=productsCache[e];if(!t)return;newDept=deptOf(t),editingProductId=null,copySrc=t;const o={...t};delete o.id,o.name=(t.name||"")+" (copy)",openModal("Copy Product",productForm(o)),deptChange()}function sizeGuideCard(e){const t=e.size_guide||{},o=e.has_size_guide?"":"disabled";return`<div class="card" style="margin-top:16px"><h3>📏 সাইজ গাইড (কীভাবে মাপবেন)</h3>
   <p>পোশাকের মাপের টেবিলের নিচে "কীভাবে মাপবেন" নামে খোলা-বন্ধ করা অংশে এটা দেখাবে। একবার লিখলে সব পোশাকে দেখাবে। ফাঁকা রাখলে কিছু দেখাবে না।</p>
-  ${s.has_size_guide?'':'<p style="color:#b45309"><b>One-time setup needed:</b> run <code>15_clothing_extras.sql</code> in Supabase &gt; SQL Editor, then press Refresh.</p>'}
-  <label>লেখা<textarea id="sgText" rows="4" placeholder="যেমন: বুক মাপতে বগলের নিচ দিয়ে ফিতা ঘুরিয়ে নিন..." ${dis}>${esc(g.text||'')}</textarea></label>
-  <label>ছবি (ঐচ্ছিক)<input type="file" id="sgFile" accept="image/*" ${dis}></label>
-  ${g.image?`<div style="margin:8px 0"><img src="${esc(g.image)}" alt="" style="max-width:220px;border-radius:10px"><br><label><input type="checkbox" id="sgRemove"> ছবিটি সরিয়ে ফেলুন</label></div>`:''}
-  <button class="btn primary" id="saveSgBtn" onclick="saveSizeGuide()" ${dis}>Save</button></div>`;
-}
-async function saveSizeGuide(){
-  const s=storeSettingsCache||{},btn=$('saveSgBtn');
-  try{
-    if(btn){btn.disabled=true;btn.textContent='Saving...'}
-    let image=(s.size_guide&&s.size_guide.image)||'';
-    if($('sgRemove')?.checked)image='';
-    const f=$('sgFile')?.files?.[0];if(f)image=await uploadImage(f,'size-guide');
-    const size_guide={text:($('sgText')?.value||'').trim(),image};
-    const {error}=await sb.from('store_settings').upsert({id:1,store_name:s.store_name||'Paboo',size_guide,updated_at:new Date().toISOString()},{onConflict:'id'});
-    if(error)throw error;
-    storeSettingsCache={...s,size_guide};
-    alert('Saved. Refresh your website to see the change.');render();
-  }catch(e){showError(e);if(btn){btn.disabled=false;btn.textContent='Save'}}
-}
-/* ----- Cart & checkout colours (Settings) ----- */
-const CART_PRESETS=[['Ocean Blue','#27c4ff','#1676e8'],['Gold','#f3d77a','#c79a2c'],['Neon Glass','#4df3ff','#a24dff'],['Orange','#ff9a4d','#e0702b'],['Pink Pro','#ff5fa2','#7a5cff'],['Emerald','#34e0a1','#0f9d6e']];
-function cartThemeCard(s){
-  const t=s.cart_theme||{},a=/^#[0-9a-f]{6}$/i.test(t.a||'')?t.a:'#27c4ff',b=/^#[0-9a-f]{6}$/i.test(t.b||'')?t.b:'#1676e8',dis=s.has_cart_theme?'':'disabled';
-  return `<div class="card" style="margin-top:16px"><h3>🛒 কার্ট ও চেকআউটের রং</h3>
+  ${e.has_size_guide?"":'<p style="color:#b45309"><b>One-time setup needed:</b> run <code>15_clothing_extras.sql</code> in Supabase &gt; SQL Editor, then press Refresh.</p>'}
+  <label>লেখা<textarea id="sgText" rows="4" placeholder="যেমন: বুক মাপতে বগলের নিচ দিয়ে ফিতা ঘুরিয়ে নিন..." ${o}>${esc(t.text||"")}</textarea></label>
+  <label>ছবি (ঐচ্ছিক)<input type="file" id="sgFile" accept="image/*" ${o}></label>
+  ${t.image?`<div style="margin:8px 0"><img src="${esc(t.image)}" alt="" style="max-width:220px;border-radius:10px"><br><label><input type="checkbox" id="sgRemove"> ছবিটি সরিয়ে ফেলুন</label></div>`:""}
+  <button class="btn primary" id="saveSgBtn" onclick="saveSizeGuide()" ${o}>Save</button></div>`}async function saveSizeGuide(){const e=storeSettingsCache||{},t=$("saveSgBtn");try{t&&(t.disabled=!0,t.textContent="Saving...");let o=e.size_guide&&e.size_guide.image||"";$("sgRemove")?.checked&&(o="");const n=$("sgFile")?.files?.[0];n&&(o=await uploadImage(n,"size-guide"));const a={text:($("sgText")?.value||"").trim(),image:o},{error:r}=await sb.from("store_settings").upsert({id:1,store_name:e.store_name||"Paboo",size_guide:a,updated_at:new Date().toISOString()},{onConflict:"id"});if(r)throw r;storeSettingsCache={...e,size_guide:a},alert("Saved. Refresh your website to see the change."),render()}catch(o){showError(o),t&&(t.disabled=!1,t.textContent="Save")}}const CART_PRESETS=[["Ocean Blue","#27c4ff","#1676e8"],["Gold","#f3d77a","#c79a2c"],["Neon Glass","#4df3ff","#a24dff"],["Orange","#ff9a4d","#e0702b"],["Pink Pro","#ff5fa2","#7a5cff"],["Emerald","#34e0a1","#0f9d6e"]];function cartThemeCard(e){const t=e.cart_theme||{},o=/^#[0-9a-f]{6}$/i.test(t.a||"")?t.a:"#27c4ff",n=/^#[0-9a-f]{6}$/i.test(t.b||"")?t.b:"#1676e8",a=e.has_cart_theme?"":"disabled";return`<div class="card" style="margin-top:16px"><h3>🛒 কার্ট ও চেকআউটের রং</h3>
   <p>কার্ট, চেকআউট ও Place Order বাটনের রং এখান থেকে বদলান। বেছে নিন বা নিজের রং দিন, তারপর Save।</p>
-  ${s.has_cart_theme?'':'<p style="color:#b45309"><b>One-time setup needed:</b> run <code>16_cart_theme.sql</code> in Supabase &gt; SQL Editor, then press Refresh.</p>'}
-  <div style="display:flex;flex-wrap:wrap;gap:8px;margin:10px 0">${CART_PRESETS.map(p=>`<button type="button" class="btn" ${dis} onclick="ctPick('${p[1]}','${p[2]}')" style="background:linear-gradient(135deg,${p[1]},${p[2]});color:#fff;border:0">${p[0]}</button>`).join('')}</div>
-  <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap"><label>রং ১<input type="color" id="ctA" value="${a}" ${dis} oninput="ctPrev()"></label><label>রং ২<input type="color" id="ctB" value="${b}" ${dis} oninput="ctPrev()"></label>
-  <div id="ctPrev" style="flex:1;min-width:140px;height:42px;border-radius:12px;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;background:linear-gradient(135deg,${a},${b})">Place Order</div></div>
-  <div style="margin-top:12px;display:flex;gap:8px"><button class="btn primary" id="saveCtBtn" onclick="saveCartTheme()" ${dis}>Save</button><button class="btn" onclick="saveCartTheme(true)" ${dis}>ডিফল্টে ফিরুন</button></div></div>`;
-}
-function ctPick(a,b){$('ctA').value=a;$('ctB').value=b;ctPrev()}
-function ctPrev(){const p=$('ctPrev');if(p)p.style.background=`linear-gradient(135deg,${$('ctA').value},${$('ctB').value})`}
-async function saveCartTheme(reset){
-  const s=storeSettingsCache||{},btn=$('saveCtBtn');
-  try{
-    if(btn){btn.disabled=true;btn.textContent='Saving...'}
-    const cart_theme=reset?null:{a:$('ctA').value,b:$('ctB').value};
-    const {error}=await sb.from('store_settings').upsert({id:1,store_name:s.store_name||'Paboo',cart_theme,updated_at:new Date().toISOString()},{onConflict:'id'});
-    if(error)throw error;
-    if(!reset){
-      const c=await sb.from('store_settings').select('cart_theme').eq('id',1).maybeSingle();
-      const got=c&&c.data&&c.data.cart_theme;
-      if(!c.error&&(!got||String(got.a).toLowerCase()!==cart_theme.a.toLowerCase()))throw new Error('রং ডাটাবেসে সেভ হয়নি। Supabase > SQL Editor এ 16_cart_theme.sql চালিয়ে আবার চেষ্টা করুন।');
-    }
-    storeSettingsCache={...s,cart_theme:cart_theme||{}};
-    alert('✅ সেভ হয়েছে। সাইট রিফ্রেশ করলে নতুন রং দেখা যাবে।');render();
-  }catch(e){
-    const m=String((e&&e.message)||e||'');
-    showError(/cart_theme|schema cache|column/i.test(m)&&!/সেভ হয়নি/.test(m)?new Error('কার্ট রং সেভ করা যায়নি।\n\nকারণ: '+m+'\n\nসমাধান: Supabase > SQL Editor এ 16_cart_theme.sql চালান, তারপর অ্যাডমিন রিফ্রেশ করুন।'):e);
-    const b2=$('saveCtBtn');if(b2){b2.disabled=false;b2.textContent='Save'}
-  }
-}
-Object.assign(window,{ceAddPreset,ceColorImg,ceApplyTpl,ceFillStock,copyProduct,saveSizeGuide,ctPick,ctPrev,saveCartTheme});
-Object.assign(window,{deptPage,deptChange,ceAddColor,ceDelColor,ceToggleSize,ceAddSize,ceDelSize,ceAddCol,ceDelCol,ceStk,ceRefreshStock});
-/* ---- CSV import / export ---- */
-const CSV_COLS=['name','category','price','discount','stock','buying_price','brand','description'];
-function csvParse(text){
-  text=String(text||'').replace(/^﻿/,'');const rows=[];let row=[],cur='',q=false;
-  const first=text.split(/\r?\n/,1)[0]||'';const sep=(first.split(';').length>first.split(',').length)?';':',';
-  for(let i=0;i<text.length;i++){const c=text[i];
-    if(q){if(c==='"'){if(text[i+1]==='"'){cur+='"';i++}else q=false}else cur+=c}
-    else if(c==='"')q=true;else if(c===sep){row.push(cur);cur=''}
-    else if(c==='\n'||c==='\r'){if(c==='\r'&&text[i+1]==='\n')i++;row.push(cur);cur='';if(row.some(x=>x.trim()!==''))rows.push(row);row=[]}
-    else cur+=c}
-  row.push(cur);if(row.some(x=>x.trim()!==''))rows.push(row);return rows;
-}
-function csvCell(v){v=String(v??'');return /[",\n\r]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v}
-function csvExport(){
-  const lines=[CSV_COLS.join(',')];
-  productsCache.forEach(p=>lines.push([p.name,p.category,p.price,p.discount||0,p.stock,costOf(p.id),p.brand||'',p.description||''].map(csvCell).join(',')));
-  const blob=new Blob(['﻿'+lines.join('\r\n')],{type:'text/csv;charset=utf-8'});
-  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='products-'+new Date().toISOString().slice(0,10)+'.csv';document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},500);
-}
-function csvTemplate(){
-  const t='name,category,price,discount,stock,buying_price,brand,description\r\nTWS Earbuds,Audio,1200,10,10,800,Xiaomi,Good sound\r\nSmart Watch,Watch,2500,0,5,1900,,\r\n';
-  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['﻿'+t],{type:'text/csv;charset=utf-8'}));a.download='products-template.csv';document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},500);
-}
-let csvPlan=[];
-function csvImportOpen(){
-  csvPlan=[];
-  openModal('CSV Import',`<div style="display:grid;gap:12px">
-  <p>Excel / Google Sheets-এ এই কলামগুলো রাখুন: <code>${CSV_COLS.join(', ')}</code>। শুধু <b>name</b> বাধ্যতামূলক।</p>
+  ${e.has_cart_theme?"":'<p style="color:#b45309"><b>One-time setup needed:</b> run <code>16_cart_theme.sql</code> in Supabase &gt; SQL Editor, then press Refresh.</p>'}
+  <div style="display:flex;flex-wrap:wrap;gap:8px;margin:10px 0">${CART_PRESETS.map(r=>`<button type="button" class="btn" ${a} onclick="ctPick('${r[1]}','${r[2]}')" style="background:linear-gradient(135deg,${r[1]},${r[2]});color:#fff;border:0">${r[0]}</button>`).join("")}</div>
+  <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap"><label>রং ১<input type="color" id="ctA" value="${o}" ${a} oninput="ctPrev()"></label><label>রং ২<input type="color" id="ctB" value="${n}" ${a} oninput="ctPrev()"></label>
+  <div id="ctPrev" style="flex:1;min-width:140px;height:42px;border-radius:12px;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;background:linear-gradient(135deg,${o},${n})">Place Order</div></div>
+  <div style="margin-top:12px;display:flex;gap:8px"><button class="btn primary" id="saveCtBtn" onclick="saveCartTheme()" ${a}>Save</button><button class="btn" onclick="saveCartTheme(true)" ${a}>ডিফল্টে ফিরুন</button></div></div>`}function ctPick(e,t){$("ctA").value=e,$("ctB").value=t,ctPrev()}function ctPrev(){const e=$("ctPrev");e&&(e.style.background=`linear-gradient(135deg,${$("ctA").value},${$("ctB").value})`)}async function saveCartTheme(e){const t=storeSettingsCache||{},o=$("saveCtBtn");try{o&&(o.disabled=!0,o.textContent="Saving...");const n=e?null:{a:$("ctA").value,b:$("ctB").value},{error:a}=await sb.from("store_settings").upsert({id:1,store_name:t.store_name||"Paboo",cart_theme:n,updated_at:new Date().toISOString()},{onConflict:"id"});if(a)throw a;if(!e){const r=await sb.from("store_settings").select("cart_theme").eq("id",1).maybeSingle(),s=r&&r.data&&r.data.cart_theme;if(!r.error&&(!s||String(s.a).toLowerCase()!==n.a.toLowerCase()))throw new Error("রং ডাটাবেসে সেভ হয়নি। Supabase > SQL Editor এ 16_cart_theme.sql চালিয়ে আবার চেষ্টা করুন।")}storeSettingsCache={...t,cart_theme:n||{}},alert("✅ সেভ হয়েছে। সাইট রিফ্রেশ করলে নতুন রং দেখা যাবে।"),render()}catch(n){const a=String(n&&n.message||n||"");showError(/cart_theme|schema cache|column/i.test(a)&&!/সেভ হয়নি/.test(a)?new Error(`কার্ট রং সেভ করা যায়নি।
+
+কারণ: `+a+`
+
+সমাধান: Supabase > SQL Editor এ 16_cart_theme.sql চালান, তারপর অ্যাডমিন রিফ্রেশ করুন।`):n);const r=$("saveCtBtn");r&&(r.disabled=!1,r.textContent="Save")}}Object.assign(window,{ceAddPreset,ceColorImg,ceApplyTpl,ceFillStock,copyProduct,saveSizeGuide,ctPick,ctPrev,saveCartTheme}),Object.assign(window,{deptPage,deptChange,ceAddColor,ceDelColor,ceToggleSize,ceAddSize,ceDelSize,ceAddCol,ceDelCol,ceStk,ceRefreshStock});const CSV_COLS=["name","category","price","discount","stock","buying_price","brand","description"];function csvParse(e){e=String(e||"").replace(/^﻿/,"");const t=[];let o=[],n="",a=!1;const r=e.split(/\r?\n/,1)[0]||"",s=r.split(";").length>r.split(",").length?";":",";for(let i=0;i<e.length;i++){const c=e[i];a?c==='"'?e[i+1]==='"'?(n+='"',i++):a=!1:n+=c:c==='"'?a=!0:c===s?(o.push(n),n=""):c===`
+`||c==="\r"?(c==="\r"&&e[i+1]===`
+`&&i++,o.push(n),n="",o.some(l=>l.trim()!=="")&&t.push(o),o=[]):n+=c}return o.push(n),o.some(i=>i.trim()!=="")&&t.push(o),t}function csvCell(e){return e=String(e??""),/[",\n\r]/.test(e)?'"'+e.replace(/"/g,'""')+'"':e}function csvExport(){const e=[CSV_COLS.join(",")];productsCache.forEach(n=>e.push([n.name,n.category,n.price,n.discount||0,n.stock,costOf(n.id),n.brand||"",n.description||""].map(csvCell).join(",")));const t=new Blob(["\uFEFF"+e.join(`\r
+`)],{type:"text/csv;charset=utf-8"}),o=document.createElement("a");o.href=URL.createObjectURL(t),o.download="products-"+new Date().toISOString().slice(0,10)+".csv",document.body.appendChild(o),o.click(),setTimeout(()=>{URL.revokeObjectURL(o.href),o.remove()},500)}function csvTemplate(){const e=`name,category,price,discount,stock,buying_price,brand,description\r
+TWS Earbuds,Audio,1200,10,10,800,Xiaomi,Good sound\r
+Smart Watch,Watch,2500,0,5,1900,,\r
+`,t=document.createElement("a");t.href=URL.createObjectURL(new Blob(["\uFEFF"+e],{type:"text/csv;charset=utf-8"})),t.download="products-template.csv",document.body.appendChild(t),t.click(),setTimeout(()=>{URL.revokeObjectURL(t.href),t.remove()},500)}let csvPlan=[];function csvImportOpen(){csvPlan=[],openModal("CSV Import",`<div style="display:grid;gap:12px">
+  <p>Excel / Google Sheets-এ এই কলামগুলো রাখুন: <code>${CSV_COLS.join(", ")}</code>। শুধু <b>name</b> বাধ্যতামূলক।</p>
   <ul style="margin:0 0 0 18px;font-size:13px;color:#475569"><li>একই নামের পণ্য আগে থেকে থাকলে শুধু যে ঘরগুলো ভরা আছে সেগুলো আপডেট হবে (ছবি, ভ্যারিয়েন্ট অক্ষত থাকবে)।</li><li>নতুন নামের পণ্য নতুন করে যোগ হবে, ছবি পরে Edit-এ দিন।</li><li>ক্যাটাগরি না থাকলে নিজে তৈরি হবে।</li></ul>
   <div class="btn-row"><button class="btn muted" onclick="csvTemplate()">⬇ Sample file</button></div>
   <input type="file" id="csvFile" accept=".csv,text/csv" onchange="csvPreview(this.files[0])">
-  <div id="csvPreview"></div></div>`);
-}
-async function csvPreview(file){
-  const box=$('csvPreview');if(!file||!box)return;
-  const rows=csvParse(await file.text());
-  if(rows.length<2){box.innerHTML='<p style="color:#b91c1c">ফাইলে কোনো সারি পাওয়া যায়নি।</p>';return}
-  const head=rows[0].map(h=>h.trim().toLowerCase().replace(/[\s-]+/g,'_'));
-  const alias={product:'name',product_name:'name',title:'name',cat:'category',buy_price:'buying_price',cost:'buying_price',buying:'buying_price',quantity:'stock',qty:'stock',discount_percent:'discount',desc:'description'};
-  const idx={};head.forEach((h,i)=>{const k=alias[h]||h;if(CSV_COLS.includes(k)&&!(k in idx))idx[k]=i});
-  if(!('name' in idx)){box.innerHTML='<p style="color:#b91c1c">"name" কলাম পাওয়া যায়নি।</p>';return}
-  const byName=new Map(productsCache.map(p=>[String(p.name).trim().toLowerCase(),p]));
-  csvPlan=[];const bad=[];
-  rows.slice(1).forEach((r,n)=>{
-    const g=k=>k in idx?String(r[idx[k]]??'').trim():'';
-    const name=g('name');if(!name)return;
-    const rec={name};let err='';
-    ['price','discount','stock','buying_price'].forEach(k=>{const v=g(k);if(v==='')return;const x=Number(v.replace(/,/g,''));if(!Number.isFinite(x)||x<0||(k==='discount'&&x>100))err=k+' ঠিক নয় ("'+v+'")';else rec[k]=x});
-    ['category','brand','description'].forEach(k=>{const v=g(k);if(v!=='')rec[k]=v});
-    if(err){bad.push(`লাইন ${n+2} (${name}): ${err}`);return}
-    const old=byName.get(name.toLowerCase());rec.old=old||null;
-    if(!old&&rec.price==null){bad.push(`লাইন ${n+2} (${name}): নতুন পণ্যে price দিতে হবে`);return}
-    csvPlan.push(rec)});
-  const nu=csvPlan.filter(x=>!x.old).length,up=csvPlan.length-nu;
-  box.innerHTML=`<p><b>${nu}</b>টি নতুন, <b>${up}</b>টি আপডেট${bad.length?`, <span style="color:#b91c1c">${bad.length}টি ভুল (বাদ যাবে)</span>`:''}</p>
-  ${bad.length?`<div style="font-size:12px;color:#b91c1c;max-height:90px;overflow:auto">${bad.map(esc).join('<br>')}</div>`:''}
-  <div style="max-height:180px;overflow:auto;font-size:12px;border:1px solid #e2e8f0;border-radius:8px;padding:6px">${csvPlan.slice(0,60).map(x=>`${x.old?'✏️':'🆕'} ${esc(x.name)}${x.price!=null?' · ৳'+x.price:''}${x.stock!=null?' · স্টক '+x.stock:''}`).join('<br>')}${csvPlan.length>60?'<br>...':''}</div>
-  <div class="btn-row"><button class="btn primary" id="csvGoBtn" onclick="csvImportRun()" ${csvPlan.length?'':'disabled'}>Import ${csvPlan.length}টি পণ্য</button></div>`;
-}
-async function csvImportRun(){
-  const btn=$('csvGoBtn');if(btn){btn.disabled=true;btn.textContent='Importing...'}
-  let done=0;const fails=[];
-  try{
-    const have=new Set(categoriesCache.map(c=>String(c.name).trim().toLowerCase()));
-    for(const c of [...new Set(csvPlan.map(x=>x.category).filter(Boolean))]){
-      const hit=categoriesCache.find(k=>String(k.name).trim().toLowerCase()===c.toLowerCase());
-      if(hit){csvPlan.forEach(x=>{if(x.category&&x.category.toLowerCase()===c.toLowerCase())x.category=hit.name});continue}
-      const slug=c.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')||('cat-'+Date.now());
-      const {error}=await sb.from('categories').insert({name:c,slug});
-      if(error&&!/duplicate|23505/i.test((error.code||'')+(error.message||'')))throw error;
-    }
-    for(const x of csvPlan){
-      try{
-        const id=x.old?x.old.id:crypto.randomUUID();
-        const row={id,name:x.old?x.old.name:x.name};
-        ['category','price','discount','stock','brand','description'].forEach(k=>{if(x[k]!=null)row[k]=x[k]});
-        if(!x.old){row.active=true;row.image='';row.images=[];row.stock=row.stock??0;row.discount=row.discount??0;row.category=row.category||'Other'}
-        const {error}=await sb.from('products').upsert(row,{onConflict:'id'});
-        if(error)throw error;
-        if(x.buying_price!=null)await saveCost(id,String(x.buying_price));
-        done++;
-      }catch(e){fails.push(x.name+': '+(e.message||e))}
-    }
-    await refreshProducts();closeModal();render();
-    alert(done+'টি পণ্য import হয়েছে.'+(fails.length?'\nব্যর্থ ('+fails.length+'):\n'+fails.slice(0,8).join('\n'):''));
-  }catch(e){showError(e);if(btn){btn.disabled=false;btn.textContent='Import'}}
-}
-window.csvImportOpen=csvImportOpen;window.csvExport=csvExport;window.csvTemplate=csvTemplate;window.csvPreview=csvPreview;window.csvImportRun=csvImportRun;
-async function deleteProduct(i){
-  const p=productsCache[i];if(!p)return;
-  if(!confirm(`Delete "${p.name}"?`))return;
-  try{
-    const {error}=await sb.from('products').delete().eq('id',p.id);
-    if(error)throw error;
-    await refreshProducts();
-    render()
-  }catch(e){showError(e)}
-}
-
-/* =========================================================
-   ORDERS
-========================================================= */
-
-function orderMatches(o,q,status,payment){
-  const id=String(o.order_number||o.order_id||o.id||'');
-  const name=String(o.customer_name||o.customer?.name||o.name||'');
-  const phone=String(o.phone||o.customer_phone||o.customer?.phone||'');
-  const address=[o.district,o.upazila,o.address].filter(Boolean).join(' ');
-  const haystack=`${id} ${name} ${phone} ${address}`.toLowerCase();
-  const s=o.status||'Pending';
-  const pm=o.payment_method||o.paymentMethod||'COD';
-  return haystack.includes(q)&&(!status||s===status)&&(!payment||pm.toLowerCase()===payment.toLowerCase());
-}
-function getFilteredOrders(){
-  const q=String($('orderSearch')?.value||'').trim().toLowerCase();
-  const status=$('orderStatusFilter')?.value||'';
-  const payment=$('orderPaymentFilter')?.value||'';
-  const pm=orderDept?deptMap():null;
-  return ordersCache.map((o,i)=>({o,i})).filter(x=>orderMatches(x.o,q,status,payment)&&(!orderDept||orderDepts(x.o,pm).has(orderDept)));
-}
-function orderRows(list){
-  if(!list.length)return `<tr><td colspan="8" class="empty">No matching orders found</td></tr>`;
-  return list.map(({o,i})=>{
-    const s=o.status||'Pending';
-    const id=o.order_number||o.order_id||o.id||'#'+(i+1);
-    const total=o.total??(Number(o.subtotal||0)+Number(o.delivery_charge??o.delivery_fee??0));
-    const name=o.customer_name||o.customer?.name||o.name||'—';
-    const phone=o.phone||o.customer_phone||o.customer?.phone||'—';
-    const created=o.created_at?new Date(o.created_at).toLocaleString('en-BD'):'—';
-    let next='';
-    if(s==='Pending')next=actionBtn(i,'Confirmed','Confirm','primary');
-    else if(s==='Confirmed')next=actionBtn(i,'Processing','Processing','primary');
-    else if(s==='Processing')next=actionBtn(i,'Shipped','Shipped','primary');
-    else if(s==='Shipped')next=actionBtn(i,'Delivered','Delivered','primary');
-    const cancel=(s!=='Delivered'&&s!=='Cancelled')?actionBtn(i,'Cancelled','Cancel','danger'):'';
-    const sel=selOrders.has(String(o.id))?'checked':'';
-    return `<tr><td class="sel-cell"><input type="checkbox" class="order-sel" ${sel} onchange="toggleOrderSel(${i},this.checked)" aria-label="Select order"></td><td><b>${esc(id)}</b><br><small>${esc(created)}</small>${o.source?`<br><small class="src-tag">📣 ${esc(o.source)}</small>`:''}</td><td>${esc(name)}${riskBadge(o)}</td><td>${esc(phone)}</td><td>${money(total)}</td><td>${esc(o.payment_method||o.paymentMethod||'COD')}${o.transaction_id?`<br><small>TXN: ${esc(o.transaction_id)}</small>`:''}</td><td><span class="pill ${statusClass(s)}">${esc(s)}</span></td><td class="actions"><button class="btn muted" onclick="viewOrder(${i})">View</button><button class="btn" style="background:#1fa855;color:#fff" onclick="whatsappOrder(${i})" title="Message customer on WhatsApp">WhatsApp</button>${next}${cancel}<button class="btn danger" style="opacity:.8" onclick="deleteOrder(${i})" title="Delete this order permanently">🗑</button></td></tr>`
-  }).join('');
-}
-function orders(){
-  const filtered=getFilteredOrders();
-  return `${ordKpi()}<div class="section-head"><div><h3>${orderDept==='clothing'?'👕 পোশাকের অর্ডার':orderDept==='gadget'?'🎧 গ্যাজেটের অর্ডার':'Orders'}</h3><p>Manage, search and update customer orders</p></div><div class="toolbar"><button class="btn muted" onclick="refreshOrders().then(()=>render()).catch(showError)">↻ Refresh</button><button class="btn primary" onclick="exportOrdersCSV()">Export CSV</button></div></div>
-  <div class="filters"><div class="search-wrap"><input class="input" id="orderSearch" value="${esc($('orderSearch')?.value||'')}" placeholder="Search order ID, customer, phone, address..." oninput="filterOrders()"></div><select class="select" id="orderStatusFilter" onchange="filterOrders()"><option value="">All Statuses</option>${['Pending','Confirmed','Processing','Shipped','Delivered','Cancelled'].map(s=>`<option value="${s}" ${$('orderStatusFilter')?.value===s?'selected':''}>${s}</option>`).join('')}</select><select class="select" id="orderPaymentFilter" onchange="filterOrders()"><option value="">All Payments</option>${['COD','bKash','Nagad'].map(s=>`<option value="${s}" ${$('orderPaymentFilter')?.value===s?'selected':''}>${s}</option>`).join('')}</select></div>
-  <p class="orders-count"><small>Showing ${filtered.length} of ${ordersCache.length} orders.</small></p>
+  <div id="csvPreview"></div></div>`)}async function csvPreview(e){const t=$("csvPreview");if(!e||!t)return;const o=csvParse(await e.text());if(o.length<2){t.innerHTML='<p style="color:#b91c1c">ফাইলে কোনো সারি পাওয়া যায়নি।</p>';return}const n=o[0].map(d=>d.trim().toLowerCase().replace(/[\s-]+/g,"_")),a={product:"name",product_name:"name",title:"name",cat:"category",buy_price:"buying_price",cost:"buying_price",buying:"buying_price",quantity:"stock",qty:"stock",discount_percent:"discount",desc:"description"},r={};if(n.forEach((d,u)=>{const m=a[d]||d;CSV_COLS.includes(m)&&!(m in r)&&(r[m]=u)}),!("name"in r)){t.innerHTML='<p style="color:#b91c1c">"name" কলাম পাওয়া যায়নি।</p>';return}const s=new Map(productsCache.map(d=>[String(d.name).trim().toLowerCase(),d]));csvPlan=[];const i=[];o.slice(1).forEach((d,u)=>{const m=w=>w in r?String(d[r[w]]??"").trim():"",g=m("name");if(!g)return;const v={name:g};let f="";if(["price","discount","stock","buying_price"].forEach(w=>{const k=m(w);if(k==="")return;const C=Number(k.replace(/,/g,""));!Number.isFinite(C)||C<0||w==="discount"&&C>100?f=w+' ঠিক নয় ("'+k+'")':v[w]=C}),["category","brand","description"].forEach(w=>{const k=m(w);k!==""&&(v[w]=k)}),f){i.push(`লাইন ${u+2} (${g}): ${f}`);return}const y=s.get(g.toLowerCase());if(v.old=y||null,!y&&v.price==null){i.push(`লাইন ${u+2} (${g}): নতুন পণ্যে price দিতে হবে`);return}csvPlan.push(v)});const c=csvPlan.filter(d=>!d.old).length,l=csvPlan.length-c;t.innerHTML=`<p><b>${c}</b>টি নতুন, <b>${l}</b>টি আপডেট${i.length?`, <span style="color:#b91c1c">${i.length}টি ভুল (বাদ যাবে)</span>`:""}</p>
+  ${i.length?`<div style="font-size:12px;color:#b91c1c;max-height:90px;overflow:auto">${i.map(esc).join("<br>")}</div>`:""}
+  <div style="max-height:180px;overflow:auto;font-size:12px;border:1px solid #e2e8f0;border-radius:8px;padding:6px">${csvPlan.slice(0,60).map(d=>`${d.old?"✏️":"🆕"} ${esc(d.name)}${d.price!=null?" · ৳"+d.price:""}${d.stock!=null?" · স্টক "+d.stock:""}`).join("<br>")}${csvPlan.length>60?"<br>...":""}</div>
+  <div class="btn-row"><button class="btn primary" id="csvGoBtn" onclick="csvImportRun()" ${csvPlan.length?"":"disabled"}>Import ${csvPlan.length}টি পণ্য</button></div>`}async function csvImportRun(){const e=$("csvGoBtn");e&&(e.disabled=!0,e.textContent="Importing...");let t=0;const o=[];try{const n=new Set(categoriesCache.map(a=>String(a.name).trim().toLowerCase()));for(const a of[...new Set(csvPlan.map(r=>r.category).filter(Boolean))]){const r=categoriesCache.find(c=>String(c.name).trim().toLowerCase()===a.toLowerCase());if(r){csvPlan.forEach(c=>{c.category&&c.category.toLowerCase()===a.toLowerCase()&&(c.category=r.name)});continue}const s=a.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"")||"cat-"+Date.now(),{error:i}=await sb.from("categories").insert({name:a,slug:s});if(i&&!/duplicate|23505/i.test((i.code||"")+(i.message||"")))throw i}for(const a of csvPlan)try{const r=a.old?a.old.id:crypto.randomUUID(),s={id:r,name:a.old?a.old.name:a.name};["category","price","discount","stock","brand","description"].forEach(c=>{a[c]!=null&&(s[c]=a[c])}),a.old||(s.active=!0,s.image="",s.images=[],s.stock=s.stock??0,s.discount=s.discount??0,s.category=s.category||"Other");const{error:i}=await sb.from("products").upsert(s,{onConflict:"id"});if(i)throw i;a.buying_price!=null&&await saveCost(r,String(a.buying_price)),t++}catch(r){o.push(a.name+": "+(r.message||r))}await refreshProducts(),closeModal(),render(),alert(t+"টি পণ্য import হয়েছে."+(o.length?`
+ব্যর্থ (`+o.length+`):
+`+o.slice(0,8).join(`
+`):""))}catch(n){showError(n),e&&(e.disabled=!1,e.textContent="Import")}}window.csvImportOpen=csvImportOpen,window.csvExport=csvExport,window.csvTemplate=csvTemplate,window.csvPreview=csvPreview,window.csvImportRun=csvImportRun;async function deleteProduct(e){const t=productsCache[e];if(t&&confirm(`Delete "${t.name}"?`))try{const{error:o}=await sb.from("products").delete().eq("id",t.id);if(o)throw o;await refreshProducts(),render()}catch(o){showError(o)}}function orderMatches(e,t,o,n){const a=String(e.order_number||e.order_id||e.id||""),r=String(e.customer_name||e.customer?.name||e.name||""),s=String(e.phone||e.customer_phone||e.customer?.phone||""),i=[e.district,e.upazila,e.address].filter(Boolean).join(" "),c=`${a} ${r} ${s} ${i}`.toLowerCase(),l=e.status||"Pending",d=e.payment_method||e.paymentMethod||"COD";return c.includes(t)&&(!o||l===o)&&(!n||d.toLowerCase()===n.toLowerCase())}function getFilteredOrders(){const e=String($("orderSearch")?.value||"").trim().toLowerCase(),t=$("orderStatusFilter")?.value||"",o=$("orderPaymentFilter")?.value||"",n=orderDept?deptMap():null;return ordersCache.map((a,r)=>({o:a,i:r})).filter(a=>orderMatches(a.o,e,t,o)&&(!orderDept||orderDepts(a.o,n).has(orderDept)))}function orderRows(e){return e.length?e.map(({o:t,i:o})=>{const n=t.status||"Pending",a=t.order_number||t.order_id||t.id||"#"+(o+1),r=t.total??Number(t.subtotal||0)+Number(t.delivery_charge??t.delivery_fee??0),s=t.customer_name||t.customer?.name||t.name||"—",i=t.phone||t.customer_phone||t.customer?.phone||"—",c=t.created_at?new Date(t.created_at).toLocaleString("en-BD"):"—";let l="";n==="Pending"?l=actionBtn(o,"Confirmed","Confirm","primary"):n==="Confirmed"?l=actionBtn(o,"Processing","Processing","primary"):n==="Processing"?l=actionBtn(o,"Shipped","Shipped","primary"):n==="Shipped"&&(l=actionBtn(o,"Delivered","Delivered","primary"));const d=n!=="Delivered"&&n!=="Cancelled"?actionBtn(o,"Cancelled","Cancel","danger"):"";return`<tr><td class="sel-cell"><input type="checkbox" class="order-sel" ${selOrders.has(String(t.id))?"checked":""} onchange="toggleOrderSel(${o},this.checked)" aria-label="Select order"></td><td><b>${esc(a)}</b><br><small>${esc(c)}</small>${t.source?`<br><small class="src-tag">📣 ${esc(t.source)}</small>`:""}</td><td>${esc(s)}${riskBadge(t)}</td><td>${esc(i)}</td><td>${money(r)}</td><td>${esc(t.payment_method||t.paymentMethod||"COD")}${t.transaction_id?`<br><small>TXN: ${esc(t.transaction_id)}</small>`:""}</td><td><span class="pill ${statusClass(n)}">${esc(n)}</span></td><td class="actions"><button class="btn muted" onclick="viewOrder(${o})">View</button><button class="btn" style="background:#1fa855;color:#fff" onclick="whatsappOrder(${o})" title="Message customer on WhatsApp">WhatsApp</button>${l}${d}<button class="btn danger" style="opacity:.8" onclick="deleteOrder(${o})" title="Delete this order permanently">🗑</button></td></tr>`}).join(""):'<tr><td colspan="8" class="empty">No matching orders found</td></tr>'}function orders(){const e=getFilteredOrders();return`${ordKpi()}<div class="section-head"><div><h3>${orderDept==="clothing"?"👕 পোশাকের অর্ডার":orderDept==="gadget"?"🎧 গ্যাজেটের অর্ডার":"Orders"}</h3><p>Manage, search and update customer orders</p></div><div class="toolbar"><button class="btn muted" onclick="refreshOrders().then(()=>render()).catch(showError)">↻ Refresh</button><button class="btn primary" onclick="exportOrdersCSV()">Export CSV</button></div></div>
+  <div class="filters"><div class="search-wrap"><input class="input" id="orderSearch" value="${esc($("orderSearch")?.value||"")}" placeholder="Search order ID, customer, phone, address..." oninput="filterOrders()"></div><select class="select" id="orderStatusFilter" onchange="filterOrders()"><option value="">All Statuses</option>${["Pending","Confirmed","Processing","Shipped","Delivered","Cancelled"].map(t=>`<option value="${t}" ${$("orderStatusFilter")?.value===t?"selected":""}>${t}</option>`).join("")}</select><select class="select" id="orderPaymentFilter" onchange="filterOrders()"><option value="">All Payments</option>${["COD","bKash","Nagad"].map(t=>`<option value="${t}" ${$("orderPaymentFilter")?.value===t?"selected":""}>${t}</option>`).join("")}</select></div>
+  <p class="orders-count"><small>Showing ${e.length} of ${ordersCache.length} orders.</small></p>
   <div id="bulkBar" class="bulk-bar hidden"></div>
   <style>.sel-cell{width:34px;text-align:center}.bulk-bar{position:sticky;top:0;z-index:5;display:flex;gap:8px;flex-wrap:wrap;align-items:center;background:#0f172a;color:#fff;border-radius:12px;padding:10px 12px;margin:8px 0;box-shadow:0 4px 14px rgba(0,0,0,.25)}.bulk-bar.hidden{display:none}.bulk-bar b{margin-right:6px}.bulk-bar .btn{padding:6px 10px;font-size:12px}</style>
-  <div class="table-wrap"><table class="table"><thead><tr><th class="sel-cell"><input type="checkbox" id="orderSelAll" onchange="selectAllOrders(this.checked)" aria-label="Select all shown"></th><th>Order ID / Date</th><th>Customer</th><th>Phone</th><th>Total</th><th>Payment</th><th>Status</th><th>Actions</th></tr></thead><tbody id="orderRows">${orderRows(filtered)}</tbody></table></div>`
-}
-function filterOrders(){
-  const rows=$('orderRows');
-  if(rows)rows.innerHTML=orderRows(getFilteredOrders());
-  const count=document.querySelector('#content .orders-count');
-  if(count)count.textContent=`Showing ${getFilteredOrders().length} of ${ordersCache.length} orders.`;
-  bulkBarRender();
-}
-function actionBtn(i,status,label,cls){return `<button class="btn ${cls}" onclick="updateOrderStatus(${i},'${status}')">${label}</button>`}
-function exportOrdersCSV(){
-  const list=getFilteredOrders().map(({o})=>({
-    order_id:o.order_number||o.order_id||o.id||'',
-    date:o.created_at||'',customer:o.customer_name||o.customer?.name||o.name||'',
-    phone:o.phone||o.customer_phone||o.customer?.phone||'',district:o.district||'',upazila:o.upazila||'',address:o.address||'',
-    items:formatOrderItems(o.items),subtotal:Number(o.subtotal||0),delivery:Number(o.delivery_charge??o.delivery_fee??0),
-    total:Number(o.total??(Number(o.subtotal||0)+Number(o.delivery_charge??o.delivery_fee??0))),
-    payment:o.payment_method||o.paymentMethod||'COD',transaction_id:o.transaction_id||'',status:o.status||'Pending',note:o.note||''
-  }));
-  if(!list.length){alert('No orders to export.');return}
-  const keys=Object.keys(list[0]);
-  const csv=[keys.join(','),...list.map(row=>keys.map(k=>'"'+String(row[k]??'').replace(/"/g,'""')+'"').join(','))].join('\r\n');
-  const blob=new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8;'});
-  const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='gadget-bazar-orders.csv';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);
-}
-function formatOrderItems(items){
-  if(typeof items==='string'){try{items=JSON.parse(items)}catch{return items}}
-  if(!Array.isArray(items))return '';
-  return items.map(x=>`${x.name||x.title||'Product'}${x.variant?' ['+x.variant+']':''} x${x.qty||x.quantity||1}`).join('; ');
-}
-function viewOrder(i){
-  const o=ordersCache[i];if(!o)return;
-  const id=o.order_number||o.order_id||o.id||'',name=o.customer_name||o.customer?.name||o.name||'',phone=o.phone||o.customer_phone||o.customer?.phone||'';
-  const district=o.district||o.customer?.district||'',upazila=o.upazila||o.customer?.upazila||'',address=o.address||o.customer?.address||'';
-  const payment=o.payment_method||o.paymentMethod||'COD',s=o.status||'Pending',delivery=Number(o.delivery_charge??o.delivery_fee??0),total=o.total??(Number(o.subtotal||0)+delivery);
-  let items=o.items;let itemHtml='';
-  if(typeof items==='string'){try{items=JSON.parse(items)}catch{items=[]}}
-  if(Array.isArray(items))itemHtml=items.map(x=>{const qty=Number(x.qty||x.quantity||1);const price=Number(x.price||x.unit_price||0);return `<div class="order-item"><span>${esc(x.name||x.title||'Product')}${x.variant?` <b class="ord-var">${esc(x.variant)}</b>`:''} × ${qty}</span><b>${money(price*qty)}</b></div>`}).join('');
-  const created=o.created_at?new Date(o.created_at).toLocaleString('en-BD'):'—';
-  openModal('Order '+id,`<div class="card"><b>Order Information</b><p><b>Order ID:</b> ${esc(id)}</p><p><b>Placed:</b> ${esc(created)}</p><p><b>Status:</b> <span class="pill ${statusClass(s)}">${esc(s)}</span></p><hr><b>Customer</b><p>${esc(name)} · ${esc(phone)}</p><p>${esc([district,upazila].filter(Boolean).join(', '))}</p><p>${esc(address||'—')}</p><hr><p><b>Payment:</b> ${esc(payment)}</p><p><b>Transaction ID:</b> ${esc(o.transaction_id||'—')}</p><p><b>Source:</b> ${esc(o.source||'—')}</p><p><b>Subtotal:</b> ${money(o.subtotal)}</p><p><b>Delivery:</b> ${money(delivery)}</p><p><b>Total:</b> <b>${money(total)}</b></p><p><b>Customer note:</b> ${esc(o.note||'—')}</p>${itemHtml?`<hr><b>Items</b><div class="order-items">${itemHtml}</div>`:'<hr><p>No item details saved with this order.</p>'}${courierBox(i,o)}</div><div class="btn-row">${blockBtn(o)}<button class="btn" style="background:#1fa855;color:#fff" onclick="whatsappOrder(${i})">WhatsApp Customer</button>${s==='Pending'?actionBtn(i,'Confirmed','Confirm Order','primary'):''}${s==='Confirmed'?actionBtn(i,'Processing','Start Processing','primary'):''}${s==='Processing'?actionBtn(i,'Shipped','Mark Shipped','primary'):''}${s==='Shipped'?actionBtn(i,'Delivered','Mark Delivered','primary'):''}${s!=='Delivered'&&s!=='Cancelled'?actionBtn(i,'Cancelled','Cancel Order','danger'):''}</div>`);
-}
-/* WhatsApp helpers: the status is always changed in this panel (single source of truth);
-   WhatsApp is only used to message the customer. */
-function waPhone(v){
-  let d=String(v||'').replace(/\D/g,'');
-  if(!d)return '';
-  if(d.startsWith('00'))d=d.slice(2);
-  if(d.startsWith('880'))return d;
-  if(d.startsWith('0'))return '88'+d;
-  if(d.length===10&&d.startsWith('1'))return '880'+d;
-  return d;
-}
-function waMessage(o){
-  const s=o.status||'Pending';
-  const id=o.order_number||o.order_id||o.id||'';
-  const name=o.customer_name||o.name||'';
-  const total=o.total??(Number(o.subtotal||0)+Number(o.delivery_charge??o.delivery_fee??0));
-  const head=`আসসালামু আলাইকুম${name?' '+name:''}, Paboo থেকে বলছি।\nঅর্ডার নং: ${id}\nমোট: ${money(total)}\n`;
-  const tail={
-    Pending:'আপনার অর্ডারটি আমরা পেয়েছি। কনফার্ম করার জন্য যোগাযোগ করছি, দয়া করে ঠিকানা ও নম্বর ঠিক আছে কিনা জানাবেন।',
-    Confirmed:'আপনার অর্ডারটি কনফার্ম করা হয়েছে। শীঘ্রই প্রস্তুত করে পাঠানো হবে। ধন্যবাদ!',
-    Processing:'আপনার অর্ডারটি প্রস্তুত করা হচ্ছে।',
-    Shipped:'আপনার অর্ডারটি কুরিয়ারে পাঠানো হয়েছে। শীঘ্রই পৌঁছে যাবে।',
-    Delivered:'আপনার অর্ডারটি ডেলিভারি হয়েছে। আমাদের থেকে কেনার জন্য ধন্যবাদ!',
-    Cancelled:'দুঃখিত, আপনার অর্ডারটি বাতিল করা হয়েছে। কোনো প্রশ্ন থাকলে জানাবেন।'
-  }[s]||'';
-  const trk=(o.tracking_no&&(s==='Shipped'||s==='Processing'))?`\nকুরিয়ার: ${o.courier||'—'}\nট্র্যাকিং নম্বর: ${o.tracking_no}`:'';
-  return head+tail+trk;
-}
-function waLink(o){
-  const ph=waPhone(o.phone||o.customer_phone||o.customer?.phone);
-  return ph?`https://wa.me/${ph}?text=${encodeURIComponent(waMessage(o))}`:'';
-}
-function whatsappOrder(i){
-  const o=ordersCache[i];if(!o)return;
-  const url=waLink(o);
-  if(!url){alert('This order has no phone number.');return}
-  window.open(url,'_blank','noopener');
-}
-function updateOrderBadge(){
-  const n=ordersCache.filter(o=>(o.status||'Pending')==='Pending').length;
-  const btn=document.querySelector('.nav[data-section="orders"]');if(!btn)return;
-  let b=btn.querySelector('.nav-badge');
-  if(!b){b=document.createElement('em');b.className='nav-badge';b.style.cssText='margin-left:auto;background:#ef4444;color:#fff;border-radius:99px;font-style:normal;font-size:11px;font-weight:700;padding:1px 7px';btn.appendChild(b)}
-  b.textContent=n;b.style.display=n?'inline-block':'none';
-}
+  <div class="table-wrap"><table class="table"><thead><tr><th class="sel-cell"><input type="checkbox" id="orderSelAll" onchange="selectAllOrders(this.checked)" aria-label="Select all shown"></th><th>Order ID / Date</th><th>Customer</th><th>Phone</th><th>Total</th><th>Payment</th><th>Status</th><th>Actions</th></tr></thead><tbody id="orderRows">${orderRows(e)}</tbody></table></div>`}function filterOrders(){const e=$("orderRows");e&&(e.innerHTML=orderRows(getFilteredOrders()));const t=document.querySelector("#content .orders-count");t&&(t.textContent=`Showing ${getFilteredOrders().length} of ${ordersCache.length} orders.`),bulkBarRender()}function actionBtn(e,t,o,n){return`<button class="btn ${n}" onclick="updateOrderStatus(${e},'${t}')">${o}</button>`}function exportOrdersCSV(){const e=getFilteredOrders().map(({o:s})=>({order_id:s.order_number||s.order_id||s.id||"",date:s.created_at||"",customer:s.customer_name||s.customer?.name||s.name||"",phone:s.phone||s.customer_phone||s.customer?.phone||"",district:s.district||"",upazila:s.upazila||"",address:s.address||"",items:formatOrderItems(s.items),subtotal:Number(s.subtotal||0),delivery:Number(s.delivery_charge??s.delivery_fee??0),total:Number(s.total??Number(s.subtotal||0)+Number(s.delivery_charge??s.delivery_fee??0)),payment:s.payment_method||s.paymentMethod||"COD",transaction_id:s.transaction_id||"",status:s.status||"Pending",note:s.note||""}));if(!e.length){alert("No orders to export.");return}const t=Object.keys(e[0]),o=[t.join(","),...e.map(s=>t.map(i=>'"'+String(s[i]??"").replace(/"/g,'""')+'"').join(","))].join(`\r
+`),n=new Blob(["\uFEFF"+o],{type:"text/csv;charset=utf-8;"}),a=URL.createObjectURL(n),r=document.createElement("a");r.href=a,r.download="gadget-bazar-orders.csv",document.body.appendChild(r),r.click(),r.remove(),URL.revokeObjectURL(a)}function formatOrderItems(e){if(typeof e=="string")try{e=JSON.parse(e)}catch{return e}return Array.isArray(e)?e.map(t=>`${t.name||t.title||"Product"}${t.variant?" ["+t.variant+"]":""} x${t.qty||t.quantity||1}`).join("; "):""}function viewOrder(e){const t=ordersCache[e];if(!t)return;const o=t.order_number||t.order_id||t.id||"",n=t.customer_name||t.customer?.name||t.name||"",a=t.phone||t.customer_phone||t.customer?.phone||"",r=t.district||t.customer?.district||"",s=t.upazila||t.customer?.upazila||"",i=t.address||t.customer?.address||"",c=t.payment_method||t.paymentMethod||"COD",l=t.status||"Pending",d=Number(t.delivery_charge??t.delivery_fee??0),u=t.total??Number(t.subtotal||0)+d;let m=t.items,g="";if(typeof m=="string")try{m=JSON.parse(m)}catch{m=[]}Array.isArray(m)&&(g=m.map(f=>{const y=Number(f.qty||f.quantity||1),w=Number(f.price||f.unit_price||0);return`<div class="order-item"><span>${esc(f.name||f.title||"Product")}${f.variant?` <b class="ord-var">${esc(f.variant)}</b>`:""} × ${y}</span><b>${money(w*y)}</b></div>`}).join(""));const v=t.created_at?new Date(t.created_at).toLocaleString("en-BD"):"—";openModal("Order "+o,`<div class="card"><b>Order Information</b><p><b>Order ID:</b> ${esc(o)}</p><p><b>Placed:</b> ${esc(v)}</p><p><b>Status:</b> <span class="pill ${statusClass(l)}">${esc(l)}</span></p><hr><b>Customer</b><p>${esc(n)} · ${esc(a)}</p><p>${esc([r,s].filter(Boolean).join(", "))}</p><p>${esc(i||"—")}</p><hr><p><b>Payment:</b> ${esc(c)}</p><p><b>Transaction ID:</b> ${esc(t.transaction_id||"—")}</p><p><b>Source:</b> ${esc(t.source||"—")}</p><p><b>Subtotal:</b> ${money(t.subtotal)}</p><p><b>Delivery:</b> ${money(d)}</p><p><b>Total:</b> <b>${money(u)}</b></p><p><b>Customer note:</b> ${esc(t.note||"—")}</p>${g?`<hr><b>Items</b><div class="order-items">${g}</div>`:"<hr><p>No item details saved with this order.</p>"}${courierBox(e,t)}</div><div class="btn-row">${blockBtn(t)}<button class="btn" style="background:#1fa855;color:#fff" onclick="whatsappOrder(${e})">WhatsApp Customer</button>${l==="Pending"?actionBtn(e,"Confirmed","Confirm Order","primary"):""}${l==="Confirmed"?actionBtn(e,"Processing","Start Processing","primary"):""}${l==="Processing"?actionBtn(e,"Shipped","Mark Shipped","primary"):""}${l==="Shipped"?actionBtn(e,"Delivered","Mark Delivered","primary"):""}${l!=="Delivered"&&l!=="Cancelled"?actionBtn(e,"Cancelled","Cancel Order","danger"):""}</div>`)}function waPhone(e){let t=String(e||"").replace(/\D/g,"");return t?(t.startsWith("00")&&(t=t.slice(2)),t.startsWith("880")?t:t.startsWith("0")?"88"+t:t.length===10&&t.startsWith("1")?"880"+t:t):""}function waMessage(e){const t=e.status||"Pending",o=e.order_number||e.order_id||e.id||"",n=e.customer_name||e.name||"",a=e.total??Number(e.subtotal||0)+Number(e.delivery_charge??e.delivery_fee??0),r=`আসসালামু আলাইকুম${n?" "+n:""}, Paboo থেকে বলছি।
+অর্ডার নং: ${o}
+মোট: ${money(a)}
+`,s={Pending:"আপনার অর্ডারটি আমরা পেয়েছি। কনফার্ম করার জন্য যোগাযোগ করছি, দয়া করে ঠিকানা ও নম্বর ঠিক আছে কিনা জানাবেন।",Confirmed:"আপনার অর্ডারটি কনফার্ম করা হয়েছে। শীঘ্রই প্রস্তুত করে পাঠানো হবে। ধন্যবাদ!",Processing:"আপনার অর্ডারটি প্রস্তুত করা হচ্ছে।",Shipped:"আপনার অর্ডারটি কুরিয়ারে পাঠানো হয়েছে। শীঘ্রই পৌঁছে যাবে।",Delivered:"আপনার অর্ডারটি ডেলিভারি হয়েছে। আমাদের থেকে কেনার জন্য ধন্যবাদ!",Cancelled:"দুঃখিত, আপনার অর্ডারটি বাতিল করা হয়েছে। কোনো প্রশ্ন থাকলে জানাবেন।"}[t]||"",i=e.tracking_no&&(t==="Shipped"||t==="Processing")?`
+কুরিয়ার: ${e.courier||"—"}
+ট্র্যাকিং নম্বর: ${e.tracking_no}`:"";return r+s+i}function waLink(e){const t=waPhone(e.phone||e.customer_phone||e.customer?.phone);return t?`https://wa.me/${t}?text=${encodeURIComponent(waMessage(e))}`:""}function whatsappOrder(e){const t=ordersCache[e];if(!t)return;const o=waLink(t);if(!o){alert("This order has no phone number.");return}window.open(o,"_blank","noopener")}function updateOrderBadge(){const e=ordersCache.filter(n=>(n.status||"Pending")==="Pending").length,t=document.querySelector('.nav[data-section="orders"]');if(!t)return;let o=t.querySelector(".nav-badge");o||(o=document.createElement("em"),o.className="nav-badge",o.style.cssText="margin-left:auto;background:#ef4444;color:#fff;border-radius:99px;font-style:normal;font-size:11px;font-weight:700;padding:1px 7px",t.appendChild(o)),o.textContent=e,o.style.display=e?"inline-block":"none"}function bulkBarRender(){const e=$("bulkBar");if(!e)return;const t=selOrders.size;if(e.classList.toggle("hidden",!t),!t){e.innerHTML="";return}e.innerHTML=`<b>${t} selected</b>${[["Confirmed","Confirm"],["Processing","Processing"],["Shipped","Shipped"],["Delivered","Delivered"]].map(([n,a])=>`<button class="btn primary" onclick="bulkStatus('${n}')">${a}</button>`).join("")}<button class="btn danger" onclick="bulkStatus('Cancelled')">Cancel</button><button class="btn danger" onclick="bulkDelete()">🗑 Delete</button><button class="btn muted" onclick="clearOrderSel()">Clear</button>`;const o=$("orderSelAll");if(o){const n=getFilteredOrders();o.checked=n.length>0&&n.every(a=>selOrders.has(String(a.o.id)))}}function toggleOrderSel(e,t){const o=ordersCache[e];o&&(t?selOrders.add(String(o.id)):selOrders.delete(String(o.id)),bulkBarRender())}function selectAllOrders(e){getFilteredOrders().forEach(({o:t})=>{e?selOrders.add(String(t.id)):selOrders.delete(String(t.id))}),filterOrders(),bulkBarRender()}function clearOrderSel(){selOrders.clear(),filterOrders(),bulkBarRender()}function selectedOrders(){return ordersCache.filter(e=>selOrders.has(String(e.id)))}async function bulkStatus(e){const t=selectedOrders();if(!t.length)return;const o=[],n=[];if(t.forEach(a=>{const r=a.status||"Pending";r===e||e==="Cancelled"&&r==="Delivered"||r==="Cancelled"&&e!=="Cancelled"?o.push(a):n.push(a)}),!n.length){alert("Nothing to change: the selected orders already have that status, or cannot be moved to it (delivered orders cannot be cancelled, cancelled orders cannot be re-opened).");return}if(confirm(`Change ${n.length} order(s) to "${e}"?${o.length?`
 
-/* ---- bulk select / bulk status / delete orders ---- */
-function bulkBarRender(){
-  const bar=$('bulkBar');if(!bar)return;
-  const n=selOrders.size;bar.classList.toggle('hidden',!n);
-  if(!n){bar.innerHTML='';return}
-  bar.innerHTML=`<b>${n} selected</b>${[['Confirmed','Confirm'],['Processing','Processing'],['Shipped','Shipped'],['Delivered','Delivered']].map(([v,l])=>`<button class="btn primary" onclick="bulkStatus('${v}')">${l}</button>`).join('')}<button class="btn danger" onclick="bulkStatus('Cancelled')">Cancel</button><button class="btn danger" onclick="bulkDelete()">🗑 Delete</button><button class="btn muted" onclick="clearOrderSel()">Clear</button>`;
-  const all=$('orderSelAll');if(all){const shown=getFilteredOrders();all.checked=shown.length>0&&shown.every(x=>selOrders.has(String(x.o.id)))}
-}
-function toggleOrderSel(i,on){const o=ordersCache[i];if(!o)return;on?selOrders.add(String(o.id)):selOrders.delete(String(o.id));bulkBarRender()}
-function selectAllOrders(on){getFilteredOrders().forEach(({o})=>{on?selOrders.add(String(o.id)):selOrders.delete(String(o.id))});filterOrders();bulkBarRender()}
-function clearOrderSel(){selOrders.clear();filterOrders();bulkBarRender()}
-function selectedOrders(){return ordersCache.filter(o=>selOrders.has(String(o.id)))}
-async function bulkStatus(newStatus){
-  const list=selectedOrders();if(!list.length)return;
-  const skip=[],ok=[];
-  list.forEach(o=>{const old=o.status||'Pending';if(old===newStatus||(newStatus==='Cancelled'&&old==='Delivered')||(old==='Cancelled'&&newStatus!=='Cancelled'))skip.push(o);else ok.push(o)});
-  if(!ok.length){alert('Nothing to change: the selected orders already have that status, or cannot be moved to it (delivered orders cannot be cancelled, cancelled orders cannot be re-opened).');return}
-  if(!confirm(`Change ${ok.length} order(s) to "${newStatus}"?${skip.length?`\n\n${skip.length} selected order(s) will be skipped.`:''}${newStatus==='Cancelled'?'\n\nStock of cancelled orders is returned automatically.':''}`))return;
-  try{
-    const {error}=await sb.from('orders').update({status:newStatus,updated_at:new Date().toISOString()}).in('id',ok.map(o=>o.id));
-    if(error)throw error;
-    selOrders.clear();
-    await refreshOrders();
-    if(newStatus==='Cancelled'){try{await refreshProducts()}catch(e){console.warn(e)}}
-    render();
-    alert(`${ok.length} order(s) updated to ${newStatus}.`);
-  }catch(e){showError(e)}
-}
-async function deleteOrdersByIds(ids){
-  const {error}=await sb.from('orders').delete().in('id',ids);
-  if(error)throw error;
-  const {data,error:e2}=await sb.from('orders').select('id').in('id',ids);
-  if(!e2&&data&&data.length)throw new Error('The server did not delete the orders. Run 12_policies.sql in Supabase SQL Editor once (it allows the admin to delete orders), then try again.');
-}
-async function deleteOrder(i){
-  const o=ordersCache[i];if(!o)return;
-  const id=o.order_number||o.id,s=o.status||'Pending';
-  const warn=(s!=='Cancelled'&&s!=='Delivered')?'\n\nThis order is still open. Stock will NOT be returned when you delete it. If you want the stock back, press Cancel first and delete afterwards.':'';
-  if(!confirm(`Delete order ${id} permanently?${warn}\n\nIt will also disappear from reports and profit totals. This cannot be undone.`))return;
-  try{await deleteOrdersByIds([o.id]);selOrders.delete(String(o.id));await refreshOrders();render()}catch(e){showError(e)}
-}
-async function bulkDelete(){
-  const list=selectedOrders();if(!list.length)return;
-  const open=list.filter(o=>!['Cancelled','Delivered'].includes(o.status||'Pending')).length;
-  if(!confirm(`Delete ${list.length} order(s) permanently?${open?`\n\n${open} of them are still open: their stock will NOT be returned (Cancel first if you want the stock back).`:''}\n\nThey will also disappear from reports and profit totals. This cannot be undone.`))return;
-  if(list.length>=5&&!confirm('Are you sure? Final confirmation.'))return;
-  try{await deleteOrdersByIds(list.map(o=>o.id));selOrders.clear();await refreshOrders();render();alert(list.length+' order(s) deleted.')}catch(e){showError(e)}
-}
-Object.assign(window,{toggleOrderSel,selectAllOrders,clearOrderSel,bulkStatus,bulkDelete,deleteOrder});
-async function updateOrderStatus(i,newStatus){
-  const order=ordersCache[i];if(!order)return;
-  const allowed=['Confirmed','Processing','Shipped','Delivered','Cancelled'];
-  if(!allowed.includes(newStatus)){alert('Invalid order status.');return}
-  const old=order.status||'Pending';if(old===newStatus)return;
-  const id=order.order_number||order.order_id||order.id||'';
-  if(newStatus==='Cancelled'&&old==='Delivered'){alert('A delivered order cannot be cancelled here.');return}
-  if(!confirm(`Order ${id}\n\nChange status from "${old}" to "${newStatus}"?`))return;
-  try{
-    const {error}=await sb.from('orders').update({status:newStatus,updated_at:new Date().toISOString()}).eq('id',order.id);
-    if(error)throw error;
-    await refreshOrders();
-    if(newStatus==='Cancelled'){try{await refreshProducts()}catch(e){console.warn(e)}}
-    closeModal();
-    render();
-  }catch(e){showError(e)}
-}
+${o.length} selected order(s) will be skipped.`:""}${e==="Cancelled"?`
 
-/* =========================================================
-   CATEGORIES
-========================================================= */
+Stock of cancelled orders is returned automatically.`:""}`))try{const{error:a}=await sb.from("orders").update({status:e,updated_at:new Date().toISOString()}).in("id",n.map(r=>r.id));if(a)throw a;if(selOrders.clear(),await refreshOrders(),e==="Cancelled")try{await refreshProducts()}catch(r){console.warn(r)}render(),alert(`${n.length} order(s) updated to ${e}.`)}catch(a){showError(a)}}async function deleteOrdersByIds(e){const{error:t}=await sb.from("orders").delete().in("id",e);if(t)throw t;const{data:o,error:n}=await sb.from("orders").select("id").in("id",e);if(!n&&o&&o.length)throw new Error("The server did not delete the orders. Run 12_policies.sql in Supabase SQL Editor once (it allows the admin to delete orders), then try again.")}async function deleteOrder(e){const t=ordersCache[e];if(!t)return;const o=t.order_number||t.id,n=t.status||"Pending";if(confirm(`Delete order ${o} permanently?${n!=="Cancelled"&&n!=="Delivered"?`
 
-function categories(){
-  curDept='';
-  const rows=categoriesCache.map((c,i)=>`<tr><td>${esc(c.name)}</td><td>${deptLabel(deptOf(c))}</td><td>${esc(c.slug||'—')}</td><td><button class="btn danger" onclick="deleteCategory(${i})">Delete</button></td></tr>`).join('');
-  return `<div class="section-head"><div><h3>Categories</h3><p>Manage product categories</p></div><button class="btn primary" onclick="addCategory()">＋ Add Category</button></div>
-  <div class="table-wrap"><table class="table"><thead><tr><th>Name</th><th>Department</th><th>Slug</th><th>Action</th></tr></thead><tbody>${rows||`<tr><td colspan="4" class="empty">No categories</td></tr>`}</tbody></table></div>`
-}
-function addCategory(d){
-  const dd=(typeof d==='string'&&d)?d:(curDept||'gadget');
-  openModal('Add Category',`<label class="form-grid"><span class="full">Department (বিভাগ)<select id="categoryDept"><option value="gadget" ${dd==='gadget'?'selected':''}>🎧 গ্যাজেট</option><option value="clothing" ${dd==='clothing'?'selected':''}>👕 পোশাক</option></select></span><span class="full">Category Name<input id="categoryName" placeholder="Audio / Shirt"></span></label><div class="btn-row"><button class="btn muted" onclick="closeModal()">Cancel</button><button class="btn primary" onclick="saveCategory()">Save</button></div>`)
-}
-async function saveCategory(){
-  const name=$('categoryName')?.value.trim();
-  if(!name){alert('Category name is required.');return}
-  try{
-    const slug=name.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
-    const cd=$('categoryDept')?.value==='clothing'?'clothing':'gadget';
-    if(cd==='clothing'&&!hasDeptCol())throw new Error('Run 14_clothing.sql in Supabase > SQL Editor first (Update 14).');
-    const {error}=await sb.from('categories').insert(hasDeptCol()?{name,slug,dept:cd}:{name,slug});
-    if(error)throw error;
-    const {data,error:e}=await sb.from('categories').select('*').order('name');
-    if(e)throw e;
-    categoriesCache=data||[];
-    closeModal();
-    render()
-  }catch(e){showError(e)}
-}
-async function deleteCategory(i){
-  const c=categoriesCache[i];if(!c)return;
-  if(!confirm(`Delete category "${c.name}"?`))return;
-  try{
-    const {error}=await sb.from('categories').delete().eq('id',c.id);
-    if(error)throw error;
-    categoriesCache=categoriesCache.filter(x=>x.id!==c.id);
-    render()
-  }catch(e){showError(e)}
-}
+This order is still open. Stock will NOT be returned when you delete it. If you want the stock back, press Cancel first and delete afterwards.`:""}
 
-/* =========================================================
-   CUSTOMERS
-========================================================= */
+It will also disappear from reports and profit totals. This cannot be undone.`))try{await deleteOrdersByIds([t.id]),selOrders.delete(String(t.id)),await refreshOrders(),render()}catch(r){showError(r)}}async function bulkDelete(){const e=selectedOrders();if(!e.length)return;const t=e.filter(o=>!["Cancelled","Delivered"].includes(o.status||"Pending")).length;if(confirm(`Delete ${e.length} order(s) permanently?${t?`
 
-function customers(){
-  const unique={};
-  ordersCache.forEach(o=>{
-    const phone=o.phone||o.customer_phone||o.customer?.phone||'';
-    if(!phone)return;
-    unique[phone]={
-      name:o.customer_name||o.customer?.name||o.name||'—',
-      phone,
-      orders:(unique[phone]?.orders||0)+1
-    }
-  });
-  const list=Object.values(unique);
+${t} of them are still open: their stock will NOT be returned (Cancel first if you want the stock back).`:""}
 
-  return `<div class="section-head"><div><h3>Customers</h3><p>Customers from your orders</p></div></div>
+They will also disappear from reports and profit totals. This cannot be undone.`)&&!(e.length>=5&&!confirm("Are you sure? Final confirmation.")))try{await deleteOrdersByIds(e.map(o=>o.id)),selOrders.clear(),await refreshOrders(),render(),alert(e.length+" order(s) deleted.")}catch(o){showError(o)}}Object.assign(window,{toggleOrderSel,selectAllOrders,clearOrderSel,bulkStatus,bulkDelete,deleteOrder});async function updateOrderStatus(e,t){const o=ordersCache[e];if(!o)return;if(!["Confirmed","Processing","Shipped","Delivered","Cancelled"].includes(t)){alert("Invalid order status.");return}const a=o.status||"Pending";if(a===t)return;const r=o.order_number||o.order_id||o.id||"";if(t==="Cancelled"&&a==="Delivered"){alert("A delivered order cannot be cancelled here.");return}if(confirm(`Order ${r}
+
+Change status from "${a}" to "${t}"?`))try{const{error:s}=await sb.from("orders").update({status:t,updated_at:new Date().toISOString()}).eq("id",o.id);if(s)throw s;if(await refreshOrders(),t==="Cancelled")try{await refreshProducts()}catch(i){console.warn(i)}closeModal(),render()}catch(s){showError(s)}}function categories(){return curDept="",`<div class="section-head"><div><h3>Categories</h3><p>Manage product categories</p></div><button class="btn primary" onclick="addCategory()">＋ Add Category</button></div>
+  <div class="table-wrap"><table class="table"><thead><tr><th>Name</th><th>Department</th><th>Slug</th><th>Action</th></tr></thead><tbody>${categoriesCache.map((t,o)=>`<tr><td>${esc(t.name)}</td><td>${deptLabel(deptOf(t))}</td><td>${esc(t.slug||"—")}</td><td><button class="btn danger" onclick="deleteCategory(${o})">Delete</button></td></tr>`).join("")||'<tr><td colspan="4" class="empty">No categories</td></tr>'}</tbody></table></div>`}function addCategory(e){const t=typeof e=="string"&&e?e:curDept||"gadget";openModal("Add Category",`<label class="form-grid"><span class="full">Department (বিভাগ)<select id="categoryDept"><option value="gadget" ${t==="gadget"?"selected":""}>🎧 গ্যাজেট</option><option value="clothing" ${t==="clothing"?"selected":""}>👕 পোশাক</option></select></span><span class="full">Category Name<input id="categoryName" placeholder="Audio / Shirt"></span></label><div class="btn-row"><button class="btn muted" onclick="closeModal()">Cancel</button><button class="btn primary" onclick="saveCategory()">Save</button></div>`)}async function saveCategory(){const e=$("categoryName")?.value.trim();if(!e){alert("Category name is required.");return}try{const t=e.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,""),o=$("categoryDept")?.value==="clothing"?"clothing":"gadget";if(o==="clothing"&&!hasDeptCol())throw new Error("Run 14_clothing.sql in Supabase > SQL Editor first (Update 14).");const{error:n}=await sb.from("categories").insert(hasDeptCol()?{name:e,slug:t,dept:o}:{name:e,slug:t});if(n)throw n;const{data:a,error:r}=await sb.from("categories").select("*").order("name");if(r)throw r;categoriesCache=a||[],closeModal(),render()}catch(t){showError(t)}}async function deleteCategory(e){const t=categoriesCache[e];if(t&&confirm(`Delete category "${t.name}"?`))try{const{error:o}=await sb.from("categories").delete().eq("id",t.id);if(o)throw o;categoriesCache=categoriesCache.filter(n=>n.id!==t.id),render()}catch(o){showError(o)}}function customers(){const e={};ordersCache.forEach(o=>{const n=o.phone||o.customer_phone||o.customer?.phone||"";n&&(e[n]={name:o.customer_name||o.customer?.name||o.name||"—",phone:n,orders:(e[n]?.orders||0)+1})});const t=Object.values(e);return`<div class="section-head"><div><h3>Customers</h3><p>Customers from your orders</p></div></div>
   <div class="table-wrap"><table class="table"><thead><tr><th>Name</th><th>Phone</th><th>Orders</th></tr></thead><tbody>
-  ${list.length?list.map(c=>`<tr><td>${esc(c.name)}</td><td>${esc(c.phone)}</td><td>${c.orders}</td></tr>`).join(''):`<tr><td colspan="3" class="empty">No customers yet</td></tr>`}
-  </tbody></table></div>`
-}
-
-/* =========================================================
-   DELIVERY SETTINGS — EDIT + SAVE TO SUPABASE
-========================================================= */
-
-function delivery(){
-  const d=deliverySettingsCache||{};
-
-  const dhaka=d.dhaka_charge??60;
-  const nearby=d.nearby_charge??100;
-  const outside=d.outside_charge??130;
-  const districts=d.nearby_districts??'Gazipur, Narayanganj, Narsingdi, Munshiganj, Manikganj';
-
-  return `<div class="section-head">
+  ${t.length?t.map(o=>`<tr><td>${esc(o.name)}</td><td>${esc(o.phone)}</td><td>${o.orders}</td></tr>`).join(""):'<tr><td colspan="3" class="empty">No customers yet</td></tr>'}
+  </tbody></table></div>`}function delivery(){const e=deliverySettingsCache||{},t=e.dhaka_charge??60,o=e.nearby_charge??100,n=e.outside_charge??130,a=e.nearby_districts??"Gazipur, Narayanganj, Narsingdi, Munshiganj, Manikganj";return`<div class="section-head">
     <div><h3>Delivery Settings</h3><p>Manage delivery charges used by customer checkout</p></div>
     <button class="btn muted" onclick="refreshDeliverySettings()">↻ Refresh</button>
   </div>
@@ -918,25 +119,25 @@ function delivery(){
     <div class="form-grid">
       <label>
         Dhaka Charge
-        <input id="deliveryDhaka" type="number" min="0" step="1" value="${Number(dhaka)}" placeholder="60">
+        <input id="deliveryDhaka" type="number" min="0" step="1" value="${Number(t)}" placeholder="60">
         <small>Delivery charge for Dhaka city.</small>
       </label>
 
       <label>
         Nearby Charge
-        <input id="deliveryNearby" type="number" min="0" step="1" value="${Number(nearby)}" placeholder="100">
+        <input id="deliveryNearby" type="number" min="0" step="1" value="${Number(o)}" placeholder="100">
         <small>Charge for nearby districts.</small>
       </label>
 
       <label>
         Outside Charge
-        <input id="deliveryOutside" type="number" min="0" step="1" value="${Number(outside)}" placeholder="130">
+        <input id="deliveryOutside" type="number" min="0" step="1" value="${Number(n)}" placeholder="130">
         <small>Charge for other districts.</small>
       </label>
 
       <label class="full">
         Nearby Districts
-        <textarea id="deliveryDistricts" rows="4" placeholder="Gazipur, Narayanganj, Narsingdi, Munshiganj, Manikganj">${esc(districts)}</textarea>
+        <textarea id="deliveryDistricts" rows="4" placeholder="Gazipur, Narayanganj, Narsingdi, Munshiganj, Manikganj">${esc(a)}</textarea>
         <small>Write district names separated by commas.</small>
       </label>
     </div>
@@ -946,1414 +147,151 @@ function delivery(){
     </div>
 
     <hr>
-    <p><b>Current settings:</b> Dhaka ৳${Number(dhaka).toLocaleString('en-BD')} · Nearby ৳${Number(nearby).toLocaleString('en-BD')} · Outside ৳${Number(outside).toLocaleString('en-BD')}</p>
-    ${d.updated_at?`<p><small>Last updated: ${esc(new Date(d.updated_at).toLocaleString('en-BD'))}</small></p>`:''}
-  </div>`
-}
-
-async function saveDeliverySettings(){
-  const dhakaRaw=$('deliveryDhaka')?.value??'';
-  const nearbyRaw=$('deliveryNearby')?.value??'';
-  const outsideRaw=$('deliveryOutside')?.value??'';
-  const districtsRaw=$('deliveryDistricts')?.value??'';
-
-  const dhaka=Number(dhakaRaw);
-  const nearby=Number(nearbyRaw);
-  const outside=Number(outsideRaw);
-
-  if(!Number.isFinite(dhaka)||!Number.isFinite(nearby)||!Number.isFinite(outside)||dhaka<0||nearby<0||outside<0){
-    alert('Please enter valid non-negative delivery charges.');
-    return;
-  }
-
-  if(dhaka>999999999||nearby>999999999||outside>999999999){
-    alert('Delivery charge is too large.');
-    return;
-  }
-
-  const nearbyDistricts=districtsRaw
-    .split(',')
-    .map(x=>x.trim())
-    .filter(Boolean)
-    .join(', ');
-
-  const btn=$('saveDeliveryBtn');
-
-  try{
-    if(btn){
-      btn.disabled=true;
-      btn.textContent='Saving...';
-    }
-
-    const row={
-      id:deliverySettingsCache?.id??1,
-      dhaka_charge:dhaka,
-      nearby_charge:nearby,
-      outside_charge:outside,
-      nearby_districts:nearbyDistricts,
-      updated_at:new Date().toISOString()
-    };
-
-    const {data,error}=await sb
-      .from('delivery_settings')
-      .upsert(row,{onConflict:'id'})
-      .select()
-      .single();
-
-    if(error)throw error;
-
-    deliverySettingsCache=data||row;
-    alert('Delivery settings saved successfully.');
-    render();
-  }catch(e){
-    showError(e);
-    if(btn){
-      btn.disabled=false;
-      btn.textContent='Save Delivery Settings';
-    }
-  }
-}
-
-/* =========================================================
-   PAYMENTS / STORE SETTINGS
-========================================================= */
-
-let paymentSettingsFull={
-  cod_enabled:true,
-  bkash_enabled:false,
-  bkash_number:'',
-  nagad_enabled:false,
-  nagad_number:''
-};
-
-async function loadPaymentSettingsFull(){
-  const {data,error}=await sb.from('payment_settings').select('*').limit(1).maybeSingle();
-  if(error)throw error;
-  if(data){
-    paymentSettingsFull={
-      cod_enabled:data.cod_enabled!==false,
-      bkash_enabled:data.bkash_enabled===true,
-      bkash_number:data.bkash_number||'',
-      nagad_enabled:data.nagad_enabled===true,
-      nagad_number:data.nagad_number||''
-    };
-  }
-}
-
-function payments(){
-  const p=paymentSettingsFull;
-  return `<div class="section-head">
+    <p><b>Current settings:</b> Dhaka ৳${Number(t).toLocaleString("en-BD")} · Nearby ৳${Number(o).toLocaleString("en-BD")} · Outside ৳${Number(n).toLocaleString("en-BD")}</p>
+    ${e.updated_at?`<p><small>Last updated: ${esc(new Date(e.updated_at).toLocaleString("en-BD"))}</small></p>`:""}
+  </div>`}async function saveDeliverySettings(){const e=$("deliveryDhaka")?.value??"",t=$("deliveryNearby")?.value??"",o=$("deliveryOutside")?.value??"",n=$("deliveryDistricts")?.value??"",a=Number(e),r=Number(t),s=Number(o);if(!Number.isFinite(a)||!Number.isFinite(r)||!Number.isFinite(s)||a<0||r<0||s<0){alert("Please enter valid non-negative delivery charges.");return}if(a>999999999||r>999999999||s>999999999){alert("Delivery charge is too large.");return}const i=n.split(",").map(l=>l.trim()).filter(Boolean).join(", "),c=$("saveDeliveryBtn");try{c&&(c.disabled=!0,c.textContent="Saving...");const l={id:deliverySettingsCache?.id??1,dhaka_charge:a,nearby_charge:r,outside_charge:s,nearby_districts:i,updated_at:new Date().toISOString()},{data:d,error:u}=await sb.from("delivery_settings").upsert(l,{onConflict:"id"}).select().single();if(u)throw u;deliverySettingsCache=d||l,alert("Delivery settings saved successfully."),render()}catch(l){showError(l),c&&(c.disabled=!1,c.textContent="Save Delivery Settings")}}let paymentSettingsFull={cod_enabled:!0,bkash_enabled:!1,bkash_number:"",nagad_enabled:!1,nagad_number:""};async function loadPaymentSettingsFull(){const{data:e,error:t}=await sb.from("payment_settings").select("*").limit(1).maybeSingle();if(t)throw t;e&&(paymentSettingsFull={cod_enabled:e.cod_enabled!==!1,bkash_enabled:e.bkash_enabled===!0,bkash_number:e.bkash_number||"",nagad_enabled:e.nagad_enabled===!0,nagad_number:e.nagad_number||""})}function payments(){const e=paymentSettingsFull;return`<div class="section-head">
     <div><h3>Payment Settings</h3><p>Manage COD, bKash and Nagad</p></div>
     <button class="btn muted" onclick="loadPaymentSettingsFull().then(render).catch(showError)">↻ Refresh</button>
   </div>
   <div class="card">
     <div class="form-grid">
-      <label class="full"><input id="codEnabled" type="checkbox" ${p.cod_enabled?'checked':''}> <b>Enable Cash on Delivery (COD)</b></label>
-      <label class="full"><input id="bkashEnabled" type="checkbox" ${p.bkash_enabled?'checked':''}> <b>Enable bKash</b></label>
-      <label>bKash Number<input id="bkashNumber" type="tel" value="${esc(p.bkash_number)}" placeholder="01XXXXXXXXX"></label>
-      <label class="full"><input id="nagadEnabled" type="checkbox" ${p.nagad_enabled?'checked':''}> <b>Enable Nagad</b></label>
-      <label>Nagad Number<input id="nagadNumber" type="tel" value="${esc(p.nagad_number)}" placeholder="01XXXXXXXXX"></label>
+      <label class="full"><input id="codEnabled" type="checkbox" ${e.cod_enabled?"checked":""}> <b>Enable Cash on Delivery (COD)</b></label>
+      <label class="full"><input id="bkashEnabled" type="checkbox" ${e.bkash_enabled?"checked":""}> <b>Enable bKash</b></label>
+      <label>bKash Number<input id="bkashNumber" type="tel" value="${esc(e.bkash_number)}" placeholder="01XXXXXXXXX"></label>
+      <label class="full"><input id="nagadEnabled" type="checkbox" ${e.nagad_enabled?"checked":""}> <b>Enable Nagad</b></label>
+      <label>Nagad Number<input id="nagadNumber" type="tel" value="${esc(e.nagad_number)}" placeholder="01XXXXXXXXX"></label>
     </div>
     <div class="btn-row">
       <button class="btn primary" id="savePaymentBtn" onclick="savePaymentSettingsFull()">Save Payment Settings</button>
     </div>
-  </div>`;
-}
-
-async function savePaymentSettingsFull(){
-  const cod=!!$('codEnabled')?.checked;
-  const bkash=!!$('bkashEnabled')?.checked;
-  const nagad=!!$('nagadEnabled')?.checked;
-  const bn=($('bkashNumber')?.value||'').trim();
-  const nn=($('nagadNumber')?.value||'').trim();
-
-  if(bkash&&!bn){alert('Please enter bKash number.');return;}
-  if(nagad&&!nn){alert('Please enter Nagad number.');return;}
-
-  const btn=$('savePaymentBtn');
-  try{
-    if(btn){btn.disabled=true;btn.textContent='Saving...';}
-    const {data:row,error:rerr}=await sb.from('payment_settings').select('id').limit(1).maybeSingle();
-    if(rerr)throw rerr;
-
-    const payload={
-      cod_enabled:cod,
-      bkash_enabled:bkash,
-      bkash_number:bn,
-      nagad_enabled:nagad,
-      nagad_number:nn
-    };
-
-    const res=row?.id
-      ? await sb.from('payment_settings').update(payload).eq('id',row.id)
-      : await sb.from('payment_settings').insert(payload);
-
-    if(res.error)throw res.error;
-
-    paymentSettingsFull={...payload};
-    alert('Payment settings saved successfully.');
-    render();
-  }catch(e){
-    showError(e);
-    if(btn){btn.disabled=false;btn.textContent='Save Payment Settings';}
-  }
-}
-
-async function loadStoreSettings(){
-  const {data,error}=await sb.from('store_settings').select('*').eq('id',1).maybeSingle();
-  if(error)throw error;
-  storeSettingsCache={
-    store_name:data?.store_name||'Paboo',
-    phone:data?.phone||'',
-    email:data?.email||'',
-    address:data?.address||'',
-    support_hours:data?.support_hours||'',
-    updated_at:data?.updated_at||null,
-    theme:(data&&data.theme)||'ocean',
-    has_theme:!!data&&('theme' in data),
-    col_picker:!!(data&&data.col_picker),
-    show_tracking:!!(data&&data.show_tracking),
-    has_tracking:!!data&&('show_tracking' in data),
-    has_cols:!!data&&('col_picker' in data),
-    variants_on:!!(data&&data.variants_on),
-    policies:(()=>{let v=data&&data.policies;if(typeof v==='string'){try{v=JSON.parse(v)}catch(e){v=null}}return v&&typeof v==='object'?v:{}})(),
-    has_policies:!!data&&('policies' in data),
-    social:(()=>{let v=data&&data.social;if(typeof v==='string'){try{v=JSON.parse(v)}catch(e){v=null}}return v&&typeof v==='object'?v:{}})(),
-    has_social:!!data&&('social' in data),
-    size_guide:(()=>{let v=data&&data.size_guide;if(typeof v==='string'){try{v=JSON.parse(v)}catch(e){v=null}}return v&&typeof v==='object'?v:{}})(),
-    has_size_guide:!!data&&('size_guide' in data),
-    cart_theme:(()=>{let v=data&&data.cart_theme;if(typeof v==='string'){try{v=JSON.parse(v)}catch(e){v=null}}return v&&typeof v==='object'?v:{}})(),
-    has_cart_theme:!!data&&('cart_theme' in data),
-    has_variants:!!data&&('variants_on' in data)
-  };
-  return storeSettingsCache;
-}
-
-function setGroups(s){
-  const G=[['sgAppear','🎨 সাইটের চেহারা','থিম · কার্ট ও চেকআউট রং',themeCard(s)+cartThemeCard(s),!s.has_cart_theme],
-   ['sgSocial','📣 সোশ্যাল ও যোগাযোগ','Facebook · WhatsApp · লিংক',socialCard(s),!s.has_social],
-   ['sgCloth','👕 পোশাক ও পণ্যের অপশন','কালার পিকার · ভ্যারিয়েন্ট · সাইজ গাইড',colsCard(s)+variantsCard(s)+sizeGuideCard(s),!(s.has_cols&&s.has_variants&&s.has_size_guide)],
-   ['sgTrack','🔎 অর্ডার ট্র্যাকিং','কুরিয়ার ট্র্যাকিং দেখানো',trackingCard(s),!s.has_tracking]];
-  const bar=`<div class="set-jump">${G.map(g=>`<a href="#${g[0]}" onclick="event.preventDefault();document.getElementById('${g[0]}').open=true;document.getElementById('${g[0]}').scrollIntoView({behavior:'smooth',block:'start'})">${g[1]}${g[4]?' <i>SQL বাকি</i>':''}</a>`).join('')}</div>`;
-  return bar+G.map(g=>`<details class="set-group" id="${g[0]}" open><summary><span><b>${g[1]}</b><small>${g[2]}</small></span>${g[4]?'<em class="warn">SQL বাকি</em>':'<em class="ok">ঠিক আছে</em>'}</summary>${g[3]}</details>`).join('');
-}
-function settings(){
-  const s=storeSettingsCache||{};
-  return `<div class="section-head"><div><h3>Store Settings</h3><p>Manage your store contact information</p></div><button class="btn muted" onclick="loadStoreSettings().then(render).catch(showError)">↻ Refresh</button></div>
+  </div>`}async function savePaymentSettingsFull(){const e=!!$("codEnabled")?.checked,t=!!$("bkashEnabled")?.checked,o=!!$("nagadEnabled")?.checked,n=($("bkashNumber")?.value||"").trim(),a=($("nagadNumber")?.value||"").trim();if(t&&!n){alert("Please enter bKash number.");return}if(o&&!a){alert("Please enter Nagad number.");return}const r=$("savePaymentBtn");try{r&&(r.disabled=!0,r.textContent="Saving...");const{data:s,error:i}=await sb.from("payment_settings").select("id").limit(1).maybeSingle();if(i)throw i;const c={cod_enabled:e,bkash_enabled:t,bkash_number:n,nagad_enabled:o,nagad_number:a},l=s?.id?await sb.from("payment_settings").update(c).eq("id",s.id):await sb.from("payment_settings").insert(c);if(l.error)throw l.error;paymentSettingsFull={...c},alert("Payment settings saved successfully."),render()}catch(s){showError(s),r&&(r.disabled=!1,r.textContent="Save Payment Settings")}}async function loadStoreSettings(){const{data:e,error:t}=await sb.from("store_settings").select("*").eq("id",1).maybeSingle();if(t)throw t;return storeSettingsCache={store_name:e?.store_name||"Paboo",phone:e?.phone||"",email:e?.email||"",address:e?.address||"",support_hours:e?.support_hours||"",updated_at:e?.updated_at||null,theme:e&&e.theme||"ocean",has_theme:!!e&&"theme"in e,col_picker:!!(e&&e.col_picker),show_tracking:!!(e&&e.show_tracking),has_tracking:!!e&&"show_tracking"in e,has_cols:!!e&&"col_picker"in e,variants_on:!!(e&&e.variants_on),policies:(()=>{let o=e&&e.policies;if(typeof o=="string")try{o=JSON.parse(o)}catch{o=null}return o&&typeof o=="object"?o:{}})(),has_policies:!!e&&"policies"in e,social:(()=>{let o=e&&e.social;if(typeof o=="string")try{o=JSON.parse(o)}catch{o=null}return o&&typeof o=="object"?o:{}})(),has_social:!!e&&"social"in e,size_guide:(()=>{let o=e&&e.size_guide;if(typeof o=="string")try{o=JSON.parse(o)}catch{o=null}return o&&typeof o=="object"?o:{}})(),has_size_guide:!!e&&"size_guide"in e,cart_theme:(()=>{let o=e&&e.cart_theme;if(typeof o=="string")try{o=JSON.parse(o)}catch{o=null}return o&&typeof o=="object"?o:{}})(),has_cart_theme:!!e&&"cart_theme"in e,has_variants:!!e&&"variants_on"in e},storeSettingsCache}function setGroups(e){const t=[["sgAppear","🎨 সাইটের চেহারা","থিম · কার্ট ও চেকআউট রং",themeCard(e)+cartThemeCard(e),!e.has_cart_theme],["sgSocial","📣 সোশ্যাল ও যোগাযোগ","Facebook · WhatsApp · লিংক",socialCard(e),!e.has_social],["sgCloth","👕 পোশাক ও পণ্যের অপশন","কালার পিকার · ভ্যারিয়েন্ট · সাইজ গাইড",colsCard(e)+variantsCard(e)+sizeGuideCard(e),!(e.has_cols&&e.has_variants&&e.has_size_guide)],["sgTrack","🔎 অর্ডার ট্র্যাকিং","কুরিয়ার ট্র্যাকিং দেখানো",trackingCard(e),!e.has_tracking]];return`<div class="set-jump">${t.map(n=>`<a href="#${n[0]}" onclick="event.preventDefault();document.getElementById('${n[0]}').open=true;document.getElementById('${n[0]}').scrollIntoView({behavior:'smooth',block:'start'})">${n[1]}${n[4]?" <i>SQL বাকি</i>":""}</a>`).join("")}</div>`+t.map(n=>`<details class="set-group" id="${n[0]}" open><summary><span><b>${n[1]}</b><small>${n[2]}</small></span>${n[4]?'<em class="warn">SQL বাকি</em>':'<em class="ok">ঠিক আছে</em>'}</summary>${n[3]}</details>`).join("")}function settings(){const e=storeSettingsCache||{};return`<div class="section-head"><div><h3>Store Settings</h3><p>Manage your store contact information</p></div><button class="btn muted" onclick="loadStoreSettings().then(render).catch(showError)">↻ Refresh</button></div>
   <div class="card"><div class="form-grid">
-    <label class="full">Store Name<input id="storeName" maxlength="120" value="${esc(s.store_name||'Paboo')}" placeholder="Paboo"></label>
-    <label>Contact Phone<input id="storePhone" type="tel" maxlength="30" value="${esc(s.phone||'')}" placeholder="01XXXXXXXXX"></label>
-    <label>Contact Email<input id="storeEmail" type="email" maxlength="160" value="${esc(s.email||'')}" placeholder="support@example.com"></label>
-    <label class="full">Store Address<textarea id="storeAddress" rows="3" maxlength="500" placeholder="Store address">${esc(s.address||'')}</textarea></label>
-    <label class="full">Support Hours<input id="storeHours" maxlength="160" value="${esc(s.support_hours||'')}" placeholder="Every day, 10 AM–8 PM"></label>
+    <label class="full">Store Name<input id="storeName" maxlength="120" value="${esc(e.store_name||"Paboo")}" placeholder="Paboo"></label>
+    <label>Contact Phone<input id="storePhone" type="tel" maxlength="30" value="${esc(e.phone||"")}" placeholder="01XXXXXXXXX"></label>
+    <label>Contact Email<input id="storeEmail" type="email" maxlength="160" value="${esc(e.email||"")}" placeholder="support@example.com"></label>
+    <label class="full">Store Address<textarea id="storeAddress" rows="3" maxlength="500" placeholder="Store address">${esc(e.address||"")}</textarea></label>
+    <label class="full">Support Hours<input id="storeHours" maxlength="160" value="${esc(e.support_hours||"")}" placeholder="Every day, 10 AM–8 PM"></label>
   </div><div class="btn-row"><button class="btn primary" id="saveStoreSettingsBtn" onclick="saveStoreSettings()">Save Store Settings</button></div>
-  ${s.updated_at?`<p><small>Last updated: ${esc(new Date(s.updated_at).toLocaleString('en-BD'))}</small></p>`:''}</div>${setGroups(s)}`
-}
+  ${e.updated_at?`<p><small>Last updated: ${esc(new Date(e.updated_at).toLocaleString("en-BD"))}</small></p>`:""}</div>${setGroups(e)}`}async function saveStoreSettings(){const e=($("storeName")?.value||"").trim(),t=($("storePhone")?.value||"").trim(),o=($("storeEmail")?.value||"").trim(),n=($("storeAddress")?.value||"").trim(),a=($("storeHours")?.value||"").trim();if(!e){alert("Store name is required.");return}if(o&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(o)){alert("Please enter a valid email address.");return}const r=$("saveStoreSettingsBtn");try{r&&(r.disabled=!0,r.textContent="Saving...");const s={id:1,store_name:e,phone:t,email:o,address:n,support_hours:a,updated_at:new Date().toISOString()},{data:i,error:c}=await sb.from("store_settings").upsert(s,{onConflict:"id"}).select().single();if(c)throw c;storeSettingsCache={...s,...i||{}},alert("Store settings saved successfully."),render()}catch(s){showError(s),r&&(r.disabled=!1,r.textContent="Save Store Settings")}}function toggleCatalog(){catalogOpen=!catalogOpen,$("catalogMenu")?.classList.toggle("hidden",!catalogOpen),$("catalogArrow")&&($("catalogArrow").textContent=catalogOpen?"⌄":"›")}function setNavActive(e){document.querySelectorAll(".nav[data-page],.nav[data-section]").forEach(t=>{t.classList.toggle("active",(t.dataset.page||t.dataset.section)===e)}),document.querySelectorAll(".subnav-item").forEach(t=>{t.classList.toggle("active-sub",(t.dataset.page||t.dataset.section)===e)}),(e==="products"||e==="categories"||e==="clothing"||e==="gadget")&&(catalogOpen=!0,$("catalogMenu")?.classList.remove("hidden"),$("catalogArrow")&&($("catalogArrow").textContent="⌄"))}function go(e){const t=e;orderDept="",e==="orders-clothing"?(orderDept="clothing",e="orders"):e==="orders-gadget"&&(orderDept="gadget",e="orders"),currentSection=e,setNavActive(t),openGrpFor(t);const o={dashboard:["Dashboard","Store overview"],products:["Products","Manage products"],clothing:["পোশাক (Clothing)","Clothing categories and products"],gadget:["গ্যাজেট (Gadgets)","Gadget categories and products"],orders:["Orders","Manage customer orders"],customers:["Customers","Customer list"],categories:["Categories","Manage categories"],offers:["Offers & Deals","Manage promotions and schedules"],coupons:["Coupons","Create and manage discount codes"],reports:["Reports","Profit, sales and trending products"],policies:["Policies","Edit or hide the policy cards shown on your website"],leads:["Incomplete orders","People who started checkout but did not order"],blocked:["Blocked numbers","Numbers that cannot place orders"],delivery:["Delivery","Delivery settings"],payments:["Payments","Payment settings"],settings:["Settings","Store settings"],site:["সাইট নিয়ন্ত্রণ","আপনার ওয়েবসাইটের সবকিছু এক জায়গা থেকে"]},n=(orderDept==="clothing"?["👕 পোশাকের অর্ডার","শুধু পোশাকের অর্ডার"]:orderDept==="gadget"?["🎧 গ্যাজেটের অর্ডার","শুধু গ্যাজেটের অর্ডার"]:o[e])||o.dashboard;$("pageTitle")&&($("pageTitle").textContent=n[0]),$("pageSub")&&($("pageSub").textContent=n[1]),e==="coupons"?(render(),refreshCoupons().then(()=>{currentSection==="coupons"&&render()}).catch(()=>{})):render(),window.innerWidth<=720&&toggleSidebar(!1)}function render(){const e=$("content");if(!e)return;const t={dashboard,clothing:()=>deptPage("clothing"),gadget:()=>deptPage("gadget"),products,orders,customers,categories,offers,coupons,reports,policies:policiesPage,leads:leadsPage,blocked:blockedPage,delivery,payments,settings,site:sitePage};e.innerHTML=(t[currentSection]||dashboard)(),updateOrderBadge(),updateBell(),currentSection==="orders"&&bulkBarRender()}function toggleSidebar(e){const t=document.querySelector(".sidebar"),o=$("sidebarOverlay");if(!t)return;const n=typeof e=="boolean"?e:!t.classList.contains("open");t.classList.toggle("open",n),o?.classList.toggle("show",n)}async function refreshDashboard(){try{await loadCloud(),render()}catch(e){showError(e)}}async function login(){const e=($("loginEmail")?.value||$("loginUser")?.value||"").trim(),t=$("loginPassword")?.value??$("loginPass")?.value;if(!e||!t){alert("Please enter admin email and password.");return}try{const{data:o,error:n}=await sb.auth.signInWithPassword({email:e,password:t});if(n)throw n;if(o?.user?.id!==ADMIN_UID){await sb.auth.signOut(),alert("You are not authorized as admin.");return}showApp(),await loadCloud(),await loadPaymentSettingsFull(),await loadStoreSettings(),render()}catch(o){alert(`Login failed.
 
-async function saveStoreSettings(){
-  const store_name=($('storeName')?.value||'').trim();
-  const phone=($('storePhone')?.value||'').trim();
-  const email=($('storeEmail')?.value||'').trim();
-  const address=($('storeAddress')?.value||'').trim();
-  const support_hours=($('storeHours')?.value||'').trim();
-  if(!store_name){alert('Store name is required.');return;}
-  if(email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){alert('Please enter a valid email address.');return;}
-  const btn=$('saveStoreSettingsBtn');
-  try{
-    if(btn){btn.disabled=true;btn.textContent='Saving...';}
-    const payload={id:1,store_name,phone,email,address,support_hours,updated_at:new Date().toISOString()};
-    const {data,error}=await sb.from('store_settings').upsert(payload,{onConflict:'id'}).select().single();
-    if(error)throw error;
-    storeSettingsCache={...payload,...(data||{})};
-    alert('Store settings saved successfully.');
-    render();
-  }catch(e){showError(e);if(btn){btn.disabled=false;btn.textContent='Save Store Settings';}}
-}
-
-/* =========================================================
-   NAVIGATION
-========================================================= */
-
-function toggleCatalog(){
-  catalogOpen=!catalogOpen;
-  $('catalogMenu')?.classList.toggle('hidden',!catalogOpen);
-  if($('catalogArrow'))$('catalogArrow').textContent=catalogOpen?'⌄':'›'
-}
-function setNavActive(section){
-  document.querySelectorAll('.nav[data-page],.nav[data-section]').forEach(x=>{
-    x.classList.toggle('active',(x.dataset.page||x.dataset.section)===section)
-  });
-  document.querySelectorAll('.subnav-item').forEach(x=>{
-    x.classList.toggle('active-sub',(x.dataset.page||x.dataset.section)===section)
-  });
-
-  if(section==='products'||section==='categories'||section==='clothing'||section==='gadget'){
-    catalogOpen=true;
-    $('catalogMenu')?.classList.remove('hidden');
-    if($('catalogArrow'))$('catalogArrow').textContent='⌄'
-  }
-}
-function go(section){
-  const navKey=section;orderDept='';
-  if(section==='orders-clothing'){orderDept='clothing';section='orders'}
-  else if(section==='orders-gadget'){orderDept='gadget';section='orders'}
-  currentSection=section;
-  setNavActive(navKey);openGrpFor(navKey);
-
-  const titles={
-    dashboard:['Dashboard','Store overview'],
-    products:['Products','Manage products'],
-    clothing:['পোশাক (Clothing)','Clothing categories and products'],
-    gadget:['গ্যাজেট (Gadgets)','Gadget categories and products'],
-    orders:['Orders','Manage customer orders'],
-    customers:['Customers','Customer list'],
-    categories:['Categories','Manage categories'],
-    offers:['Offers & Deals','Manage promotions and schedules'],
-    coupons:['Coupons','Create and manage discount codes'],
-    reports:['Reports','Profit, sales and trending products'],
-    policies:['Policies','Edit or hide the policy cards shown on your website'],
-    leads:['Incomplete orders','People who started checkout but did not order'],
-    blocked:['Blocked numbers','Numbers that cannot place orders'],
-    delivery:['Delivery','Delivery settings'],
-    payments:['Payments','Payment settings'],
-    settings:['Settings','Store settings'],
-    site:['সাইট নিয়ন্ত্রণ','আপনার ওয়েবসাইটের সবকিছু এক জায়গা থেকে']
-  };
-
-  const t=(orderDept==='clothing'?['👕 পোশাকের অর্ডার','শুধু পোশাকের অর্ডার']:orderDept==='gadget'?['🎧 গ্যাজেটের অর্ডার','শুধু গ্যাজেটের অর্ডার']:titles[section])||titles.dashboard;
-  if($('pageTitle'))$('pageTitle').textContent=t[0];
-  if($('pageSub'))$('pageSub').textContent=t[1];
-
-  if(section==='coupons'){render();refreshCoupons().then(()=>{if(currentSection==='coupons')render()}).catch(()=>{});}
-  else render();
-
-  if(window.innerWidth<=720)toggleSidebar(false);
-}
-function render(){
-  const c=$('content');if(!c)return;
-  const map={dashboard,clothing:()=>deptPage('clothing'),gadget:()=>deptPage('gadget'),products,orders,customers,categories,offers,coupons,reports,policies:policiesPage,leads:leadsPage,blocked:blockedPage,delivery,payments,settings,site:sitePage};
-  c.innerHTML=(map[currentSection]||dashboard)();
-  updateOrderBadge();updateBell();
-  if(currentSection==='orders')bulkBarRender();
-}
-function toggleSidebar(force){
-  const side=document.querySelector('.sidebar'),overlay=$('sidebarOverlay');
-  if(!side)return;
-  const open=typeof force==='boolean'?force:!side.classList.contains('open');
-  side.classList.toggle('open',open);
-  overlay?.classList.toggle('show',open);
-}
-async function refreshDashboard(){
-  try{
-    await loadCloud();
-    render()
-  }catch(e){showError(e)}
-}
-
-/* =========================================================
-   AUTH
-========================================================= */
-
-async function login(){
-  const email=($('loginEmail')?.value||$('loginUser')?.value||'').trim(),
-        password=$('loginPassword')?.value??$('loginPass')?.value;
-  if(!email||!password){alert('Please enter admin email and password.');return}
-
-  try{
-    const {data,error}=await sb.auth.signInWithPassword({email,password});
-    if(error)throw error;
-
-    if(data?.user?.id!==ADMIN_UID){
-      await sb.auth.signOut();
-      alert('You are not authorized as admin.');
-      return
-    }
-
-    showApp();
-    await loadCloud();
-    await loadPaymentSettingsFull();
-    await loadStoreSettings();
-    render()
-  }catch(e){
-    alert('Login failed.\n\n'+(e?.message||'Invalid email or password.'))
-  }
-}
-async function logout(){
-  try{await sb.auth.signOut()}catch(e){console.error(e)}
-  showLogin()
-}
-
-/* =========================================================
-   EXPORT / IMPORT
-========================================================= */
-
-function exportData(){
-  const data={
-    exportedAt:new Date().toISOString(),
-    products:productsCache,
-    orders:ordersCache,
-    categories:categoriesCache,
-    offers:offersCache,
-    delivery_settings:deliverySettingsCache,
-    payment_settings:paymentSettingsFull,
-    store_settings:storeSettingsCache
-  };
-
-  const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
-  const a=document.createElement('a');
-  a.href=URL.createObjectURL(blob);
-  a.download='gadget-bazar-admin-export.json';
-  a.click();
-  URL.revokeObjectURL(a.href)
-}
-
-async function importData(e){
-  let file=e?.target?.files?.[0];
-  if(!file){
-    const picker=document.createElement('input');
-    picker.type='file';
-    picker.accept='application/json,.json';
-    picker.onchange=ev=>importData(ev);
-    picker.click();
-    return;
-  }
-
-  try{
-    const data=JSON.parse(await file.text());
-
-    if(Array.isArray(data.products)){
-      for(const p of data.products){
-        const {error}=await sb.from('products').upsert(p,{onConflict:'id'});
-        if(error)throw error
-      }
-    }
-
-    await loadCloud();
-    render();
-    alert('Import completed.')
-  }catch(err){
-    showError(err)
-  }
-
-  e.target.value=''
-}
-
-/* =========================================================
-   OFFERS & DEALS
-   Restored from the 14 Oct 2026 admin (commit acaca7c).
-   Writes to the `offers` table that the customer website reads.
-========================================================= */
-function offerDateInput(v){
-  if(!v)return '';
-  const d=new Date(v);
-  return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,16);
-}
-function offers(){
-  const rows=offersCache.map((o,i)=>{
-    const ids=Array.isArray(o.product_ids)?o.product_ids:[];
-    const names=ids.map(id=>productsCache.find(p=>String(p.id)===String(id))?.name).filter(Boolean).map(esc).join(', ')||'—';
-    const value=Number(o.discount_percent||0)>0?Number(o.discount_percent)+'% off':(o.combo_price?money(o.combo_price):'Special deal');
-    return `<tr><td><b>${esc(o.title)}</b><br><small>${esc(o.description||'')}</small></td><td>${esc(o.offer_type)}</td><td>${value}</td><td>${names}</td><td>${o.starts_at?esc(new Date(o.starts_at).toLocaleString()):'Now'}<br>→ ${o.ends_at?esc(new Date(o.ends_at).toLocaleString()):'No end'}</td><td><span class="pill ${o.active?'green':'red'}">${o.active?'Active':'Inactive'}</span></td><td class="actions"><button class="btn muted" onclick="editOffer(${i})">Edit</button><button class="btn danger" onclick="deleteOffer(${i})">Delete</button></td></tr>`;
-  }).join('');
-  return `<div class="section-head"><div><h3>Offers & Deals</h3><p>Create and schedule the deals shown on your customer website.</p></div><button class="btn primary" onclick="addOffer()">＋ Create Offer</button></div>
-  <div class="table-wrap"><table class="table"><thead><tr><th>Offer</th><th>Type</th><th>Discount / Combo</th><th>Products</th><th>Schedule</th><th>Status</th><th>Actions</th></tr></thead><tbody>${rows||`<tr><td colspan="7" class="empty">No offers yet. Create your first offer.</td></tr>`}</tbody></table></div>
-  <p class="orders-count" style="margin-top:12px"><small>A percentage offer changes the price at checkout only if the product's own discount is also set in Products. A Combo Deal is charged at its combo price.</small></p>`;
-}
-function offerForm(o={}){
-  const chosen=(Array.isArray(o.product_ids)?o.product_ids:[]).map(String);
-  const picker=productsCache.map(p=>`<label class="combo-product-choice"><input class="offer-product-check" type="checkbox" value="${esc(p.id)}" ${chosen.includes(String(p.id))?'checked':''}><img src="${esc(p.image||'')}" alt="" onerror="this.style.visibility='hidden'"><span><b>${esc(p.name)}</b><small>${money(p.price)} · Stock ${Number(p.stock||0)}</small></span></label>`).join('');
-  const types=['Combo Deals','Flash Sale','Big Discount','Special Offers','Limited-Time Deals','Best Deals','Clearance Sale'];
-  return `<div class="form-grid">
-    <label>Offer title<input id="offerTitle" value="${esc(o.title||'')}" placeholder="Weekend Combo Deal" required></label>
-    <label>Offer type<select id="offerType">${types.map(t=>`<option ${o.offer_type===t?'selected':''}>${t}</option>`).join('')}</select></label>
-    <label>Discount percent<input id="offerDiscount" type="number" min="0" max="100" value="${Number(o.discount_percent||0)}"></label>
-    <label>Combo price (৳)<input id="offerComboPrice" type="number" min="0" step="1" value="${o.combo_price??''}"></label>
-    <div class="full"><label for="offerCoverImage">Offer cover image</label><input id="offerCoverImage" type="file" accept="image/*"><small>Choose a clear image for the offer card. ${o.cover_image?'An existing cover image is saved.':''}</small><div id="offerCoverPreview" class="offer-cover-preview">${o.cover_image?`<img src="${esc(o.cover_image)}" alt="Current offer cover">`:'No cover selected yet.'}</div></div>
-    <div class="full"><label>Products included in this offer</label><input id="offerProductSearch" class="input" type="search" placeholder="Search products by name..." oninput="filterOfferProducts(this.value)"><div class="combo-product-picker" id="comboProductPicker">${picker||'<p>No products found. Add products first.</p>'}</div><small>For a Combo Deal, select at least two products.</small></div>
-    <label>Starts at (optional)<input id="offerStarts" type="datetime-local" value="${offerDateInput(o.starts_at)}"></label>
-    <label>Ends at (optional)<input id="offerEnds" type="datetime-local" value="${offerDateInput(o.ends_at)}"></label>
-    <label class="full">Description<textarea id="offerDescription" rows="3">${esc(o.description||'')}</textarea></label>
-    <label class="full admin-checkline"><input id="offerActive" type="checkbox" ${o.active!==false?'checked':''}> Offer is active (visible on the website)</label>
-  </div><div class="btn-row"><button class="btn muted" onclick="closeModal()">Cancel</button><button class="btn primary" id="saveOfferBtn" onclick="saveOffer()">Save Offer</button></div>`;
-}
-function filterOfferProducts(query){
-  const q=String(query||'').toLowerCase();
-  document.querySelectorAll('.combo-product-choice').forEach(el=>{el.style.display=el.textContent.toLowerCase().includes(q)?'flex':'none'});
-}
-function addOffer(){editingOfferId=null;openModal('Create Offer',offerForm())}
-function editOffer(i){const o=offersCache[i];if(!o)return;editingOfferId=o.id;openModal('Edit Offer',offerForm(o))}
-async function saveOffer(){
-  const title=$('offerTitle')?.value.trim();
-  if(!title){alert('Offer title is required.');return}
-  const type=$('offerType').value;
-  const starts=$('offerStarts')?.value,ends=$('offerEnds')?.value;
-  if(starts&&ends&&new Date(ends)<=new Date(starts)){alert('End time must be after start time.');return}
-  const pct=Number($('offerDiscount')?.value||0);
-  if(!Number.isFinite(pct)||pct<0||pct>100){alert('Discount must be between 0 and 100.');return}
-  const productIds=[...document.querySelectorAll('.offer-product-check:checked')].map(x=>x.value);
-  if(type==='Combo Deals'&&productIds.length<2){alert('Select at least two products for a Combo Deal.');return}
-  const comboPrice=$('offerComboPrice').value?Number($('offerComboPrice').value):null;
-  if(comboPrice!==null&&(!Number.isFinite(comboPrice)||comboPrice<0)){alert('Enter a valid combo price.');return}
-  if(type==='Combo Deals'&&(!comboPrice||comboPrice<=0)){alert('Enter a valid combo price.');return}
-  const payload={title,offer_type:type,description:$('offerDescription').value.trim(),discount_percent:pct,combo_price:comboPrice,product_ids:productIds,starts_at:starts?new Date(starts).toISOString():null,ends_at:ends?new Date(ends).toISOString():null,active:$('offerActive').checked};
-  const btn=$('saveOfferBtn');
-  try{
-    if(btn){btn.disabled=true;btn.textContent='Saving...'}
-    let file=$('offerCoverImage')?.files?.[0];
-    if(file){
-      if(file.size>25*1048576)throw new Error('Image is too large (max 25 MB).');
-      file=await prepareImage(file);
-      const path=`offers/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g,'_')}`;
-      const {error:upErr}=await sb.storage.from(BUCKET).upload(path,file,{upsert:true,contentType:file.type});
-      if(upErr)throw upErr;
-      payload.cover_image=sb.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
-    }
-    if(editingOfferId){
-      const existing=offersCache.find(x=>String(x.id)===String(editingOfferId));
-      if(!payload.cover_image&&existing?.cover_image)payload.cover_image=existing.cover_image;
-    }
-    const q=editingOfferId?sb.from('offers').update(payload).eq('id',editingOfferId):sb.from('offers').insert(payload);
-    const {error}=await q;
-    if(error)throw error;
-    const {data,error:e}=await sb.from('offers').select('*').order('created_at',{ascending:false});
-    if(e)throw e;
-    offersCache=data||[];
-    closeModal();render();
-    alert('Offer saved.');
-  }catch(e){
-    showError(e);
-    if(btn){btn.disabled=false;btn.textContent='Save Offer'}
-  }
-}
-async function deleteOffer(i){
-  const o=offersCache[i];if(!o)return;
-  if(!confirm(`Delete offer "${o.title}"?`))return;
-  try{
-    const {error}=await sb.from('offers').delete().eq('id',o.id);
-    if(error)throw error;
-    offersCache=offersCache.filter(x=>x.id!==o.id);
-    render();
-  }catch(e){showError(e)}
-}
-
-/* =========================================================
-   START
-========================================================= */
-
-document.addEventListener('DOMContentLoaded',()=>{
-  if(!document.querySelector('.nav[data-section="leads"]')){
-    const ob=document.querySelector('.nav[data-section="orders"]');
-    if(ob){const a=document.createElement('button');a.className='nav';a.dataset.section='leads';a.innerHTML='🛒 <span>Incomplete orders</span>';ob.after(a);const b=document.createElement('button');b.className='nav';b.dataset.section='blocked';b.innerHTML='🚫 <span>Blocked numbers</span>';a.after(b)}
-  }
-  if(!document.querySelector('.nav[data-section="reports"]')){
-    const db=document.querySelector('.nav[data-section="dashboard"]');
-    if(db){const nb=document.createElement('button');nb.className='nav';nb.dataset.section='reports';nb.innerHTML='📈 <span>Reports</span>';db.after(nb)}
-  }
-  if(!document.querySelector('.nav[data-section="coupons"]')){
-    const ob=document.querySelector('.nav[data-section="offers"]');
-    if(ob){const nb=document.createElement('button');nb.className='nav';nb.dataset.section='coupons';nb.innerHTML='🎟 <span>Coupons</span>';ob.after(nb)}
-  }
-  if(!document.querySelector('.nav[data-section="policies"]')){
-    const ob=document.querySelector('.nav[data-section="coupons"]')||document.querySelector('.nav[data-section="offers"]');
-    if(ob){const nb=document.createElement('button');nb.className='nav';nb.dataset.section='policies';nb.innerHTML='📜 <span>Policies</span>';ob.after(nb)}
-  }
-  document.querySelectorAll('.nav[data-page],.nav[data-section],.subnav-item').forEach(btn=>{
-    btn.addEventListener('click',()=>go(btn.dataset.page||btn.dataset.section))
-  });
-
-  $('importFile')?.addEventListener('change',importData);
-  $('loginPassword')?.addEventListener('keydown',e=>{
-    if(e.key==='Enter')login()
-  });
-  $('loginPass')?.addEventListener('keydown',e=>{
-    if(e.key==='Enter')login()
-  });
-  $('modal')?.addEventListener('click',e=>{
-    if(e.target.id==='modal')closeModal()
-  });
-
-  init()
-});
-
-async function init(){
-  try{
-    const ok=await checkAdmin();
-    if(!ok)return;
-
-    showApp();
-    await loadCloud();
-    await loadPaymentSettingsFull();
-    await loadStoreSettings();
-    render()
-  }catch(e){
-    showError(e)
-  }
-}
-
-/* =========================================================
-   GLOBAL FUNCTIONS FOR INLINE BUTTONS
-========================================================= */
-
-window.$=$;
-window.login=login;
-window.logout=logout;
-window.go=go;
-window.render=render;
-
-window.closeModal=closeModal;
-window.openModal=openModal;
-
-window.addProduct=addProduct;
-window.editProduct=editProduct;
-window.saveProduct=saveProduct;
-window.deleteProduct=deleteProduct;
-
-window.viewOrder=viewOrder;
-window.updateOrderStatus=updateOrderStatus;
-window.filterOrders=filterOrders;
-window.exportOrdersCSV=exportOrdersCSV;
-
-window.addCategory=addCategory;
-window.saveCategory=saveCategory;
-window.deleteCategory=deleteCategory;
-
-window.refreshProducts=refreshProducts;
-window.refreshOrders=refreshOrders;
-window.refreshDashboard=refreshDashboard;
-
-window.whatsappOrder=whatsappOrder;
-window.addOffer=addOffer;
-window.editOffer=editOffer;
-window.saveOffer=saveOffer;
-window.deleteOffer=deleteOffer;
-window.filterOfferProducts=filterOfferProducts;
-
-window.refreshDeliverySettings=refreshDeliverySettings;
-window.saveDeliverySettings=saveDeliverySettings;
-
-window.toggleSidebar=toggleSidebar;
-window.toggleSide=toggleSidebar;
-window.toggleCatalog=toggleCatalog;
-window.exportData=exportData;
-
-window.payments=payments;
-window.loadPaymentSettingsFull=loadPaymentSettingsFull;
-window.savePaymentSettingsFull=savePaymentSettingsFull;
-window.loadStoreSettings=loadStoreSettings;
-window.saveStoreSettings=saveStoreSettings;
-
-/* =========================================================
-   CATEGORY PICKER + POST BUILDER
-========================================================= */
-(function(){
-  const st=document.createElement('style');
-  st.textContent=`.cat-wrap{position:relative;display:block}.cat-suggest{position:absolute;left:0;right:0;top:100%;z-index:50;background:#fff;color:#111;border:1px solid #cbd5e1;border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.18);max-height:220px;overflow:auto;margin-top:4px}.cat-suggest.hidden{display:none}.cat-suggest div{padding:10px 12px;cursor:pointer;font-size:14px;border-bottom:1px solid #f1f5f9}.cat-suggest div:hover{background:#eef2ff}.cat-suggest .cat-new{color:#0a7d33;font-weight:700}.post-box textarea{width:100%;min-height:230px;font:14px/1.5 inherit;padding:10px;border:1px solid #cbd5e1;border-radius:10px;box-sizing:border-box}.post-row{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}.post-row .btn{flex:1;min-width:140px}.post-src{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0}.post-src button{padding:7px 12px;border-radius:99px;border:1px solid #cbd5e1;background:#fff;cursor:pointer}.post-src button.on{background:#0f172a;color:#fff;border-color:#0f172a}`;
-  document.head.appendChild(st);
-})();
-function hideCatSuggest(){$('catSuggest')?.classList.add('hidden')}
-function showCatSuggest(){
-  const box=$('catSuggest'),inp=$('productCategory');if(!box||!inp)return;
-  const q=inp.value.trim().toLowerCase();
-  const sd=$('productDept')?.value||'gadget';
-  const list=categoriesCache.filter(c=>deptOf(c)===sd&&(!q||String(c.name).toLowerCase().includes(q)));
-  let h=list.map(c=>`<div onmousedown="pickCat(this.dataset.n)" data-n="${esc(c.name)}">${esc(c.name)}</div>`).join('');
-  const exact=categoriesCache.some(c=>String(c.name).trim().toLowerCase()===q);
-  if(q&&!exact)h+=`<div class="cat-new" onmousedown="pickCat(this.dataset.n)" data-n="${esc(inp.value.trim())}">＋ Add new: ${esc(inp.value.trim())}</div>`;
-  if(!h){box.classList.add('hidden');return}
-  box.innerHTML=h;box.classList.remove('hidden')
-}
-function pickCat(n){const i=$('productCategory');if(i)i.value=n;hideCatSuggest()}
-
-const SITE_URL='https://paboobd.github.io/';
-const POST_WA='8801320992683';
-let postIdx=-1,postSrc='fbgroup';
-const POST_SRCS={fbgroup:'Facebook Group',fbpage:'Facebook Page/Boost',story:'Story',tiktok:'TikTok'};
-function postFinal(p){return Math.round(Number(p.price||0)*(1-Number(p.discount||0)/100))}
-function postText(p,src){
-  const fin=postFinal(p),d=Number(p.discount||0);
-  let specs=p.specifications;if(typeof specs==='string'){try{specs=JSON.parse(specs)}catch(e){specs=[]}}
-  const feats=(Array.isArray(specs)?specs:[]).slice(0,5).map(x=>x&&typeof x==='object'?`✅ ${x.name}${x.value?': '+x.value:''}`:`✅ ${x}`);
-  const L=[`🔥 ${p.name}`];
-  if(p.brand)L.push(`Brand: ${p.brand}`);
-  L.push('',d>0?`💰 দাম: ৳${fin.toLocaleString('en-BD')} (৳${Number(p.price).toLocaleString('en-BD')} থেকে ${d}% ছাড়)`:`💰 দাম: ৳${fin.toLocaleString('en-BD')}`);
-  if(feats.length)L.push('',...feats);
-  if(p.warranty)L.push('',`🛡️ ওয়ারেন্টি: ${p.warranty}`);
-  if(Number(p.stock||0)>0&&Number(p.stock)<=5)L.push(`⚡ মাত্র ${p.stock}টি স্টক আছে`);
-  L.push('','🚚 সারা বাংলাদেশে ডেলিভারি | ক্যাশ অন ডেলিভারি',`🛒 অর্ডার করুন: ${SITE_URL}?product=${encodeURIComponent(p.id)}&src=${src}`,`📲 WhatsApp: https://wa.me/${POST_WA}`);
-  return L.join('\n')
-}
-function openPostBuilder(i){
-  const p=productsCache[i];if(!p)return;postIdx=i;postSrc='fbgroup';
-  openModal('Post: '+p.name,`<div class="post-box">
+`+(o?.message||"Invalid email or password."))}}async function logout(){try{await sb.auth.signOut()}catch(e){console.error(e)}showLogin()}function exportData(){const e={exportedAt:new Date().toISOString(),products:productsCache,orders:ordersCache,categories:categoriesCache,offers:offersCache,delivery_settings:deliverySettingsCache,payment_settings:paymentSettingsFull,store_settings:storeSettingsCache},t=new Blob([JSON.stringify(e,null,2)],{type:"application/json"}),o=document.createElement("a");o.href=URL.createObjectURL(t),o.download="gadget-bazar-admin-export.json",o.click(),URL.revokeObjectURL(o.href)}async function importData(e){let t=e?.target?.files?.[0];if(!t){const o=document.createElement("input");o.type="file",o.accept="application/json,.json",o.onchange=n=>importData(n),o.click();return}try{const o=JSON.parse(await t.text());if(Array.isArray(o.products))for(const n of o.products){const{error:a}=await sb.from("products").upsert(n,{onConflict:"id"});if(a)throw a}await loadCloud(),render(),alert("Import completed.")}catch(o){showError(o)}e.target.value=""}function offerDateInput(e){if(!e)return"";const t=new Date(e);return new Date(t.getTime()-t.getTimezoneOffset()*6e4).toISOString().slice(0,16)}function offers(){return`<div class="section-head"><div><h3>Offers & Deals</h3><p>Create and schedule the deals shown on your customer website.</p></div><button class="btn primary" onclick="addOffer()">＋ Create Offer</button></div>
+  <div class="table-wrap"><table class="table"><thead><tr><th>Offer</th><th>Type</th><th>Discount / Combo</th><th>Products</th><th>Schedule</th><th>Status</th><th>Actions</th></tr></thead><tbody>${offersCache.map((t,o)=>{const a=(Array.isArray(t.product_ids)?t.product_ids:[]).map(s=>productsCache.find(i=>String(i.id)===String(s))?.name).filter(Boolean).map(esc).join(", ")||"—",r=Number(t.discount_percent||0)>0?Number(t.discount_percent)+"% off":t.combo_price?money(t.combo_price):"Special deal";return`<tr><td><b>${esc(t.title)}</b><br><small>${esc(t.description||"")}</small></td><td>${esc(t.offer_type)}</td><td>${r}</td><td>${a}</td><td>${t.starts_at?esc(new Date(t.starts_at).toLocaleString()):"Now"}<br>→ ${t.ends_at?esc(new Date(t.ends_at).toLocaleString()):"No end"}</td><td><span class="pill ${t.active?"green":"red"}">${t.active?"Active":"Inactive"}</span></td><td class="actions"><button class="btn muted" onclick="editOffer(${o})">Edit</button><button class="btn danger" onclick="deleteOffer(${o})">Delete</button></td></tr>`}).join("")||'<tr><td colspan="7" class="empty">No offers yet. Create your first offer.</td></tr>'}</tbody></table></div>
+  <p class="orders-count" style="margin-top:12px"><small>A percentage offer changes the price at checkout only if the product's own discount is also set in Products. A Combo Deal is charged at its combo price.</small></p>`}function offerForm(e={}){const t=(Array.isArray(e.product_ids)?e.product_ids:[]).map(String),o=productsCache.map(a=>`<label class="combo-product-choice"><input class="offer-product-check" type="checkbox" value="${esc(a.id)}" ${t.includes(String(a.id))?"checked":""}><img src="${esc(a.image||"")}" alt="" onerror="this.style.visibility='hidden'"><span><b>${esc(a.name)}</b><small>${money(a.price)} · Stock ${Number(a.stock||0)}</small></span></label>`).join(""),n=["Combo Deals","Flash Sale","Big Discount","Special Offers","Limited-Time Deals","Best Deals","Clearance Sale"];return`<div class="form-grid">
+    <label>Offer title<input id="offerTitle" value="${esc(e.title||"")}" placeholder="Weekend Combo Deal" required></label>
+    <label>Offer type<select id="offerType">${n.map(a=>`<option ${e.offer_type===a?"selected":""}>${a}</option>`).join("")}</select></label>
+    <label>Discount percent<input id="offerDiscount" type="number" min="0" max="100" value="${Number(e.discount_percent||0)}"></label>
+    <label>Combo price (৳)<input id="offerComboPrice" type="number" min="0" step="1" value="${e.combo_price??""}"></label>
+    <div class="full"><label for="offerCoverImage">Offer cover image</label><input id="offerCoverImage" type="file" accept="image/*"><small>Choose a clear image for the offer card. ${e.cover_image?"An existing cover image is saved.":""}</small><div id="offerCoverPreview" class="offer-cover-preview">${e.cover_image?`<img src="${esc(e.cover_image)}" alt="Current offer cover">`:"No cover selected yet."}</div></div>
+    <div class="full"><label>Products included in this offer</label><input id="offerProductSearch" class="input" type="search" placeholder="Search products by name..." oninput="filterOfferProducts(this.value)"><div class="combo-product-picker" id="comboProductPicker">${o||"<p>No products found. Add products first.</p>"}</div><small>For a Combo Deal, select at least two products.</small></div>
+    <label>Starts at (optional)<input id="offerStarts" type="datetime-local" value="${offerDateInput(e.starts_at)}"></label>
+    <label>Ends at (optional)<input id="offerEnds" type="datetime-local" value="${offerDateInput(e.ends_at)}"></label>
+    <label class="full">Description<textarea id="offerDescription" rows="3">${esc(e.description||"")}</textarea></label>
+    <label class="full admin-checkline"><input id="offerActive" type="checkbox" ${e.active!==!1?"checked":""}> Offer is active (visible on the website)</label>
+  </div><div class="btn-row"><button class="btn muted" onclick="closeModal()">Cancel</button><button class="btn primary" id="saveOfferBtn" onclick="saveOffer()">Save Offer</button></div>`}function filterOfferProducts(e){const t=String(e||"").toLowerCase();document.querySelectorAll(".combo-product-choice").forEach(o=>{o.style.display=o.textContent.toLowerCase().includes(t)?"flex":"none"})}function addOffer(){editingOfferId=null,openModal("Create Offer",offerForm())}function editOffer(e){const t=offersCache[e];t&&(editingOfferId=t.id,openModal("Edit Offer",offerForm(t)))}async function saveOffer(){const e=$("offerTitle")?.value.trim();if(!e){alert("Offer title is required.");return}const t=$("offerType").value,o=$("offerStarts")?.value,n=$("offerEnds")?.value;if(o&&n&&new Date(n)<=new Date(o)){alert("End time must be after start time.");return}const a=Number($("offerDiscount")?.value||0);if(!Number.isFinite(a)||a<0||a>100){alert("Discount must be between 0 and 100.");return}const r=[...document.querySelectorAll(".offer-product-check:checked")].map(l=>l.value);if(t==="Combo Deals"&&r.length<2){alert("Select at least two products for a Combo Deal.");return}const s=$("offerComboPrice").value?Number($("offerComboPrice").value):null;if(s!==null&&(!Number.isFinite(s)||s<0)){alert("Enter a valid combo price.");return}if(t==="Combo Deals"&&(!s||s<=0)){alert("Enter a valid combo price.");return}const i={title:e,offer_type:t,description:$("offerDescription").value.trim(),discount_percent:a,combo_price:s,product_ids:r,starts_at:o?new Date(o).toISOString():null,ends_at:n?new Date(n).toISOString():null,active:$("offerActive").checked},c=$("saveOfferBtn");try{c&&(c.disabled=!0,c.textContent="Saving...");let l=$("offerCoverImage")?.files?.[0];if(l){if(l.size>25*1048576)throw new Error("Image is too large (max 25 MB).");l=await prepareImage(l);const v=`offers/${Date.now()}_${l.name.replace(/[^a-zA-Z0-9._-]/g,"_")}`,{error:f}=await sb.storage.from(BUCKET).upload(v,l,{upsert:!0,contentType:l.type});if(f)throw f;i.cover_image=sb.storage.from(BUCKET).getPublicUrl(v).data.publicUrl}if(editingOfferId){const v=offersCache.find(f=>String(f.id)===String(editingOfferId));!i.cover_image&&v?.cover_image&&(i.cover_image=v.cover_image)}const d=editingOfferId?sb.from("offers").update(i).eq("id",editingOfferId):sb.from("offers").insert(i),{error:u}=await d;if(u)throw u;const{data:m,error:g}=await sb.from("offers").select("*").order("created_at",{ascending:!1});if(g)throw g;offersCache=m||[],closeModal(),render(),alert("Offer saved.")}catch(l){showError(l),c&&(c.disabled=!1,c.textContent="Save Offer")}}async function deleteOffer(e){const t=offersCache[e];if(t&&confirm(`Delete offer "${t.title}"?`))try{const{error:o}=await sb.from("offers").delete().eq("id",t.id);if(o)throw o;offersCache=offersCache.filter(n=>n.id!==t.id),render()}catch(o){showError(o)}}document.addEventListener("DOMContentLoaded",()=>{if(!document.querySelector('.nav[data-section="leads"]')){const e=document.querySelector('.nav[data-section="orders"]');if(e){const t=document.createElement("button");t.className="nav",t.dataset.section="leads",t.innerHTML="🛒 <span>Incomplete orders</span>",e.after(t);const o=document.createElement("button");o.className="nav",o.dataset.section="blocked",o.innerHTML="🚫 <span>Blocked numbers</span>",t.after(o)}}if(!document.querySelector('.nav[data-section="reports"]')){const e=document.querySelector('.nav[data-section="dashboard"]');if(e){const t=document.createElement("button");t.className="nav",t.dataset.section="reports",t.innerHTML="📈 <span>Reports</span>",e.after(t)}}if(!document.querySelector('.nav[data-section="coupons"]')){const e=document.querySelector('.nav[data-section="offers"]');if(e){const t=document.createElement("button");t.className="nav",t.dataset.section="coupons",t.innerHTML="🎟 <span>Coupons</span>",e.after(t)}}if(!document.querySelector('.nav[data-section="policies"]')){const e=document.querySelector('.nav[data-section="coupons"]')||document.querySelector('.nav[data-section="offers"]');if(e){const t=document.createElement("button");t.className="nav",t.dataset.section="policies",t.innerHTML="📜 <span>Policies</span>",e.after(t)}}document.querySelectorAll(".nav[data-page],.nav[data-section],.subnav-item").forEach(e=>{e.addEventListener("click",()=>go(e.dataset.page||e.dataset.section))}),$("importFile")?.addEventListener("change",importData),$("loginPassword")?.addEventListener("keydown",e=>{e.key==="Enter"&&login()}),$("loginPass")?.addEventListener("keydown",e=>{e.key==="Enter"&&login()}),$("modal")?.addEventListener("click",e=>{e.target.id==="modal"&&closeModal()}),init()});async function init(){try{if(!await checkAdmin())return;showApp(),await loadCloud(),await loadPaymentSettingsFull(),await loadStoreSettings(),render()}catch(e){showError(e)}}window.$=$,window.login=login,window.logout=logout,window.go=go,window.render=render,window.closeModal=closeModal,window.openModal=openModal,window.addProduct=addProduct,window.editProduct=editProduct,window.saveProduct=saveProduct,window.deleteProduct=deleteProduct,window.viewOrder=viewOrder,window.updateOrderStatus=updateOrderStatus,window.filterOrders=filterOrders,window.exportOrdersCSV=exportOrdersCSV,window.addCategory=addCategory,window.saveCategory=saveCategory,window.deleteCategory=deleteCategory,window.refreshProducts=refreshProducts,window.refreshOrders=refreshOrders,window.refreshDashboard=refreshDashboard,window.whatsappOrder=whatsappOrder,window.addOffer=addOffer,window.editOffer=editOffer,window.saveOffer=saveOffer,window.deleteOffer=deleteOffer,window.filterOfferProducts=filterOfferProducts,window.refreshDeliverySettings=refreshDeliverySettings,window.saveDeliverySettings=saveDeliverySettings,window.toggleSidebar=toggleSidebar,window.toggleSide=toggleSidebar,window.toggleCatalog=toggleCatalog,window.exportData=exportData,window.payments=payments,window.loadPaymentSettingsFull=loadPaymentSettingsFull,window.savePaymentSettingsFull=savePaymentSettingsFull,window.loadStoreSettings=loadStoreSettings,window.saveStoreSettings=saveStoreSettings,(function(){const e=document.createElement("style");e.textContent=".cat-wrap{position:relative;display:block}.cat-suggest{position:absolute;left:0;right:0;top:100%;z-index:50;background:#fff;color:#111;border:1px solid #cbd5e1;border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.18);max-height:220px;overflow:auto;margin-top:4px}.cat-suggest.hidden{display:none}.cat-suggest div{padding:10px 12px;cursor:pointer;font-size:14px;border-bottom:1px solid #f1f5f9}.cat-suggest div:hover{background:#eef2ff}.cat-suggest .cat-new{color:#0a7d33;font-weight:700}.post-box textarea{width:100%;min-height:230px;font:14px/1.5 inherit;padding:10px;border:1px solid #cbd5e1;border-radius:10px;box-sizing:border-box}.post-row{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}.post-row .btn{flex:1;min-width:140px}.post-src{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0}.post-src button{padding:7px 12px;border-radius:99px;border:1px solid #cbd5e1;background:#fff;cursor:pointer}.post-src button.on{background:#0f172a;color:#fff;border-color:#0f172a}",document.head.appendChild(e)})();function hideCatSuggest(){$("catSuggest")?.classList.add("hidden")}function showCatSuggest(){const e=$("catSuggest"),t=$("productCategory");if(!e||!t)return;const o=t.value.trim().toLowerCase(),n=$("productDept")?.value||"gadget";let r=categoriesCache.filter(i=>deptOf(i)===n&&(!o||String(i.name).toLowerCase().includes(o))).map(i=>`<div onmousedown="pickCat(this.dataset.n)" data-n="${esc(i.name)}">${esc(i.name)}</div>`).join("");const s=categoriesCache.some(i=>String(i.name).trim().toLowerCase()===o);if(o&&!s&&(r+=`<div class="cat-new" onmousedown="pickCat(this.dataset.n)" data-n="${esc(t.value.trim())}">＋ Add new: ${esc(t.value.trim())}</div>`),!r){e.classList.add("hidden");return}e.innerHTML=r,e.classList.remove("hidden")}function pickCat(e){const t=$("productCategory");t&&(t.value=e),hideCatSuggest()}const SITE_URL="https://paboobd.github.io/",POST_WA="8801320992683";let postIdx=-1,postSrc="fbgroup";const POST_SRCS={fbgroup:"Facebook Group",fbpage:"Facebook Page/Boost",story:"Story",tiktok:"TikTok"};function postFinal(e){return Math.round(Number(e.price||0)*(1-Number(e.discount||0)/100))}function postText(e,t){const o=postFinal(e),n=Number(e.discount||0);let a=e.specifications;if(typeof a=="string")try{a=JSON.parse(a)}catch{a=[]}const r=(Array.isArray(a)?a:[]).slice(0,5).map(i=>i&&typeof i=="object"?`✅ ${i.name}${i.value?": "+i.value:""}`:`✅ ${i}`),s=[`🔥 ${e.name}`];return e.brand&&s.push(`Brand: ${e.brand}`),s.push("",n>0?`💰 দাম: ৳${o.toLocaleString("en-BD")} (৳${Number(e.price).toLocaleString("en-BD")} থেকে ${n}% ছাড়)`:`💰 দাম: ৳${o.toLocaleString("en-BD")}`),r.length&&s.push("",...r),e.warranty&&s.push("",`🛡️ ওয়ারেন্টি: ${e.warranty}`),Number(e.stock||0)>0&&Number(e.stock)<=5&&s.push(`⚡ মাত্র ${e.stock}টি স্টক আছে`),s.push("","🚚 সারা বাংলাদেশে ডেলিভারি | ক্যাশ অন ডেলিভারি",`🛒 অর্ডার করুন: ${SITE_URL}?product=${encodeURIComponent(e.id)}&src=${t}`,`📲 WhatsApp: https://wa.me/${POST_WA}`),s.join(`
+`)}function openPostBuilder(e){const t=productsCache[e];t&&(postIdx=e,postSrc="fbgroup",openModal("Post: "+t.name,`<div class="post-box">
     <b>কোথায় পোস্ট করবেন?</b>
-    <div class="post-src" id="postSrcBtns">${Object.entries(POST_SRCS).map(([k,v])=>`<button type="button" data-k="${k}" class="${k===postSrc?'on':''}" onclick="setPostSrc('${k}')">${v}</button>`).join('')}</div>
-    <textarea id="postText">${esc(postText(p,postSrc))}</textarea>
+    <div class="post-src" id="postSrcBtns">${Object.entries(POST_SRCS).map(([o,n])=>`<button type="button" data-k="${o}" class="${o===postSrc?"on":""}" onclick="setPostSrc('${o}')">${n}</button>`).join("")}</div>
+    <textarea id="postText">${esc(postText(t,postSrc))}</textarea>
     <div class="post-row"><button class="btn primary" type="button" onclick="copyPostText()">📋 Copy Text</button></div>
     <div class="post-row"><button class="btn muted" type="button" onclick="downloadPostImage('story')">⬇ Story (1080×1920)</button><button class="btn muted" type="button" onclick="downloadPostImage('square')">⬇ Post (1080×1080)</button></div>
-    <p id="postMsg" style="font-size:13px;color:#475569"></p></div>`)
-}
-function setPostSrc(k){
-  const p=productsCache[postIdx];if(!p)return;
-  const old=postSrc;postSrc=k;
-  const ta=$('postText');if(ta)ta.value=ta.value.split('&src='+old).join('&src='+k);
-  document.querySelectorAll('#postSrcBtns button').forEach(b=>b.classList.toggle('on',b.dataset.k===k))
-}
-async function copyPostText(){
-  const ta=$('postText');if(!ta)return;
-  try{await navigator.clipboard.writeText(ta.value)}catch(e){ta.select();document.execCommand('copy')}
-  if($('postMsg'))$('postMsg').textContent='✅ Copy হয়েছে — এখন Facebook/TikTok এ paste করুন।'
-}
-function wrapCanvasText(ctx,text,x,y,maxW,lh,maxLines){
-  const words=String(text).split(/\s+/);let line='',n=0;
-  for(const w of words){
-    const t=line?line+' '+w:w;
-    if(ctx.measureText(t).width>maxW&&line){ctx.fillText(line,x,y);y+=lh;line=w;if(++n>=maxLines-1)break}else line=t
-  }
-  ctx.fillText(line,x,y);return y+lh
-}
-function loadPostImg(url){
-  return new Promise(res=>{if(!url)return res(null);const im=new Image();im.crossOrigin='anonymous';im.onload=()=>res(im);im.onerror=()=>res(null);im.src=url})
-}
-async function downloadPostImage(kind){
-  const p=productsCache[postIdx];if(!p)return;
-  const W=1080,H=kind==='story'?1920:1080;
-  const c=document.createElement('canvas');c.width=W;c.height=H;const x=c.getContext('2d');
-  const g=x.createLinearGradient(0,0,0,H);g.addColorStop(0,'#0f172a');g.addColorStop(1,'#1e3a8a');x.fillStyle=g;x.fillRect(0,0,W,H);
-  const img=await loadPostImg(p.image);
-  const box=kind==='story'?820:560,bx=(W-box)/2,by=kind==='story'?250:70;
-  x.fillStyle='#fff';x.beginPath();x.roundRect(bx,by,box,box,36);x.fill();
-  if(img){const r=Math.min((box-40)/img.width,(box-40)/img.height),w=img.width*r,h=img.height*r;x.drawImage(img,bx+(box-w)/2,by+(box-h)/2,w,h)}
-  x.textAlign='center';x.fillStyle='#fbbf24';x.font='bold 40px sans-serif';x.fillText('PABOO',W/2,kind==='story'?150:56);
-  let y=by+box+(kind==='story'?90:60);
-  x.fillStyle='#fff';x.font='bold 52px sans-serif';y=wrapCanvasText(x,p.name,W/2,y,W-140,62,2);
-  const fin=postFinal(p),d=Number(p.discount||0);
-  x.fillStyle='#22c55e';x.font='bold 88px sans-serif';x.fillText('৳'+fin.toLocaleString('en-BD'),W/2,y+60);y+=100;
-  if(d>0){x.fillStyle='#cbd5e1';x.font='36px sans-serif';x.fillText('৳'+Number(p.price).toLocaleString('en-BD')+'  •  '+d+'% OFF',W/2,y+10);y+=60}
-  x.fillStyle='#fbbf24';x.font='bold 38px sans-serif';
-  x.fillText('Order: paboobd.github.io',W/2,H-(kind==='story'?150:80));
-  x.fillStyle='#fff';x.font='34px sans-serif';x.fillText('WhatsApp: +'+POST_WA,W/2,H-(kind==='story'?90:30));
-  let blob;
-  try{blob=await new Promise((r,j)=>c.toBlob(b=>b?r(b):j(new Error('x')),'image/jpeg',.92))}
-  catch(e){if($('postMsg'))$('postMsg').textContent='❌ ছবি তৈরি হয়নি (image CORS)। Screenshot নিন।';return}
-  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`${(p.name||'product').replace(/[^\w]+/g,'-')}-${kind}.jpg`;
-  document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),4000);
-  if($('postMsg'))$('postMsg').textContent=img?'✅ ছবি ডাউনলোড হয়েছে।':'⚠️ পণ্যের ছবি লোড হয়নি, শুধু লেখা সহ ছবি হয়েছে।'
-}
-window.openPostBuilder=openPostBuilder;window.setPostSrc=setPostSrc;window.copyPostText=copyPostText;window.downloadPostImage=downloadPostImage;
-window.showCatSuggest=showCatSuggest;window.hideCatSuggest=hideCatSuggest;window.pickCat=pickCat;
-
-/* =========================================================
-   COUPONS
-========================================================= */
-let couponsCache=[],couponsError='';
-async function refreshCoupons(){
-  const {data,error}=await sb.from('coupons').select('*').order('created_at',{ascending:false});
-  if(error){couponsError=error.message||'Coupons table not found. Run 4_coupons.sql in Supabase.';couponsCache=[];return}
-  couponsError='';couponsCache=data||[]
-}
-function couponStatus(c){
-  const now=Date.now();
-  if(c.active===false)return ['Off','red'];
-  if(c.starts_at&&new Date(c.starts_at)>now)return ['Scheduled','yellow'];
-  if(c.expires_at&&new Date(c.expires_at)<=now)return ['Expired','red'];
-  if(c.max_uses!=null&&Number(c.used_count)>=Number(c.max_uses))return ['Used up','red'];
-  return ['Active','green']
-}
-function coupons(){
-  if(couponsError)return `<div class="section-head"><div><h3>Coupons</h3></div></div><div class="card"><b>Coupons are not set up yet.</b><p>Open Supabase &gt; SQL Editor, run the file <code>4_coupons.sql</code> once, then press Refresh.</p><p><small>${esc(couponsError)}</small></p><button class="btn muted" onclick="refreshCoupons().then(render)">↻ Refresh</button></div>`;
-  const rows=couponsCache.map((c,i)=>{
-    const [st,cls]=couponStatus(c);
-    const val=c.type==='percent'?Number(c.value)+'% off':money(c.value)+' off';
-    return `<tr><td><b>${esc(String(c.code).toUpperCase())}</b>${c.note?`<br><small>${esc(c.note)}</small>`:''}</td><td>${val}</td><td>${money(c.min_order)}</td><td>${Number(c.used_count||0)}${c.max_uses!=null?' / '+Number(c.max_uses):''}</td><td>${c.expires_at?esc(new Date(c.expires_at).toLocaleDateString('en-BD')):'No end'}</td><td>${c.show_public?'Shown':'Hidden'}</td><td><span class="pill ${cls}">${st}</span></td><td class="actions"><button class="btn muted" onclick="toggleCoupon(${i})">${c.active!==false?'Turn off':'Turn on'}</button><button class="btn muted" onclick="editCoupon(${i})">Edit</button><button class="btn danger" onclick="deleteCoupon(${i})">Delete</button></td></tr>`
-  }).join('')||`<tr><td colspan="8" class="empty">No coupons yet</td></tr>`;
-  return `<div class="section-head"><div><h3>Coupons</h3><p>Discount codes customers type at checkout. The server checks every code, so prices cannot be changed from the browser.</p></div><div class="toolbar"><button class="btn primary" onclick="addCoupon()">＋ New Coupon</button><button class="btn muted" onclick="refreshCoupons().then(render)">↻ Refresh</button></div></div>
-  <div class="table-wrap"><table class="table"><thead><tr><th>Code</th><th>Discount</th><th>Min order</th><th>Used</th><th>Ends</th><th>On website</th><th>Status</th><th>Actions</th></tr></thead><tbody>${rows}</tbody></table></div>
-  <p class="orders-count" style="margin-top:12px"><small>"Shown" coupons are listed to every visitor in the Offers/Policies box. "Hidden" ones work only for people who know the code (good for group-specific codes).</small></p>`
-}
-let editingCouponId=null;
-function couponForm(c={}){
-  const d=v=>v?new Date(new Date(v).getTime()-new Date(v).getTimezoneOffset()*60000).toISOString().slice(0,16):'';
-  return `<div class="form-grid">
-    <label>Code<input id="couponCodeIn" value="${esc(c.code||'')}" placeholder="FBGROUP10" style="text-transform:uppercase" maxlength="24"></label>
-    <label>Type<select id="couponType"><option value="percent" ${c.type!=='flat'?'selected':''}>Percent (%)</option><option value="flat" ${c.type==='flat'?'selected':''}>Fixed amount (৳)</option></select></label>
-    <label>Value<input id="couponValue" type="number" min="1" value="${Number(c.value||10)}"></label>
-    <label>Minimum order (৳)<input id="couponMin" type="number" min="0" value="${Number(c.min_order||0)}"></label>
-    <label>Max uses (blank = unlimited)<input id="couponMax" type="number" min="1" value="${c.max_uses??''}"></label>
-    <label>Starts (optional)<input id="couponStart" type="datetime-local" value="${d(c.starts_at)}"></label>
-    <label>Ends (optional)<input id="couponEnd" type="datetime-local" value="${d(c.expires_at)}"></label>
-    <label>Show on website<select id="couponPublic"><option value="true" ${c.show_public!==false?'selected':''}>Shown to everyone</option><option value="false" ${c.show_public===false?'selected':''}>Hidden (code only)</option></select></label>
-    <label>Note (only you see it)<input id="couponNote" value="${esc(c.note||'')}" placeholder="Facebook group offer"></label>
-  </div><div class="modal-actions"><button class="btn primary" id="saveCouponBtn" onclick="saveCoupon()">Save Coupon</button></div>`
-}
-function addCoupon(){editingCouponId=null;openModal('New Coupon',couponForm())}
-function editCoupon(i){const c=couponsCache[i];if(!c)return;editingCouponId=c.id;openModal('Edit Coupon',couponForm(c))}
-async function saveCoupon(){
-  const code=($('couponCodeIn')?.value||'').trim().toUpperCase().replace(/[^A-Z0-9_-]/g,'');
-  const type=$('couponType')?.value==='flat'?'flat':'percent',value=Number($('couponValue')?.value);
-  const min=Number($('couponMin')?.value||0),mx=$('couponMax')?.value;
-  if(!code){alert('Enter a coupon code (letters and numbers).');return}
-  if(!Number.isFinite(value)||value<=0||(type==='percent'&&value>100)){alert(type==='percent'?'Percent must be between 1 and 100.':'Enter an amount greater than 0.');return}
-  if(!Number.isFinite(min)||min<0){alert('Minimum order must be 0 or more.');return}
-  const tv=id=>{const v=$(id)?.value;return v?new Date(v).toISOString():null};
-  const row={code,type,value,min_order:min,max_uses:mx?Math.max(1,parseInt(mx,10)):null,starts_at:tv('couponStart'),expires_at:tv('couponEnd'),show_public:$('couponPublic')?.value!=='false',note:$('couponNote')?.value.trim()||null};
-  try{
-    const btn=$('saveCouponBtn');if(btn){btn.disabled=true;btn.textContent='Saving...'}
-    const q=editingCouponId?sb.from('coupons').update(row).eq('id',editingCouponId):sb.from('coupons').insert(row);
-    const {error}=await q;
-    if(error){if(/duplicate|23505/i.test((error.code||'')+(error.message||'')))throw new Error('This coupon code already exists.');throw error}
-    await refreshCoupons();closeModal();render()
-  }catch(e){showError(e);const btn=$('saveCouponBtn');if(btn){btn.disabled=false;btn.textContent='Save Coupon'}}
-}
-async function toggleCoupon(i){
-  const c=couponsCache[i];if(!c)return;
-  try{const {error}=await sb.from('coupons').update({active:c.active===false}).eq('id',c.id);if(error)throw error;await refreshCoupons();render()}catch(e){showError(e)}
-}
-async function deleteCoupon(i){
-  const c=couponsCache[i];if(!c||!confirm(`Delete coupon ${c.code}?`))return;
-  try{const {error}=await sb.from('coupons').delete().eq('id',c.id);if(error)throw error;await refreshCoupons();render()}catch(e){showError(e)}
-}
-window.coupons=coupons;window.refreshCoupons=refreshCoupons;window.addCoupon=addCoupon;window.editCoupon=editCoupon;window.saveCoupon=saveCoupon;window.toggleCoupon=toggleCoupon;window.deleteCoupon=deleteCoupon;
-
-/* =========================================================
-   WEBSITE THEME (default colours shown to customers)
-========================================================= */
-const SITE_THEMES=[
- ['ocean','Ocean Night (current)',1,'#06101f','#25b7ff'],['violet','Neon Violet',1,'#0d0a1f','#a78bfa'],['emerald','Emerald Trust',1,'#05140f','#34d399'],
- ['sunset','Sunset Orange',1,'#140a06','#fb923c'],['gold','Black & Gold',1,'#0a0a0a','#e0b84a'],['slate','Pro Slate',1,'#0f1216','#38bdf8'],
- ['light','Clean White & Blue',0,'#f3f7fc','#1877f2'],['rose','Soft Rose',0,'#fff5f7','#e11d74'],['daraz','Bold Red & White',0,'#f4f4f4','#e8343a'],['mint','Fresh Mint',0,'#effaf6','#0d9f7a']
-];
-let pendingTheme=null;
-function themeCard(s){
-  const cur=pendingTheme||s.theme||'ocean';
-  const tiles=SITE_THEMES.map(([k,n,d,bg,ac])=>`<button type="button" class="theme-tile ${k===cur?'on':''}" onclick="pickSiteTheme('${k}')"><span class="sw" style="background:${bg}"><i style="background:${ac}"></i></span><b>${esc(n)}</b><small>${d?'Dark':'Light'}</small></button>`).join('');
-  return `<style>.theme-tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;margin:12px 0}.theme-tile{display:flex;flex-direction:column;align-items:center;gap:6px;padding:12px 6px;border:2px solid #e2e8f0;border-radius:14px;background:#fff;cursor:pointer;font:inherit;color:inherit}.theme-tile.on{border-color:#2563eb;background:#eff6ff}.theme-tile .sw{width:52px;height:52px;border-radius:50%;border:2px solid #cbd5e1;position:relative;overflow:hidden;display:block}.theme-tile .sw i{position:absolute;right:0;bottom:0;width:60%;height:60%;border-top-left-radius:100%}.theme-tile b{font-size:12.5px;text-align:center}.theme-tile small{color:#64748b}</style>
+    <p id="postMsg" style="font-size:13px;color:#475569"></p></div>`))}function setPostSrc(e){if(!productsCache[postIdx])return;const o=postSrc;postSrc=e;const n=$("postText");n&&(n.value=n.value.split("&src="+o).join("&src="+e)),document.querySelectorAll("#postSrcBtns button").forEach(a=>a.classList.toggle("on",a.dataset.k===e))}async function copyPostText(){const e=$("postText");if(e){try{await navigator.clipboard.writeText(e.value)}catch{e.select(),document.execCommand("copy")}$("postMsg")&&($("postMsg").textContent="✅ Copy হয়েছে — এখন Facebook/TikTok এ paste করুন।")}}function wrapCanvasText(e,t,o,n,a,r,s){const i=String(t).split(/\s+/);let c="",l=0;for(const d of i){const u=c?c+" "+d:d;if(e.measureText(u).width>a&&c){if(e.fillText(c,o,n),n+=r,c=d,++l>=s-1)break}else c=u}return e.fillText(c,o,n),n+r}function loadPostImg(e){return new Promise(t=>{if(!e)return t(null);const o=new Image;o.crossOrigin="anonymous",o.onload=()=>t(o),o.onerror=()=>t(null),o.src=e})}async function downloadPostImage(e){const t=productsCache[postIdx];if(!t)return;const o=1080,n=e==="story"?1920:1080,a=document.createElement("canvas");a.width=o,a.height=n;const r=a.getContext("2d"),s=r.createLinearGradient(0,0,0,n);s.addColorStop(0,"#0f172a"),s.addColorStop(1,"#1e3a8a"),r.fillStyle=s,r.fillRect(0,0,o,n);const i=await loadPostImg(t.image),c=e==="story"?820:560,l=(o-c)/2,d=e==="story"?250:70;if(r.fillStyle="#fff",r.beginPath(),r.roundRect(l,d,c,c,36),r.fill(),i){const y=Math.min((c-40)/i.width,(c-40)/i.height),w=i.width*y,k=i.height*y;r.drawImage(i,l+(c-w)/2,d+(c-k)/2,w,k)}r.textAlign="center",r.fillStyle="#fbbf24",r.font="bold 40px sans-serif",r.fillText("PABOO",o/2,e==="story"?150:56);let u=d+c+(e==="story"?90:60);r.fillStyle="#fff",r.font="bold 52px sans-serif",u=wrapCanvasText(r,t.name,o/2,u,o-140,62,2);const m=postFinal(t),g=Number(t.discount||0);r.fillStyle="#22c55e",r.font="bold 88px sans-serif",r.fillText("৳"+m.toLocaleString("en-BD"),o/2,u+60),u+=100,g>0&&(r.fillStyle="#cbd5e1",r.font="36px sans-serif",r.fillText("৳"+Number(t.price).toLocaleString("en-BD")+"  •  "+g+"% OFF",o/2,u+10),u+=60),r.fillStyle="#fbbf24",r.font="bold 38px sans-serif",r.fillText("Order: paboobd.github.io",o/2,n-(e==="story"?150:80)),r.fillStyle="#fff",r.font="34px sans-serif",r.fillText("WhatsApp: +"+POST_WA,o/2,n-(e==="story"?90:30));let v;try{v=await new Promise((y,w)=>a.toBlob(k=>k?y(k):w(new Error("x")),"image/jpeg",.92))}catch{$("postMsg")&&($("postMsg").textContent="❌ ছবি তৈরি হয়নি (image CORS)। Screenshot নিন।");return}const f=document.createElement("a");f.href=URL.createObjectURL(v),f.download=`${(t.name||"product").replace(/[^\w]+/g,"-")}-${e}.jpg`,document.body.appendChild(f),f.click(),f.remove(),setTimeout(()=>URL.revokeObjectURL(f.href),4e3),$("postMsg")&&($("postMsg").textContent=i?"✅ ছবি ডাউনলোড হয়েছে।":"⚠️ পণ্যের ছবি লোড হয়নি, শুধু লেখা সহ ছবি হয়েছে।")}window.openPostBuilder=openPostBuilder,window.setPostSrc=setPostSrc,window.copyPostText=copyPostText,window.downloadPostImage=downloadPostImage,window.showCatSuggest=showCatSuggest,window.hideCatSuggest=hideCatSuggest,window.pickCat=pickCat;let couponsCache=[],couponsError="";async function refreshCoupons(){const{data:e,error:t}=await sb.from("coupons").select("*").order("created_at",{ascending:!1});if(t){couponsError=t.message||"Coupons table not found. Run 4_coupons.sql in Supabase.",couponsCache=[];return}couponsError="",couponsCache=e||[]}function couponStatus(e){const t=Date.now();return e.active===!1?["Off","red"]:e.starts_at&&new Date(e.starts_at)>t?["Scheduled","yellow"]:e.expires_at&&new Date(e.expires_at)<=t?["Expired","red"]:e.max_uses!=null&&Number(e.used_count)>=Number(e.max_uses)?["Used up","red"]:["Active","green"]}function coupons(){return couponsError?`<div class="section-head"><div><h3>Coupons</h3></div></div><div class="card"><b>Coupons are not set up yet.</b><p>Open Supabase &gt; SQL Editor, run the file <code>4_coupons.sql</code> once, then press Refresh.</p><p><small>${esc(couponsError)}</small></p><button class="btn muted" onclick="refreshCoupons().then(render)">↻ Refresh</button></div>`:`<div class="section-head"><div><h3>Coupons</h3><p>Discount codes customers type at checkout. The server checks every code, so prices cannot be changed from the browser.</p></div><div class="toolbar"><button class="btn primary" onclick="addCoupon()">＋ New Coupon</button><button class="btn muted" onclick="refreshCoupons().then(render)">↻ Refresh</button></div></div>
+  <div class="table-wrap"><table class="table"><thead><tr><th>Code</th><th>Discount</th><th>Min order</th><th>Used</th><th>Ends</th><th>On website</th><th>Status</th><th>Actions</th></tr></thead><tbody>${couponsCache.map((t,o)=>{const[n,a]=couponStatus(t),r=t.type==="percent"?Number(t.value)+"% off":money(t.value)+" off";return`<tr><td><b>${esc(String(t.code).toUpperCase())}</b>${t.note?`<br><small>${esc(t.note)}</small>`:""}</td><td>${r}</td><td>${money(t.min_order)}</td><td>${Number(t.used_count||0)}${t.max_uses!=null?" / "+Number(t.max_uses):""}</td><td>${t.expires_at?esc(new Date(t.expires_at).toLocaleDateString("en-BD")):"No end"}</td><td>${t.show_public?"Shown":"Hidden"}</td><td><span class="pill ${a}">${n}</span></td><td class="actions"><button class="btn muted" onclick="toggleCoupon(${o})">${t.active!==!1?"Turn off":"Turn on"}</button><button class="btn muted" onclick="editCoupon(${o})">Edit</button><button class="btn danger" onclick="deleteCoupon(${o})">Delete</button></td></tr>`}).join("")||'<tr><td colspan="8" class="empty">No coupons yet</td></tr>'}</tbody></table></div>
+  <p class="orders-count" style="margin-top:12px"><small>"Shown" coupons are listed to every visitor in the Offers/Policies box. "Hidden" ones work only for people who know the code (good for group-specific codes).</small></p>`}let editingCouponId=null;function couponForm(e={}){const t=o=>o?new Date(new Date(o).getTime()-new Date(o).getTimezoneOffset()*6e4).toISOString().slice(0,16):"";return`<div class="form-grid">
+    <label>Code<input id="couponCodeIn" value="${esc(e.code||"")}" placeholder="FBGROUP10" style="text-transform:uppercase" maxlength="24"></label>
+    <label>Type<select id="couponType"><option value="percent" ${e.type!=="flat"?"selected":""}>Percent (%)</option><option value="flat" ${e.type==="flat"?"selected":""}>Fixed amount (৳)</option></select></label>
+    <label>Value<input id="couponValue" type="number" min="1" value="${Number(e.value||10)}"></label>
+    <label>Minimum order (৳)<input id="couponMin" type="number" min="0" value="${Number(e.min_order||0)}"></label>
+    <label>Max uses (blank = unlimited)<input id="couponMax" type="number" min="1" value="${e.max_uses??""}"></label>
+    <label>Starts (optional)<input id="couponStart" type="datetime-local" value="${t(e.starts_at)}"></label>
+    <label>Ends (optional)<input id="couponEnd" type="datetime-local" value="${t(e.expires_at)}"></label>
+    <label>Show on website<select id="couponPublic"><option value="true" ${e.show_public!==!1?"selected":""}>Shown to everyone</option><option value="false" ${e.show_public===!1?"selected":""}>Hidden (code only)</option></select></label>
+    <label>Note (only you see it)<input id="couponNote" value="${esc(e.note||"")}" placeholder="Facebook group offer"></label>
+  </div><div class="modal-actions"><button class="btn primary" id="saveCouponBtn" onclick="saveCoupon()">Save Coupon</button></div>`}function addCoupon(){editingCouponId=null,openModal("New Coupon",couponForm())}function editCoupon(e){const t=couponsCache[e];t&&(editingCouponId=t.id,openModal("Edit Coupon",couponForm(t)))}async function saveCoupon(){const e=($("couponCodeIn")?.value||"").trim().toUpperCase().replace(/[^A-Z0-9_-]/g,""),t=$("couponType")?.value==="flat"?"flat":"percent",o=Number($("couponValue")?.value),n=Number($("couponMin")?.value||0),a=$("couponMax")?.value;if(!e){alert("Enter a coupon code (letters and numbers).");return}if(!Number.isFinite(o)||o<=0||t==="percent"&&o>100){alert(t==="percent"?"Percent must be between 1 and 100.":"Enter an amount greater than 0.");return}if(!Number.isFinite(n)||n<0){alert("Minimum order must be 0 or more.");return}const r=i=>{const c=$(i)?.value;return c?new Date(c).toISOString():null},s={code:e,type:t,value:o,min_order:n,max_uses:a?Math.max(1,parseInt(a,10)):null,starts_at:r("couponStart"),expires_at:r("couponEnd"),show_public:$("couponPublic")?.value!=="false",note:$("couponNote")?.value.trim()||null};try{const i=$("saveCouponBtn");i&&(i.disabled=!0,i.textContent="Saving...");const c=editingCouponId?sb.from("coupons").update(s).eq("id",editingCouponId):sb.from("coupons").insert(s),{error:l}=await c;if(l)throw/duplicate|23505/i.test((l.code||"")+(l.message||""))?new Error("This coupon code already exists."):l;await refreshCoupons(),closeModal(),render()}catch(i){showError(i);const c=$("saveCouponBtn");c&&(c.disabled=!1,c.textContent="Save Coupon")}}async function toggleCoupon(e){const t=couponsCache[e];if(t)try{const{error:o}=await sb.from("coupons").update({active:t.active===!1}).eq("id",t.id);if(o)throw o;await refreshCoupons(),render()}catch(o){showError(o)}}async function deleteCoupon(e){const t=couponsCache[e];if(!(!t||!confirm(`Delete coupon ${t.code}?`)))try{const{error:o}=await sb.from("coupons").delete().eq("id",t.id);if(o)throw o;await refreshCoupons(),render()}catch(o){showError(o)}}window.coupons=coupons,window.refreshCoupons=refreshCoupons,window.addCoupon=addCoupon,window.editCoupon=editCoupon,window.saveCoupon=saveCoupon,window.toggleCoupon=toggleCoupon,window.deleteCoupon=deleteCoupon;const SITE_THEMES=[["ocean","Ocean Night (current)",1,"#06101f","#25b7ff"],["violet","Neon Violet",1,"#0d0a1f","#a78bfa"],["emerald","Emerald Trust",1,"#05140f","#34d399"],["sunset","Sunset Orange",1,"#140a06","#fb923c"],["gold","Black & Gold",1,"#0a0a0a","#e0b84a"],["slate","Pro Slate",1,"#0f1216","#38bdf8"],["light","Clean White & Blue",0,"#f3f7fc","#1877f2"],["rose","Soft Rose",0,"#fff5f7","#e11d74"],["daraz","Bold Red & White",0,"#f4f4f4","#e8343a"],["mint","Fresh Mint",0,"#effaf6","#0d9f7a"]];let pendingTheme=null;function themeCard(e){const t=pendingTheme||e.theme||"ocean",o=SITE_THEMES.map(([n,a,r,s,i])=>`<button type="button" class="theme-tile ${n===t?"on":""}" onclick="pickSiteTheme('${n}')"><span class="sw" style="background:${s}"><i style="background:${i}"></i></span><b>${esc(a)}</b><small>${r?"Dark":"Light"}</small></button>`).join("");return`<style>.theme-tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;margin:12px 0}.theme-tile{display:flex;flex-direction:column;align-items:center;gap:6px;padding:12px 6px;border:2px solid #e2e8f0;border-radius:14px;background:#fff;cursor:pointer;font:inherit;color:inherit}.theme-tile.on{border-color:#2563eb;background:#eff6ff}.theme-tile .sw{width:52px;height:52px;border-radius:50%;border:2px solid #cbd5e1;position:relative;overflow:hidden;display:block}.theme-tile .sw i{position:absolute;right:0;bottom:0;width:60%;height:60%;border-top-left-radius:100%}.theme-tile b{font-size:12.5px;text-align:center}.theme-tile small{color:#64748b}</style>
   <div class="card" style="margin-top:16px"><h3>🎨 Website Theme</h3><p>The colour set customers see by default. Customers can still change it for themselves with the 🎨 button on the website; their "Default" option always shows the theme you pick here.</p>
-  ${s.has_theme?'':`<p style="color:#b45309"><b>One-time setup needed:</b> run <code>6_theme.sql</code> in Supabase &gt; SQL Editor, then press Refresh.</p>`}
-  <div class="theme-tiles">${tiles}</div>
-  <div class="btn-row"><button class="btn primary" id="saveThemeBtn" onclick="saveSiteTheme()" ${s.has_theme?'':'disabled'}>Save Theme</button></div></div>`
-}
-function pickSiteTheme(k){pendingTheme=k;render()}
-async function saveSiteTheme(){
-  const s=storeSettingsCache||{};const theme=pendingTheme||s.theme||'ocean';
-  if(!SITE_THEMES.some(t=>t[0]===theme)){alert('Choose a theme first.');return}
-  const btn=$('saveThemeBtn');
-  try{
-    if(btn){btn.disabled=true;btn.textContent='Saving...'}
-    const payload={id:1,store_name:s.store_name||'Paboo',phone:s.phone||'',email:s.email||'',address:s.address||'',support_hours:s.support_hours||'',theme,updated_at:new Date().toISOString()};
-    const {error}=await sb.from('store_settings').upsert(payload,{onConflict:'id'});
-    if(error)throw error;
-    storeSettingsCache={...s,theme,updated_at:payload.updated_at};pendingTheme=null;
-    alert('Theme saved. Customers will see it the next time they open the website.');
-    render()
-  }catch(e){showError(e);if(btn){btn.disabled=false;btn.textContent='Save Theme'}}
-}
-window.themeCard=themeCard;window.pickSiteTheme=pickSiteTheme;window.saveSiteTheme=saveSiteTheme;
-
-
-/* =========================================================
-   PRIVATE BUYING PRICE + PROFIT REPORTS
-========================================================= */
-let costsCache={},costsReady=true;
-async function loadCosts(){
-  try{
-    const {data,error}=await sb.from('product_costs').select('*');
-    if(error)throw error;
-    costsCache={};(data||[]).forEach(r=>costsCache[String(r.product_id)]=Number(r.cost||0));costsReady=true;
-  }catch(e){costsReady=false;console.warn('product_costs not ready (run 7_reports.sql):',e?.message||e)}
-}
-function costOf(id){const v=costsCache[String(id)];return v==null?'':v}
-async function saveCost(id,raw){
-  const txt=String(raw??'').trim();
-  if(!costsReady)return;
-  if(txt===''){await sb.from('product_costs').delete().eq('product_id',String(id));delete costsCache[String(id)];return}
-  const cost=Number(txt);if(!Number.isFinite(cost)||cost<0)return;
-  const {error}=await sb.from('product_costs').upsert({product_id:String(id),cost,updated_at:new Date().toISOString()},{onConflict:'product_id'});
-  if(error)throw error;costsCache[String(id)]=cost;
-}
-function sellPrice(p){const d=Number(p.discount||0);return d>0?Math.max(0,Number(p.price||0)-Number(p.price||0)*d/100):Number(p.price||0)}
-function marginCell(p){
-  const c=costsCache[String(p.id)];
-  if(c==null)return '<small style="color:#94a3b8">— set buying price</small>';
-  const profit=sellPrice(p)-c,pct=sellPrice(p)>0?Math.round(profit/sellPrice(p)*100):0;
-  return `<small>Buy ${money(c)}</small><br><b style="color:${profit>=0?'#15803d':'#b91c1c'}">${profit>=0?'+':''}${money(profit)} (${pct}%)</b>`;
-}
-function orderItemsArr(o){let it=o.items;if(typeof it==='string'){try{it=JSON.parse(it)}catch(e){it=[]}}return Array.isArray(it)?it:[]}
-function unitCost(o,id){const v=o.item_costs&&o.item_costs[String(id)];if(v!=null)return Number(v);const c=costsCache[String(id)];return c==null?0:Number(c)}
-function itemCost(o,it){
-  const q=Number(it.qty||it.quantity||1);
-  if(it.is_combo&&Array.isArray(it.products))return it.products.reduce((s,p)=>s+unitCost(o,p.id),0)*q;
-  return unitCost(o,it.id)*q;
-}
-function orderMetrics(o){
-  const items=orderItemsArr(o);
-  const sales=Number(o.total??0)-Number(o.delivery_charge??o.delivery_fee??0);
-  const cost=o.cost_total!=null?Number(o.cost_total):items.reduce((s,it)=>s+itemCost(o,it),0);
-  return {sales,cost,profit:sales-cost,items};
-}
-function dhakaDay(d){return new Date(d).toLocaleDateString('en-CA',{timeZone:'Asia/Dhaka'})}
-let reportRange='month',reportDelivered=false;
-function setReport(r,d){if(r)reportRange=r;if(typeof d==='boolean')reportDelivered=d;render()}
-function reports(){
-  const now=new Date(),today=dhakaDay(now);
-  const ranges={today:'Today',week:'Last 7 days',month:'This month',all:'All time'};
-  const ymNow=today.slice(0,7);
-  const inRange=o=>{
-    if(!o.created_at)return false;const day=dhakaDay(o.created_at);
-    if(reportRange==='today')return day===today;
-    if(reportRange==='week')return (new Date(today)-new Date(day))/864e5<7&&day<=today;
-    if(reportRange==='month')return day.slice(0,7)===ymNow;
-    return true;
-  };
-  const valid=o=>{const s=o.status||'Pending';return reportDelivered?s==='Delivered':s!=='Cancelled'};
-  const list=ordersCache.filter(o=>valid(o)&&inRange(o));
-  let sales=0,cost=0,profit=0,qty=0;const prod={};
-  list.forEach(o=>{const m=orderMetrics(o);sales+=m.sales;cost+=m.cost;profit+=m.profit;
-    m.items.forEach(it=>{const q=Number(it.qty||it.quantity||1),nm=it.name||'Product';qty+=q;
-      const k=String(it.id||nm),r=prod[k]||(prod[k]={name:nm,qty:0,sales:0,cost:0});
-      r.qty+=q;r.sales+=Number(it.price||0)*q;r.cost+=itemCost(o,it)})});
-  const margin=sales>0?Math.round(profit/sales*100):0,avg=list.length?Math.round(sales/list.length):0;
-  const trend=Object.values(prod).sort((a,b)=>b.qty-a.qty||b.sales-a.sales).slice(0,10);
-  // last 14 days
-  const days=[];for(let i=13;i>=0;i--){const d=new Date(now.getTime()-i*864e5);days.push(dhakaDay(d))}
-  const dm={};days.forEach(d=>dm[d]={n:0,sales:0,profit:0});
-  ordersCache.filter(valid).forEach(o=>{if(!o.created_at)return;const d=dhakaDay(o.created_at);if(dm[d]){const m=orderMetrics(o);dm[d].n++;dm[d].sales+=m.sales;dm[d].profit+=m.profit}});
-  const maxS=Math.max(1,...days.map(d=>dm[d].sales));
-  const missing=productsCache.filter(p=>p.active!==false&&costsCache[String(p.id)]==null).length;
-  const exps=expensesCache.filter(e=>expInRange(e.day,today,ymNow));
-  const expTotal=exps.reduce((a,e)=>a+Number(e.amount||0),0);
-  const stk=productsCache.reduce((s,p)=>s+(costsCache[String(p.id)]||0)*Number(p.stock||0),0);
-  return `<div class="section-head"><div><h3>Reports</h3><p>Profit, sales and trending products</p></div><button class="btn muted" onclick="refreshDashboard()">↻ Refresh</button></div>
-  ${costsReady?'':'<div class="card" style="border-color:#f59e0b;margin-bottom:12px"><b>One-time setup:</b> run <code>7_reports.sql</code> in Supabase &gt; SQL Editor, then press Refresh. Until then, profit uses 0 as buying price.</div>'}
-  <div class="filters" style="align-items:center">${Object.entries(ranges).map(([k,n])=>`<button class="btn ${reportRange===k?'primary':'muted'}" onclick="setReport('${k}')">${n}</button>`).join('')}
-   <label style="font-size:12px;display:flex;gap:6px;align-items:center;margin-left:6px"><input type="checkbox" ${reportDelivered?'checked':''} onchange="setReport(null,this.checked)"> Delivered orders only</label></div>
-  <div class="stats-grid">${stat('▤','Orders',list.length)}${stat('৳','Sales (excl. delivery)',money(sales))}${stat('⬇','Buying cost',money(cost))}${stat('✓','Profit',`<span style="color:${profit>=0?'#15803d':'#b91c1c'}">${money(profit)}</span>`)}
-   ${stat('📣','Ad / courier / other costs',money(expTotal))}${stat('★','Net profit (after costs)',`<span style="color:${profit-expTotal>=0?'#15803d':'#b91c1c'}">${money(profit-expTotal)}</span>`)}${stat('%','Profit margin',margin+'%')}${stat('◉','Items sold',qty)}${stat('∅','Avg order',money(avg))}${stat('▣','Stock value (at buy price)',money(stk))}</div>
-  ${missing?`<p style="font-size:12px;color:#b45309">⚠ ${missing} active product(s) have no buying price yet — profit for them counts as 100%. Add it in Products &gt; Edit.</p>`:''}
+  ${e.has_theme?"":'<p style="color:#b45309"><b>One-time setup needed:</b> run <code>6_theme.sql</code> in Supabase &gt; SQL Editor, then press Refresh.</p>'}
+  <div class="theme-tiles">${o}</div>
+  <div class="btn-row"><button class="btn primary" id="saveThemeBtn" onclick="saveSiteTheme()" ${e.has_theme?"":"disabled"}>Save Theme</button></div></div>`}function pickSiteTheme(e){pendingTheme=e,render()}async function saveSiteTheme(){const e=storeSettingsCache||{},t=pendingTheme||e.theme||"ocean";if(!SITE_THEMES.some(n=>n[0]===t)){alert("Choose a theme first.");return}const o=$("saveThemeBtn");try{o&&(o.disabled=!0,o.textContent="Saving...");const n={id:1,store_name:e.store_name||"Paboo",phone:e.phone||"",email:e.email||"",address:e.address||"",support_hours:e.support_hours||"",theme:t,updated_at:new Date().toISOString()},{error:a}=await sb.from("store_settings").upsert(n,{onConflict:"id"});if(a)throw a;storeSettingsCache={...e,theme:t,updated_at:n.updated_at},pendingTheme=null,alert("Theme saved. Customers will see it the next time they open the website."),render()}catch(n){showError(n),o&&(o.disabled=!1,o.textContent="Save Theme")}}window.themeCard=themeCard,window.pickSiteTheme=pickSiteTheme,window.saveSiteTheme=saveSiteTheme;let costsCache={},costsReady=!0;async function loadCosts(){try{const{data:e,error:t}=await sb.from("product_costs").select("*");if(t)throw t;costsCache={},(e||[]).forEach(o=>costsCache[String(o.product_id)]=Number(o.cost||0)),costsReady=!0}catch(e){costsReady=!1,console.warn("product_costs not ready (run 7_reports.sql):",e?.message||e)}}function costOf(e){const t=costsCache[String(e)];return t??""}async function saveCost(e,t){const o=String(t??"").trim();if(!costsReady)return;if(o===""){await sb.from("product_costs").delete().eq("product_id",String(e)),delete costsCache[String(e)];return}const n=Number(o);if(!Number.isFinite(n)||n<0)return;const{error:a}=await sb.from("product_costs").upsert({product_id:String(e),cost:n,updated_at:new Date().toISOString()},{onConflict:"product_id"});if(a)throw a;costsCache[String(e)]=n}function sellPrice(e){const t=Number(e.discount||0);return t>0?Math.max(0,Number(e.price||0)-Number(e.price||0)*t/100):Number(e.price||0)}function marginCell(e){const t=costsCache[String(e.id)];if(t==null)return'<small style="color:#94a3b8">— set buying price</small>';const o=sellPrice(e)-t,n=sellPrice(e)>0?Math.round(o/sellPrice(e)*100):0;return`<small>Buy ${money(t)}</small><br><b style="color:${o>=0?"#15803d":"#b91c1c"}">${o>=0?"+":""}${money(o)} (${n}%)</b>`}function orderItemsArr(e){let t=e.items;if(typeof t=="string")try{t=JSON.parse(t)}catch{t=[]}return Array.isArray(t)?t:[]}function unitCost(e,t){const o=e.item_costs&&e.item_costs[String(t)];if(o!=null)return Number(o);const n=costsCache[String(t)];return n==null?0:Number(n)}function itemCost(e,t){const o=Number(t.qty||t.quantity||1);return t.is_combo&&Array.isArray(t.products)?t.products.reduce((n,a)=>n+unitCost(e,a.id),0)*o:unitCost(e,t.id)*o}function orderMetrics(e){const t=orderItemsArr(e),o=Number(e.total??0)-Number(e.delivery_charge??e.delivery_fee??0),n=e.cost_total!=null?Number(e.cost_total):t.reduce((a,r)=>a+itemCost(e,r),0);return{sales:o,cost:n,profit:o-n,items:t}}function dhakaDay(e){return new Date(e).toLocaleDateString("en-CA",{timeZone:"Asia/Dhaka"})}let reportRange="month",reportDelivered=!1;function setReport(e,t){e&&(reportRange=e),typeof t=="boolean"&&(reportDelivered=t),render()}function reports(){const e=new Date,t=dhakaDay(e),o={today:"Today",week:"Last 7 days",month:"This month",all:"All time"},n=t.slice(0,7),a=h=>{if(!h.created_at)return!1;const p=dhakaDay(h.created_at);return reportRange==="today"?p===t:reportRange==="week"?(new Date(t)-new Date(p))/864e5<7&&p<=t:reportRange==="month"?p.slice(0,7)===n:!0},r=h=>{const p=h.status||"Pending";return reportDelivered?p==="Delivered":p!=="Cancelled"},s=ordersCache.filter(h=>r(h)&&a(h));let i=0,c=0,l=0,d=0;const u={};s.forEach(h=>{const p=orderMetrics(h);i+=p.sales,c+=p.cost,l+=p.profit,p.items.forEach(b=>{const _=Number(b.qty||b.quantity||1),P=b.name||"Product";d+=_;const O=String(b.id||P),D=u[O]||(u[O]={name:P,qty:0,sales:0,cost:0});D.qty+=_,D.sales+=Number(b.price||0)*_,D.cost+=itemCost(h,b)})});const m=i>0?Math.round(l/i*100):0,g=s.length?Math.round(i/s.length):0,v=Object.values(u).sort((h,p)=>p.qty-h.qty||p.sales-h.sales).slice(0,10),f=[];for(let h=13;h>=0;h--){const p=new Date(e.getTime()-h*864e5);f.push(dhakaDay(p))}const y={};f.forEach(h=>y[h]={n:0,sales:0,profit:0}),ordersCache.filter(r).forEach(h=>{if(!h.created_at)return;const p=dhakaDay(h.created_at);if(y[p]){const b=orderMetrics(h);y[p].n++,y[p].sales+=b.sales,y[p].profit+=b.profit}});const w=Math.max(1,...f.map(h=>y[h].sales)),k=productsCache.filter(h=>h.active!==!1&&costsCache[String(h.id)]==null).length,C=expensesCache.filter(h=>expInRange(h.day,t,n)),S=C.reduce((h,p)=>h+Number(p.amount||0),0),x=productsCache.reduce((h,p)=>h+(costsCache[String(p.id)]||0)*Number(p.stock||0),0);return`<div class="section-head"><div><h3>Reports</h3><p>Profit, sales and trending products</p></div><button class="btn muted" onclick="refreshDashboard()">↻ Refresh</button></div>
+  ${costsReady?"":'<div class="card" style="border-color:#f59e0b;margin-bottom:12px"><b>One-time setup:</b> run <code>7_reports.sql</code> in Supabase &gt; SQL Editor, then press Refresh. Until then, profit uses 0 as buying price.</div>'}
+  <div class="filters" style="align-items:center">${Object.entries(o).map(([h,p])=>`<button class="btn ${reportRange===h?"primary":"muted"}" onclick="setReport('${h}')">${p}</button>`).join("")}
+   <label style="font-size:12px;display:flex;gap:6px;align-items:center;margin-left:6px"><input type="checkbox" ${reportDelivered?"checked":""} onchange="setReport(null,this.checked)"> Delivered orders only</label></div>
+  <div class="stats-grid">${stat("▤","Orders",s.length)}${stat("৳","Sales (excl. delivery)",money(i))}${stat("⬇","Buying cost",money(c))}${stat("✓","Profit",`<span style="color:${l>=0?"#15803d":"#b91c1c"}">${money(l)}</span>`)}
+   ${stat("📣","Ad / courier / other costs",money(S))}${stat("★","Net profit (after costs)",`<span style="color:${l-S>=0?"#15803d":"#b91c1c"}">${money(l-S)}</span>`)}${stat("%","Profit margin",m+"%")}${stat("◉","Items sold",d)}${stat("∅","Avg order",money(g))}${stat("▣","Stock value (at buy price)",money(x))}</div>
+  ${k?`<p style="font-size:12px;color:#b45309">⚠ ${k} active product(s) have no buying price yet — profit for them counts as 100%. Add it in Products &gt; Edit.</p>`:""}
   <div class="section-head" style="margin-top:18px"><div><h3>🔥 Trending products</h3><p>Most sold in the selected period</p></div></div>
   <div class="table-wrap"><table class="table"><thead><tr><th>#</th><th>Product</th><th>Sold</th><th>Sales</th><th>Profit</th></tr></thead><tbody>
-  ${trend.length?trend.map((r,i)=>`<tr><td>${i+1}</td><td><b>${esc(r.name)}</b></td><td>${r.qty}</td><td>${money(r.sales)}</td><td style="color:${r.sales-r.cost>=0?'#15803d':'#b91c1c'}"><b>${money(r.sales-r.cost)}</b></td></tr>`).join(''):'<tr><td colspan="5" class="empty">No sales in this period</td></tr>'}</tbody></table></div>
+  ${v.length?v.map((h,p)=>`<tr><td>${p+1}</td><td><b>${esc(h.name)}</b></td><td>${h.qty}</td><td>${money(h.sales)}</td><td style="color:${h.sales-h.cost>=0?"#15803d":"#b91c1c"}"><b>${money(h.sales-h.cost)}</b></td></tr>`).join(""):'<tr><td colspan="5" class="empty">No sales in this period</td></tr>'}</tbody></table></div>
   <div class="section-head" style="margin-top:18px"><div><h3>Last 14 days</h3><p>Orders, sales and profit per day</p></div></div>
   <div class="table-wrap"><table class="table"><thead><tr><th>Date</th><th>Orders</th><th>Sales</th><th></th><th>Profit</th></tr></thead><tbody>
-  ${days.slice().reverse().map(d=>`<tr><td>${d}</td><td>${dm[d].n}</td><td>${money(dm[d].sales)}</td><td style="min-width:120px"><div style="height:8px;border-radius:4px;background:#2563eb;width:${Math.round(dm[d].sales/maxS*100)}%"></div></td><td style="color:${dm[d].profit>=0?'#15803d':'#b91c1c'}">${money(dm[d].profit)}</td></tr>`).join('')}</tbody></table></div>
-  ${expenseCard(exps)}
-  <p style="font-size:12px;color:#7c8799;margin-top:10px">Profit = sales (after coupon, without delivery charge) − buying price. Cancelled orders are never counted. Buying prices are private: only you can read them.</p>`;
-}
-
-/* =========================================================
-   PRODUCT COLUMN PICKER (customer site) ON/OFF
-========================================================= */
-function colsCard(s){
-  return `<div class="card" style="margin-top:16px"><h3>▦ Product columns picker</h3>
+  ${f.slice().reverse().map(h=>`<tr><td>${h}</td><td>${y[h].n}</td><td>${money(y[h].sales)}</td><td style="min-width:120px"><div style="height:8px;border-radius:4px;background:#2563eb;width:${Math.round(y[h].sales/w*100)}%"></div></td><td style="color:${y[h].profit>=0?"#15803d":"#b91c1c"}">${money(y[h].profit)}</td></tr>`).join("")}</tbody></table></div>
+  ${expenseCard(C)}
+  <p style="font-size:12px;color:#7c8799;margin-top:10px">Profit = sales (after coupon, without delivery charge) − buying price. Cancelled orders are never counted. Buying prices are private: only you can read them.</p>`}function colsCard(e){return`<div class="card" style="margin-top:16px"><h3>▦ Product columns picker</h3>
   <p>When ON, customers see a 1 / 2 / 3 / 4 / 5 buttons row above the products and can choose how many products to see per row (their choice is remembered). When OFF, the website looks exactly as before.</p>
-  ${s.has_cols?'':'<p style="color:#b45309"><b>One-time setup needed:</b> run <code>7_reports.sql</code> in Supabase &gt; SQL Editor, then press Refresh.</p>'}
-  <label style="display:flex;gap:8px;align-items:center;font-weight:700"><input id="colsToggle" type="checkbox" ${s.col_picker?'checked':''} ${s.has_cols?'':'disabled'}> Show columns picker to customers</label>
-  <div class="btn-row"><button class="btn primary" id="saveColsBtn" onclick="saveColsSetting()" ${s.has_cols?'':'disabled'}>Save</button></div></div>`
-}
-/* ---- Policies editor (Admin > Policies) ---- */
-const POL_CARDS=[['warranty','🛡 Warranty'],['returns','↩ Return & replacement'],['delivery','🚚 Delivery'],['payment','💵 Payment']];
-function polChk(id,on,label){return `<label class="pol-chk"><input type="checkbox" id="${id}" ${on?'checked':''}> ${label}</label>`}
-function policiesPage(){
-  const s=storeSettingsCache||{},P=s.policies||{},C=P.cards||{},dis=s.has_policies?'':'disabled';
-  const card=(k,label)=>{
-    const c=C[k]||{},t=c.times||{};
-    const on=c.show!==false;
-    let more='';
-    if(k==='delivery'){
-      more=`<div class="pol-row">${polChk('pol_delivery_fee',c.show_fee!==false,'Show delivery charge (৳)')}${polChk('pol_delivery_time',c.show_time!==false,'Show delivery time')}${polChk('pol_delivery_note',c.show_note!==false,'Show "nearby districts" note')}</div>
-      <div class="form-grid"><label>Dhaka time<input id="pol_t_dhaka" value="${esc(t.dhaka||'')}" placeholder="e.g. 24 hours"></label><label>Nearby Dhaka time<input id="pol_t_nearby" value="${esc(t.nearby||'')}" placeholder="e.g. 2-3 days"></label><label>Outside Dhaka time<input id="pol_t_outside" value="${esc(t.outside||'')}" placeholder="e.g. 3-5 days"></label></div>
-      <small>Delivery charges themselves are changed in Admin &gt; Delivery. Leave a time box empty to keep the default.</small>`;
-    }else{
-      more=`<label>Text (optional)<textarea id="pol_body_${k}" rows="5" placeholder="Leave empty to keep the default text. Start a line with - to make a bullet point.">${esc(c.body||'')}</textarea></label>`;
-    }
-    return `<div class="card pol-card"><h3>${label}</h3>${polChk('pol_show_'+k,on,'Show this card on the website')}
-    <label>Title (optional)<input id="pol_title_${k}" value="${esc(c.title||'')}" placeholder="Leave empty to keep the default title"></label>${more}</div>`;
-  };
-  const ex=Array.isArray(P.extra)?P.extra:[];
-  const extra=[0,1,2].map(n=>{const x=ex[n]||{};return `<div class="card pol-card"><h3>➕ Extra card ${n+1}</h3>${polChk('pol_x_show_'+n,x.show!==false,'Show this card')}
-    <label>Title<input id="pol_x_title_${n}" value="${esc(x.title||'')}" placeholder="e.g. Cash on delivery rules"></label>
-    <label>Text<textarea id="pol_x_body_${n}" rows="4" placeholder="Write your own policy. Start a line with - for bullet points.">${esc(x.body||'')}</textarea></label></div>`}).join('');
-  return `<div class="section-head"><div><h3>Policies</h3><p>Edit or hide what customers read in the "Our Policies" section</p></div><div class="toolbar"><button class="btn muted" onclick="loadStoreSettings().then(render).catch(showError)">↻ Refresh</button><button class="btn primary" id="savePolBtn" onclick="savePolicies()" ${dis}>Save</button></div></div>
-  ${s.has_policies?'':'<p style="color:#b45309"><b>One-time setup needed:</b> run <code>12_policies.sql</code> in Supabase &gt; SQL Editor, then press Refresh.</p>'}
-  <div class="card pol-card"><h3>📜 Whole section</h3>${polChk('pol_section',P.section!==false,'Show the "Our Policies" section on the website')}<small>Turn this off to hide every policy card and the menu link at once.</small></div>
-  <div class="pol-grid">${POL_CARDS.map(([k,l])=>card(k,l)).join('')}${extra}</div>
-  <div class="btn-row"><button class="btn primary" onclick="savePolicies()" ${dis}>Save</button></div>
-  <style>.pol-card{margin-bottom:14px;display:grid;gap:10px}.pol-card textarea,.pol-card input:not([type=checkbox]){width:100%}.pol-chk{display:flex;gap:8px;align-items:center;font-weight:700}.pol-row{display:flex;gap:16px;flex-wrap:wrap}.pol-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px}.pol-grid .pol-card{margin-bottom:0}</style>`;
-}
-async function savePolicies(){
-  const g=id=>$(id)?.value.trim()||'',ck=id=>!!$(id)?.checked;
-  const cards={};
-  POL_CARDS.forEach(([k])=>{
-    const c={show:ck('pol_show_'+k)};
-    if(g('pol_title_'+k))c.title=g('pol_title_'+k);
-    if(k==='delivery'){
-      c.show_fee=ck('pol_delivery_fee');c.show_time=ck('pol_delivery_time');c.show_note=ck('pol_delivery_note');
-      const t={};['dhaka','nearby','outside'].forEach(z=>{if(g('pol_t_'+z))t[z]=g('pol_t_'+z)});if(Object.keys(t).length)c.times=t;
-    }else if(g('pol_body_'+k))c.body=$('pol_body_'+k).value.trim();
-    cards[k]=c;
-  });
-  const extra=[];
-  [0,1,2].forEach(n=>{const title=g('pol_x_title_'+n),body=$('pol_x_body_'+n)?.value.trim()||'';if(title||body)extra.push({title,body,show:ck('pol_x_show_'+n)})});
-  const policies={section:ck('pol_section'),cards,extra};
-  const s=storeSettingsCache||{},btn=$('savePolBtn');
-  try{
-    if(btn){btn.disabled=true;btn.textContent='Saving...'}
-    const {error}=await sb.from('store_settings').upsert({id:1,store_name:s.store_name||'Paboo',policies,updated_at:new Date().toISOString()},{onConflict:'id'});
-    if(error)throw error;
-    storeSettingsCache={...s,policies};
-    alert('Policies saved. Refresh your website to see the change.');
-    render();
-  }catch(e){showError(e);if(btn){btn.disabled=false;btn.textContent='Save'}}
-}
-window.policiesPage=policiesPage;window.savePolicies=savePolicies;
-/* ---- Social & contact buttons (Facebook / TikTok / WhatsApp) ---- */
-function socialCard(s){
-  const S=s.social||{},dis=s.has_social?'':'disabled';
-  const row=(k,label,icon,val,ph,extra='')=>{
-    const cfg=S[k]||{};
-    return `<div class="soc-edit"><label class="pol-chk"><input type="checkbox" id="soc_show_${k}" ${cfg.show!==false?'checked':''} ${dis}> ${icon} ${label} — show on website</label>
-    <label>${k==='whatsapp'?'WhatsApp number (with 880...)':'Page link or username'}<input id="soc_${k}" value="${esc(val)}" placeholder="${esc(ph)}" ${dis}></label>${extra}</div>`};
-  const wa=(S.whatsapp&&S.whatsapp.number)||'8801320992683';
-  const fb=(S.facebook&&S.facebook.url)!==undefined?S.facebook.url:'https://facebook.com/paboo.official';
-  const tk=(S.tiktok&&S.tiktok.url)||'';
-  return `<div class="card" style="margin-top:16px"><h3>💬 Contact buttons: Facebook, TikTok, WhatsApp</h3>
+  ${e.has_cols?"":'<p style="color:#b45309"><b>One-time setup needed:</b> run <code>7_reports.sql</code> in Supabase &gt; SQL Editor, then press Refresh.</p>'}
+  <label style="display:flex;gap:8px;align-items:center;font-weight:700"><input id="colsToggle" type="checkbox" ${e.col_picker?"checked":""} ${e.has_cols?"":"disabled"}> Show columns picker to customers</label>
+  <div class="btn-row"><button class="btn primary" id="saveColsBtn" onclick="saveColsSetting()" ${e.has_cols?"":"disabled"}>Save</button></div></div>`}const POL_CARDS=[["warranty","🛡 Warranty"],["returns","↩ Return & replacement"],["delivery","🚚 Delivery"],["payment","💵 Payment"]];function polChk(e,t,o){return`<label class="pol-chk"><input type="checkbox" id="${e}" ${t?"checked":""}> ${o}</label>`}function policiesPage(){const e=storeSettingsCache||{},t=e.policies||{},o=t.cards||{},n=e.has_policies?"":"disabled",a=(i,c)=>{const l=o[i]||{},d=l.times||{},u=l.show!==!1;let m="";return i==="delivery"?m=`<div class="pol-row">${polChk("pol_delivery_fee",l.show_fee!==!1,"Show delivery charge (৳)")}${polChk("pol_delivery_time",l.show_time!==!1,"Show delivery time")}${polChk("pol_delivery_note",l.show_note!==!1,'Show "nearby districts" note')}</div>
+      <div class="form-grid"><label>Dhaka time<input id="pol_t_dhaka" value="${esc(d.dhaka||"")}" placeholder="e.g. 24 hours"></label><label>Nearby Dhaka time<input id="pol_t_nearby" value="${esc(d.nearby||"")}" placeholder="e.g. 2-3 days"></label><label>Outside Dhaka time<input id="pol_t_outside" value="${esc(d.outside||"")}" placeholder="e.g. 3-5 days"></label></div>
+      <small>Delivery charges themselves are changed in Admin &gt; Delivery. Leave a time box empty to keep the default.</small>`:m=`<label>Text (optional)<textarea id="pol_body_${i}" rows="5" placeholder="Leave empty to keep the default text. Start a line with - to make a bullet point.">${esc(l.body||"")}</textarea></label>`,`<div class="card pol-card"><h3>${c}</h3>${polChk("pol_show_"+i,u,"Show this card on the website")}
+    <label>Title (optional)<input id="pol_title_${i}" value="${esc(l.title||"")}" placeholder="Leave empty to keep the default title"></label>${m}</div>`},r=Array.isArray(t.extra)?t.extra:[],s=[0,1,2].map(i=>{const c=r[i]||{};return`<div class="card pol-card"><h3>➕ Extra card ${i+1}</h3>${polChk("pol_x_show_"+i,c.show!==!1,"Show this card")}
+    <label>Title<input id="pol_x_title_${i}" value="${esc(c.title||"")}" placeholder="e.g. Cash on delivery rules"></label>
+    <label>Text<textarea id="pol_x_body_${i}" rows="4" placeholder="Write your own policy. Start a line with - for bullet points.">${esc(c.body||"")}</textarea></label></div>`}).join("");return`<div class="section-head"><div><h3>Policies</h3><p>Edit or hide what customers read in the "Our Policies" section</p></div><div class="toolbar"><button class="btn muted" onclick="loadStoreSettings().then(render).catch(showError)">↻ Refresh</button><button class="btn primary" id="savePolBtn" onclick="savePolicies()" ${n}>Save</button></div></div>
+  ${e.has_policies?"":'<p style="color:#b45309"><b>One-time setup needed:</b> run <code>12_policies.sql</code> in Supabase &gt; SQL Editor, then press Refresh.</p>'}
+  <div class="card pol-card"><h3>📜 Whole section</h3>${polChk("pol_section",t.section!==!1,'Show the "Our Policies" section on the website')}<small>Turn this off to hide every policy card and the menu link at once.</small></div>
+  <div class="pol-grid">${POL_CARDS.map(([i,c])=>a(i,c)).join("")}${s}</div>
+  <div class="btn-row"><button class="btn primary" onclick="savePolicies()" ${n}>Save</button></div>
+  <style>.pol-card{margin-bottom:14px;display:grid;gap:10px}.pol-card textarea,.pol-card input:not([type=checkbox]){width:100%}.pol-chk{display:flex;gap:8px;align-items:center;font-weight:700}.pol-row{display:flex;gap:16px;flex-wrap:wrap}.pol-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px}.pol-grid .pol-card{margin-bottom:0}</style>`}async function savePolicies(){const e=i=>$(i)?.value.trim()||"",t=i=>!!$(i)?.checked,o={};POL_CARDS.forEach(([i])=>{const c={show:t("pol_show_"+i)};if(e("pol_title_"+i)&&(c.title=e("pol_title_"+i)),i==="delivery"){c.show_fee=t("pol_delivery_fee"),c.show_time=t("pol_delivery_time"),c.show_note=t("pol_delivery_note");const l={};["dhaka","nearby","outside"].forEach(d=>{e("pol_t_"+d)&&(l[d]=e("pol_t_"+d))}),Object.keys(l).length&&(c.times=l)}else e("pol_body_"+i)&&(c.body=$("pol_body_"+i).value.trim());o[i]=c});const n=[];[0,1,2].forEach(i=>{const c=e("pol_x_title_"+i),l=$("pol_x_body_"+i)?.value.trim()||"";(c||l)&&n.push({title:c,body:l,show:t("pol_x_show_"+i)})});const a={section:t("pol_section"),cards:o,extra:n},r=storeSettingsCache||{},s=$("savePolBtn");try{s&&(s.disabled=!0,s.textContent="Saving...");const{error:i}=await sb.from("store_settings").upsert({id:1,store_name:r.store_name||"Paboo",policies:a,updated_at:new Date().toISOString()},{onConflict:"id"});if(i)throw i;storeSettingsCache={...r,policies:a},alert("Policies saved. Refresh your website to see the change."),render()}catch(i){showError(i),s&&(s.disabled=!1,s.textContent="Save")}}window.policiesPage=policiesPage,window.savePolicies=savePolicies;function socialCard(e){const t=e.social||{},o=e.has_social?"":"disabled",n=(i,c,l,d,u,m="")=>{const g=t[i]||{};return`<div class="soc-edit"><label class="pol-chk"><input type="checkbox" id="soc_show_${i}" ${g.show!==!1?"checked":""} ${o}> ${l} ${c} — show on website</label>
+    <label>${i==="whatsapp"?"WhatsApp number (with 880...)":"Page link or username"}<input id="soc_${i}" value="${esc(d)}" placeholder="${esc(u)}" ${o}></label>${m}</div>`},a=t.whatsapp&&t.whatsapp.number||"8801320992683",r=(t.facebook&&t.facebook.url)!==void 0?t.facebook.url:"https://facebook.com/paboo.official",s=t.tiktok&&t.tiktok.url||"";return`<div class="card" style="margin-top:16px"><h3>💬 Contact buttons: Facebook, TikTok, WhatsApp</h3>
   <p>These buttons appear under "Our Policies" at the bottom of your website, on the Contact Us page, and inside the round WhatsApp button (which opens all three). Turn one off to hide it everywhere. Leave a link empty to hide that button.</p>
-  ${s.has_social?'':'<p style="color:#b45309"><b>One-time setup needed:</b> run <code>13_social.sql</code> in Supabase &gt; SQL Editor, then press Refresh.</p>'}
+  ${e.has_social?"":'<p style="color:#b45309"><b>One-time setup needed:</b> run <code>13_social.sql</code> in Supabase &gt; SQL Editor, then press Refresh.</p>'}
   <div class="soc-grid">
-  ${row('facebook','Facebook','🔵',fb,'https://facebook.com/paboo.official')}
-  ${row('tiktok','TikTok','🎵',tk,'https://www.tiktok.com/@paboobd  or  @paboobd')}
-  ${row('whatsapp','WhatsApp','🟢',wa,'8801XXXXXXXXX',`<label>First message customers see (optional)<input id="soc_wa_msg" value="${esc((S.whatsapp&&S.whatsapp.message)||'')}" placeholder="Hello Paboo, I need help with an order." ${dis}></label>`)}
+  ${n("facebook","Facebook","🔵",r,"https://facebook.com/paboo.official")}
+  ${n("tiktok","TikTok","🎵",s,"https://www.tiktok.com/@paboobd  or  @paboobd")}
+  ${n("whatsapp","WhatsApp","🟢",a,"8801XXXXXXXXX",`<label>First message customers see (optional)<input id="soc_wa_msg" value="${esc(t.whatsapp&&t.whatsapp.message||"")}" placeholder="Hello Paboo, I need help with an order." ${o}></label>`)}
   </div>
-  <div class="btn-row"><button class="btn primary" id="saveSocBtn" onclick="saveSocial()" ${dis}>Save</button></div>
-  <style>.soc-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin:12px 0}.soc-edit{display:grid;gap:8px;padding:12px;border:1px solid #e2e8f0;border-radius:12px}.soc-edit input:not([type=checkbox]){width:100%}</style></div>`;
-}
-async function saveSocial(){
-  const g=id=>($(id)?.value||'').trim(),ck=id=>!!$(id)?.checked;
-  let wa=g('soc_whatsapp').replace(/\D/g,'');
-  if(wa&&!/^8801\d{9}$/.test(wa)){
-    if(/^01\d{9}$/.test(wa))wa='88'+wa;
-    else{alert('WhatsApp number should look like 8801XXXXXXXXX (country code 880 + 01XXXXXXXXX).');return}
-  }
-  const chkUrl=(v,name)=>{if(!v)return true;if(/^https?:\/\//i.test(v))return true;if(/^[\w.@\/-]+$/.test(v))return true;alert(name+' link/username looks wrong.');return false};
-  const fb=g('soc_facebook'),tk=g('soc_tiktok');
-  if(!chkUrl(fb,'Facebook')||!chkUrl(tk,'TikTok'))return;
-  const social={
-    facebook:{show:ck('soc_show_facebook'),url:fb},
-    tiktok:{show:ck('soc_show_tiktok'),url:tk},
-    whatsapp:{show:ck('soc_show_whatsapp'),number:wa,message:g('soc_wa_msg')}
-  };
-  const s=storeSettingsCache||{},btn=$('saveSocBtn');
-  try{
-    if(btn){btn.disabled=true;btn.textContent='Saving...'}
-    const {error}=await sb.from('store_settings').upsert({id:1,store_name:s.store_name||'Paboo',social,updated_at:new Date().toISOString()},{onConflict:'id'});
-    if(error)throw error;
-    storeSettingsCache={...s,social};
-    alert('Saved. Refresh your website to see the change.');
-    render();
-  }catch(e){showError(e);if(btn){btn.disabled=false;btn.textContent='Save'}}
-}
-window.saveSocial=saveSocial;
-function variantsCard(s){
-  return `<div class="card" style="margin-top:16px"><h3>🎨 Product variants (colour / size)</h3>
+  <div class="btn-row"><button class="btn primary" id="saveSocBtn" onclick="saveSocial()" ${o}>Save</button></div>
+  <style>.soc-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin:12px 0}.soc-edit{display:grid;gap:8px;padding:12px;border:1px solid #e2e8f0;border-radius:12px}.soc-edit input:not([type=checkbox]){width:100%}</style></div>`}async function saveSocial(){const e=l=>($(l)?.value||"").trim(),t=l=>!!$(l)?.checked;let o=e("soc_whatsapp").replace(/\D/g,"");if(o&&!/^8801\d{9}$/.test(o))if(/^01\d{9}$/.test(o))o="88"+o;else{alert("WhatsApp number should look like 8801XXXXXXXXX (country code 880 + 01XXXXXXXXX).");return}const n=(l,d)=>!l||/^https?:\/\//i.test(l)||/^[\w.@\/-]+$/.test(l)?!0:(alert(d+" link/username looks wrong."),!1),a=e("soc_facebook"),r=e("soc_tiktok");if(!n(a,"Facebook")||!n(r,"TikTok"))return;const s={facebook:{show:t("soc_show_facebook"),url:a},tiktok:{show:t("soc_show_tiktok"),url:r},whatsapp:{show:t("soc_show_whatsapp"),number:o,message:e("soc_wa_msg")}},i=storeSettingsCache||{},c=$("saveSocBtn");try{c&&(c.disabled=!0,c.textContent="Saving...");const{error:l}=await sb.from("store_settings").upsert({id:1,store_name:i.store_name||"Paboo",social:s,updated_at:new Date().toISOString()},{onConflict:"id"});if(l)throw l;storeSettingsCache={...i,social:s},alert("Saved. Refresh your website to see the change."),render()}catch(l){showError(l),c&&(c.disabled=!1,c.textContent="Save")}}window.saveSocial=saveSocial;function variantsCard(e){return`<div class="card" style="margin-top:16px"><h3>🎨 Product variants (colour / size)</h3>
   <p>When ON, products that have variants (added in the product form) show option buttons; the customer must pick one before adding to cart, and stock is tracked per option. When OFF, the website works exactly as before and variants are ignored.</p>
-  ${s.has_variants?'':'<p style="color:#b45309"><b>One-time setup needed:</b> run <code>10_variants.sql</code> in Supabase &gt; SQL Editor, then press Refresh.</p>'}
-  <label style="display:flex;gap:8px;align-items:center;font-weight:700"><input id="variantsToggle" type="checkbox" ${s.variants_on?'checked':''} ${s.has_variants?'':'disabled'}> Enable product variants for customers</label>
-  <div class="btn-row"><button class="btn primary" id="saveVariantsBtn" onclick="saveVariantsSetting()" ${s.has_variants?'':'disabled'}>Save</button></div></div>`
-}
-async function saveVariantsSetting(){
-  const s=storeSettingsCache||{};const on=!!$('variantsToggle')?.checked;const btn=$('saveVariantsBtn');
-  try{
-    if(btn){btn.disabled=true;btn.textContent='Saving...'}
-    const {error}=await sb.from('store_settings').upsert({id:1,store_name:s.store_name||'Paboo',variants_on:on,updated_at:new Date().toISOString()},{onConflict:'id'});
-    if(error)throw error;
-    storeSettingsCache={...s,variants_on:on};
-    alert(on?'Product variants are now ON for customers.':'Product variants are OFF. The website works as before.');
-    render()
-  }catch(e){showError(e);if(btn){btn.disabled=false;btn.textContent='Save'}}
-}
-window.saveVariantsSetting=saveVariantsSetting;
-async function saveColsSetting(){
-  const s=storeSettingsCache||{};const on=!!$('colsToggle')?.checked;const btn=$('saveColsBtn');
-  try{
-    if(btn){btn.disabled=true;btn.textContent='Saving...'}
-    const {error}=await sb.from('store_settings').upsert({id:1,store_name:s.store_name||'Paboo',col_picker:on,updated_at:new Date().toISOString()},{onConflict:'id'});
-    if(error)throw error;
-    storeSettingsCache={...s,col_picker:on};
-    alert(on?'Columns picker is now ON for customers.':'Columns picker is OFF. The website looks as before.');
-    render()
-  }catch(e){showError(e);if(btn){btn.disabled=false;btn.textContent='Save'}}
-}
-window.reports=reports;window.setReport=setReport;window.saveColsSetting=saveColsSetting;window.colsCard=colsCard;
-
-
-/* =========================================================
-   FAKE-ORDER PROTECTION, EXPENSES, INCOMPLETE ORDERS
-========================================================= */
-let blockedCache=[],expensesCache=[],leadsCache=[],protectReady=true;
-function phoneKey(v){return String(v||'').replace(/\D/g,'').slice(-10)}
-async function loadProtect(){
-  try{
-    const [b,e,l]=await Promise.all([
-      sb.from('blocked_phones').select('*').order('created_at',{ascending:false}),
-      sb.from('expenses').select('*').order('day',{ascending:false}).limit(500),
-      sb.from('incomplete_orders').select('*').order('updated_at',{ascending:false}).limit(300)]);
-    if(b.error)throw b.error;if(e.error)throw e.error;if(l.error)throw l.error;
-    blockedCache=b.data||[];expensesCache=e.data||[];leadsCache=l.data||[];protectReady=true;
-  }catch(err){protectReady=false;console.warn('8_protect.sql not run yet:',err?.message||err)}
-}
-function setupNote(){return protectReady?'':'<div class="card" style="border-color:#f59e0b;margin-bottom:12px"><b>One-time setup:</b> run <code>8b_incomplete_only.sql</code> in Supabase &gt; SQL Editor, then press Refresh.</div>'}
-function isBlocked(v){const k=phoneKey(v);return !!k&&blockedCache.some(b=>b.phone_key===k)}
-function riskBadge(o){
-  const ph=o.phone||o.customer_phone||'';const k=phoneKey(ph);if(!k)return '';
-  let out='';
-  if(isBlocked(ph))out+=' <span class="pill red">🚫 Blocked</span>';
-  const mine=ordersCache.filter(x=>x!==o&&phoneKey(x.phone||x.customer_phone)===k);
-  const canc=mine.filter(x=>(x.status||'')==='Cancelled').length,del=mine.filter(x=>(x.status||'')==='Delivered').length;
-  if(canc>0)out+=` <span class="pill yellow" title="Earlier orders from this number">⚠ ${canc} cancelled before</span>`;
-  else if(del>0)out+=` <span class="pill green" title="Earlier orders from this number">✓ ${del} delivered before</span>`;
-  return out?'<br>'+out:'';
-}
-function blockBtn(o){
-  const ph=o.phone||o.customer_phone||'';if(!phoneKey(ph))return '';
-  return isBlocked(ph)?`<button class="btn muted" onclick="unblockNumber('${phoneKey(ph)}')">Unblock number</button>`:`<button class="btn danger" onclick="blockNumber('${esc(ph)}')">🚫 Block number</button>`;
-}
-async function blockNumber(ph,reason){
-  const k=phoneKey(ph);if(k.length<10){alert('Enter a valid phone number.');return}
-  if(reason===undefined){reason=prompt('Why block '+ph+'? (optional, only you see this)','Fake / repeated cancelled orders');if(reason===null)return}
-  try{
-    const {error}=await sb.from('blocked_phones').upsert({phone_key:k,phone:String(ph).trim(),reason:reason||''},{onConflict:'phone_key'});
-    if(error)throw error;await loadProtect();closeModal();render();
-    alert('Blocked. This number can no longer place orders.');
-  }catch(e){showError(e)}
-}
-async function unblockNumber(k){
-  if(!confirm('Allow this number to order again?'))return;
-  try{const {error}=await sb.from('blocked_phones').delete().eq('phone_key',k);if(error)throw error;await loadProtect();closeModal();render()}catch(e){showError(e)}
-}
-function blockedPage(){
-  return `<div class="section-head"><div><h3>Blocked numbers</h3><p>Orders from these numbers are refused by the server</p></div><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn muted" onclick="loadProtect().then(render)">↻ Refresh</button><button class="btn" onclick="checkLeadSetup()">🔧 সেটআপ পরীক্ষা</button></div></div>${setupNote()}
+  ${e.has_variants?"":'<p style="color:#b45309"><b>One-time setup needed:</b> run <code>10_variants.sql</code> in Supabase &gt; SQL Editor, then press Refresh.</p>'}
+  <label style="display:flex;gap:8px;align-items:center;font-weight:700"><input id="variantsToggle" type="checkbox" ${e.variants_on?"checked":""} ${e.has_variants?"":"disabled"}> Enable product variants for customers</label>
+  <div class="btn-row"><button class="btn primary" id="saveVariantsBtn" onclick="saveVariantsSetting()" ${e.has_variants?"":"disabled"}>Save</button></div></div>`}async function saveVariantsSetting(){const e=storeSettingsCache||{},t=!!$("variantsToggle")?.checked,o=$("saveVariantsBtn");try{o&&(o.disabled=!0,o.textContent="Saving...");const{error:n}=await sb.from("store_settings").upsert({id:1,store_name:e.store_name||"Paboo",variants_on:t,updated_at:new Date().toISOString()},{onConflict:"id"});if(n)throw n;storeSettingsCache={...e,variants_on:t},alert(t?"Product variants are now ON for customers.":"Product variants are OFF. The website works as before."),render()}catch(n){showError(n),o&&(o.disabled=!1,o.textContent="Save")}}window.saveVariantsSetting=saveVariantsSetting;async function saveColsSetting(){const e=storeSettingsCache||{},t=!!$("colsToggle")?.checked,o=$("saveColsBtn");try{o&&(o.disabled=!0,o.textContent="Saving...");const{error:n}=await sb.from("store_settings").upsert({id:1,store_name:e.store_name||"Paboo",col_picker:t,updated_at:new Date().toISOString()},{onConflict:"id"});if(n)throw n;storeSettingsCache={...e,col_picker:t},alert(t?"Columns picker is now ON for customers.":"Columns picker is OFF. The website looks as before."),render()}catch(n){showError(n),o&&(o.disabled=!1,o.textContent="Save")}}window.reports=reports,window.setReport=setReport,window.saveColsSetting=saveColsSetting,window.colsCard=colsCard;let blockedCache=[],expensesCache=[],leadsCache=[],protectReady=!0;function phoneKey(e){return String(e||"").replace(/\D/g,"").slice(-10)}async function loadProtect(){try{const[e,t,o]=await Promise.all([sb.from("blocked_phones").select("*").order("created_at",{ascending:!1}),sb.from("expenses").select("*").order("day",{ascending:!1}).limit(500),sb.from("incomplete_orders").select("*").order("updated_at",{ascending:!1}).limit(300)]);if(e.error)throw e.error;if(t.error)throw t.error;if(o.error)throw o.error;blockedCache=e.data||[],expensesCache=t.data||[],leadsCache=o.data||[],protectReady=!0}catch(e){protectReady=!1,console.warn("8_protect.sql not run yet:",e?.message||e)}}function setupNote(){return protectReady?"":'<div class="card" style="border-color:#f59e0b;margin-bottom:12px"><b>One-time setup:</b> run <code>8b_incomplete_only.sql</code> in Supabase &gt; SQL Editor, then press Refresh.</div>'}function isBlocked(e){const t=phoneKey(e);return!!t&&blockedCache.some(o=>o.phone_key===t)}function riskBadge(e){const t=e.phone||e.customer_phone||"",o=phoneKey(t);if(!o)return"";let n="";isBlocked(t)&&(n+=' <span class="pill red">🚫 Blocked</span>');const a=ordersCache.filter(i=>i!==e&&phoneKey(i.phone||i.customer_phone)===o),r=a.filter(i=>(i.status||"")==="Cancelled").length,s=a.filter(i=>(i.status||"")==="Delivered").length;return r>0?n+=` <span class="pill yellow" title="Earlier orders from this number">⚠ ${r} cancelled before</span>`:s>0&&(n+=` <span class="pill green" title="Earlier orders from this number">✓ ${s} delivered before</span>`),n?"<br>"+n:""}function blockBtn(e){const t=e.phone||e.customer_phone||"";return phoneKey(t)?isBlocked(t)?`<button class="btn muted" onclick="unblockNumber('${phoneKey(t)}')">Unblock number</button>`:`<button class="btn danger" onclick="blockNumber('${esc(t)}')">🚫 Block number</button>`:""}async function blockNumber(e,t){const o=phoneKey(e);if(o.length<10){alert("Enter a valid phone number.");return}if(!(t===void 0&&(t=prompt("Why block "+e+"? (optional, only you see this)","Fake / repeated cancelled orders"),t===null)))try{const{error:n}=await sb.from("blocked_phones").upsert({phone_key:o,phone:String(e).trim(),reason:t||""},{onConflict:"phone_key"});if(n)throw n;await loadProtect(),closeModal(),render(),alert("Blocked. This number can no longer place orders.")}catch(n){showError(n)}}async function unblockNumber(e){if(confirm("Allow this number to order again?"))try{const{error:t}=await sb.from("blocked_phones").delete().eq("phone_key",e);if(t)throw t;await loadProtect(),closeModal(),render()}catch(t){showError(t)}}function blockedPage(){return`<div class="section-head"><div><h3>Blocked numbers</h3><p>Orders from these numbers are refused by the server</p></div><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn muted" onclick="loadProtect().then(render)">↻ Refresh</button><button class="btn" onclick="checkLeadSetup()">🔧 সেটআপ পরীক্ষা</button></div></div>${setupNote()}
   <div class="card"><div class="filters"><input class="input" id="blkPhone" placeholder="01XXXXXXXXX" inputmode="tel"><input class="input" id="blkReason" placeholder="Reason (optional)"><button class="btn danger" onclick="blockNumber($('blkPhone').value,$('blkReason').value)">🚫 Block</button></div></div>
   <div class="table-wrap" style="margin-top:12px"><table class="table"><thead><tr><th>Number</th><th>Reason</th><th>Date</th><th></th></tr></thead><tbody>
-  ${blockedCache.length?blockedCache.map(b=>`<tr><td><b>${esc(b.phone||b.phone_key)}</b></td><td>${esc(b.reason||'—')}</td><td>${esc(new Date(b.created_at).toLocaleDateString('en-BD'))}</td><td><button class="btn muted" onclick="unblockNumber('${esc(b.phone_key)}')">Unblock</button></td></tr>`).join(''):'<tr><td colspan="4" class="empty">No blocked numbers</td></tr>'}</tbody></table></div>`;
-}
-/* incomplete orders */
-function leadMsg(l){
-  const items=(Array.isArray(l.items)?l.items:[]).map(i=>`${i.name||'পণ্য'} x${i.qty||1}`).join(', ');
-  return `আসসালামু আলাইকুম ${l.name||''}, Paboo থেকে বলছি। আপনি ${items||'কিছু পণ্য'} অর্ডার করতে চেয়েছিলেন। কোনো সাহায্য লাগলে বলুন, আমরা এখনই অর্ডারটা কনফার্ম করে দিই। 😊`;
-}
-async function checkLeadSetup(){
-  const out=[];
-  try{
-    const t=await sb.from('incomplete_orders').select('phone_key').limit(1);
-    if(t.error){alert('❌ টেবিল পড়া যাচ্ছে না।\nকারণ: '+(t.error.message||t.error)+'\n\nসমাধান: Supabase > SQL Editor এ 8b_incomplete_only.sql চালান, তারপর আবার পরীক্ষা করুন।');return}
-    out.push('✅ টেবিল ঠিক আছে');
-    const r=await sb.rpc('save_incomplete',{p_name:'TEST',p_phone:'01000000001',p_items:[{name:'test',qty:1}],p_total:1});
-    if(r.error){alert(out.join('\n')+'\n❌ সাইট থেকে সেভ করার ফাংশন কাজ করছে না।\nকারণ: '+(r.error.message||r.error)+'\n\nসমাধান: 8b_incomplete_only.sql চালান।');return}
-    const c=await sb.from('incomplete_orders').select('phone_key').eq('phone_key','1000000001');
-    if(c.data&&c.data.length){out.push('✅ সাইট থেকে সেভ হচ্ছে');await sb.from('incomplete_orders').delete().eq('phone_key','1000000001')}
-    else out.push('⚠ ফাংশন চলেছে কিন্তু কিছু সেভ হয়নি');
-    out.push('\nসবকিছু চালু আছে। এখন সাইটে কার্টে পণ্য রেখে চেকআউটে নাম ও ১১ সংখ্যার ফোন নম্বর দিন, ২ সেকেন্ড পর Refresh চাপুন।');
-    alert(out.join('\n'));await loadProtect();render();
-  }catch(e){showError(e)}
-}
-window.checkLeadSetup=checkLeadSetup;
-function leadsPage(){
-  const rows=leadsCache.map((l,i)=>{
-    const items=(Array.isArray(l.items)?l.items:[]).map(x=>`${esc(x.name||'')} ×${Number(x.qty||1)}`).join('<br>');
-    const ph=waPhone(l.phone);
-    return `<tr><td><b>${esc(l.name||'—')}</b><br><small>${esc(l.phone||'')}</small></td><td>${items||'—'}</td><td>${money(l.total)}</td><td><small>${esc(new Date(l.updated_at).toLocaleString('en-BD'))}</small></td><td>${l.contacted?'<span class="pill green">Contacted</span>':'<span class="pill yellow">New</span>'}</td>
-    <td class="actions">${ph?`<a class="btn" style="background:#1fa855;color:#fff;text-decoration:none;display:inline-block" target="_blank" rel="noopener" href="https://wa.me/${ph}?text=${encodeURIComponent(leadMsg(l))}" onclick="markLead(${i},true)">WhatsApp</a>`:''}<button class="btn muted" onclick="markLead(${i},${!l.contacted})">${l.contacted?'Mark new':'Mark contacted'}</button><button class="btn danger" onclick="deleteLead(${i})">Delete</button></td></tr>`}).join('');
-  return `<div class="section-head"><div><h3>Incomplete orders</h3><p>Customers who typed their phone at checkout but did not place the order. A lead disappears automatically once they order.</p></div><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn muted" onclick="loadProtect().then(render)">↻ Refresh</button><button class="btn primary" onclick="checkLeadSetup()">🔧 সেটআপ পরীক্ষা</button></div></div>${setupNote()}
-  <div class="table-wrap"><table class="table"><thead><tr><th>Customer</th><th>Cart</th><th>Total</th><th>Last seen</th><th>Status</th><th>Actions</th></tr></thead><tbody>${rows||'<tr><td colspan="6" class="empty">No incomplete orders right now</td></tr>'}</tbody></table></div>`;
-}
-async function markLead(i,v){const l=leadsCache[i];if(!l)return;try{const {error}=await sb.from('incomplete_orders').update({contacted:!!v}).eq('phone_key',l.phone_key);if(error)throw error;l.contacted=!!v;setTimeout(render,200)}catch(e){showError(e)}}
-async function deleteLead(i){const l=leadsCache[i];if(!l||!confirm('Delete this lead?'))return;try{const {error}=await sb.from('incomplete_orders').delete().eq('phone_key',l.phone_key);if(error)throw error;leadsCache.splice(i,1);render()}catch(e){showError(e)}}
-/* expenses (inside Reports) */
-function expInRange(day,today,ymNow){
-  if(!day)return false;
-  if(reportRange==='today')return day===today;
-  if(reportRange==='week')return (new Date(today)-new Date(day))/864e5<7&&day<=today;
-  if(reportRange==='month')return String(day).slice(0,7)===ymNow;
-  return true;
-}
-const EXP_KINDS={ads:'📣 Ads (Facebook/TikTok)',courier:'🚚 Courier',other:'Other'};
-function expenseCard(list){
-  return `<div class="section-head" style="margin-top:18px"><div><h3>Costs (ads, courier, other)</h3><p>Add your daily spending. It is subtracted from profit above.</p></div></div>${setupNote()}
-  <div class="card"><div class="filters"><input class="input" id="expDay" type="date" value="${dhakaDay(new Date())}"><select class="select" id="expKind">${Object.entries(EXP_KINDS).map(([k,n])=>`<option value="${k}">${n}</option>`).join('')}</select><input class="input" id="expAmt" type="number" min="0" placeholder="Amount ৳"><input class="input" id="expNote" placeholder="Note (optional)"><button class="btn primary" onclick="addExpense()">＋ Add cost</button></div></div>
+  ${blockedCache.length?blockedCache.map(e=>`<tr><td><b>${esc(e.phone||e.phone_key)}</b></td><td>${esc(e.reason||"—")}</td><td>${esc(new Date(e.created_at).toLocaleDateString("en-BD"))}</td><td><button class="btn muted" onclick="unblockNumber('${esc(e.phone_key)}')">Unblock</button></td></tr>`).join(""):'<tr><td colspan="4" class="empty">No blocked numbers</td></tr>'}</tbody></table></div>`}function leadMsg(e){const t=(Array.isArray(e.items)?e.items:[]).map(o=>`${o.name||"পণ্য"} x${o.qty||1}`).join(", ");return`আসসালামু আলাইকুম ${e.name||""}, Paboo থেকে বলছি। আপনি ${t||"কিছু পণ্য"} অর্ডার করতে চেয়েছিলেন। কোনো সাহায্য লাগলে বলুন, আমরা এখনই অর্ডারটা কনফার্ম করে দিই। 😊`}async function checkLeadSetup(){const e=[];try{const t=await sb.from("incomplete_orders").select("phone_key").limit(1);if(t.error){alert(`❌ টেবিল পড়া যাচ্ছে না।
+কারণ: `+(t.error.message||t.error)+`
+
+সমাধান: Supabase > SQL Editor এ 8b_incomplete_only.sql চালান, তারপর আবার পরীক্ষা করুন।`);return}e.push("✅ টেবিল ঠিক আছে");const o=await sb.rpc("save_incomplete",{p_name:"TEST",p_phone:"01000000001",p_items:[{name:"test",qty:1}],p_total:1});if(o.error){alert(e.join(`
+`)+`
+❌ সাইট থেকে সেভ করার ফাংশন কাজ করছে না।
+কারণ: `+(o.error.message||o.error)+`
+
+সমাধান: 8b_incomplete_only.sql চালান।`);return}const n=await sb.from("incomplete_orders").select("phone_key").eq("phone_key","1000000001");n.data&&n.data.length?(e.push("✅ সাইট থেকে সেভ হচ্ছে"),await sb.from("incomplete_orders").delete().eq("phone_key","1000000001")):e.push("⚠ ফাংশন চলেছে কিন্তু কিছু সেভ হয়নি"),e.push(`
+সবকিছু চালু আছে। এখন সাইটে কার্টে পণ্য রেখে চেকআউটে নাম ও ১১ সংখ্যার ফোন নম্বর দিন, ২ সেকেন্ড পর Refresh চাপুন।`),alert(e.join(`
+`)),await loadProtect(),render()}catch(t){showError(t)}}window.checkLeadSetup=checkLeadSetup;function leadsPage(){const e=leadsCache.map((t,o)=>{const n=(Array.isArray(t.items)?t.items:[]).map(r=>`${esc(r.name||"")} ×${Number(r.qty||1)}`).join("<br>"),a=waPhone(t.phone);return`<tr><td><b>${esc(t.name||"—")}</b><br><small>${esc(t.phone||"")}</small></td><td>${n||"—"}</td><td>${money(t.total)}</td><td><small>${esc(new Date(t.updated_at).toLocaleString("en-BD"))}</small></td><td>${t.contacted?'<span class="pill green">Contacted</span>':'<span class="pill yellow">New</span>'}</td>
+    <td class="actions">${a?`<a class="btn" style="background:#1fa855;color:#fff;text-decoration:none;display:inline-block" target="_blank" rel="noopener" href="https://wa.me/${a}?text=${encodeURIComponent(leadMsg(t))}" onclick="markLead(${o},true)">WhatsApp</a>`:""}<button class="btn muted" onclick="markLead(${o},${!t.contacted})">${t.contacted?"Mark new":"Mark contacted"}</button><button class="btn danger" onclick="deleteLead(${o})">Delete</button></td></tr>`}).join("");return`<div class="section-head"><div><h3>Incomplete orders</h3><p>Customers who typed their phone at checkout but did not place the order. A lead disappears automatically once they order.</p></div><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn muted" onclick="loadProtect().then(render)">↻ Refresh</button><button class="btn primary" onclick="checkLeadSetup()">🔧 সেটআপ পরীক্ষা</button></div></div>${setupNote()}
+  <div class="table-wrap"><table class="table"><thead><tr><th>Customer</th><th>Cart</th><th>Total</th><th>Last seen</th><th>Status</th><th>Actions</th></tr></thead><tbody>${e||'<tr><td colspan="6" class="empty">No incomplete orders right now</td></tr>'}</tbody></table></div>`}async function markLead(e,t){const o=leadsCache[e];if(o)try{const{error:n}=await sb.from("incomplete_orders").update({contacted:!!t}).eq("phone_key",o.phone_key);if(n)throw n;o.contacted=!!t,setTimeout(render,200)}catch(n){showError(n)}}async function deleteLead(e){const t=leadsCache[e];if(!(!t||!confirm("Delete this lead?")))try{const{error:o}=await sb.from("incomplete_orders").delete().eq("phone_key",t.phone_key);if(o)throw o;leadsCache.splice(e,1),render()}catch(o){showError(o)}}function expInRange(e,t,o){return e?reportRange==="today"?e===t:reportRange==="week"?(new Date(t)-new Date(e))/864e5<7&&e<=t:reportRange==="month"?String(e).slice(0,7)===o:!0:!1}const EXP_KINDS={ads:"📣 Ads (Facebook/TikTok)",courier:"🚚 Courier",other:"Other"};function expenseCard(e){return`<div class="section-head" style="margin-top:18px"><div><h3>Costs (ads, courier, other)</h3><p>Add your daily spending. It is subtracted from profit above.</p></div></div>${setupNote()}
+  <div class="card"><div class="filters"><input class="input" id="expDay" type="date" value="${dhakaDay(new Date)}"><select class="select" id="expKind">${Object.entries(EXP_KINDS).map(([t,o])=>`<option value="${t}">${o}</option>`).join("")}</select><input class="input" id="expAmt" type="number" min="0" placeholder="Amount ৳"><input class="input" id="expNote" placeholder="Note (optional)"><button class="btn primary" onclick="addExpense()">＋ Add cost</button></div></div>
   <div class="table-wrap" style="margin-top:12px"><table class="table"><thead><tr><th>Date</th><th>Type</th><th>Amount</th><th>Note</th><th></th></tr></thead><tbody>
-  ${list.length?list.map(e=>`<tr><td>${esc(e.day)}</td><td>${esc(EXP_KINDS[e.kind]||e.kind)}</td><td><b>${money(e.amount)}</b></td><td>${esc(e.note||'')}</td><td><button class="btn danger" onclick="deleteExpense(${e.id})">Delete</button></td></tr>`).join(''):'<tr><td colspan="5" class="empty">No costs added in this period</td></tr>'}</tbody></table></div>`;
-}
-async function addExpense(){
-  const amount=Number($('expAmt')?.value);if(!Number.isFinite(amount)||amount<=0){alert('Enter the amount.');return}
-  try{
-    const {error}=await sb.from('expenses').insert({day:$('expDay').value||dhakaDay(new Date()),kind:$('expKind').value,amount,note:($('expNote').value||'').trim()});
-    if(error)throw error;await loadProtect();render();
-  }catch(e){showError(e)}
-}
-async function deleteExpense(id){if(!confirm('Delete this cost?'))return;try{const {error}=await sb.from('expenses').delete().eq('id',id);if(error)throw error;await loadProtect();render()}catch(e){showError(e)}}
-window.blocked=blockedPage;window.leads=leadsPage;
-window.blockNumber=blockNumber;window.unblockNumber=unblockNumber;window.markLead=markLead;window.deleteLead=deleteLead;window.addExpense=addExpense;window.deleteExpense=deleteExpense;window.loadProtect=loadProtect;
-
-
-/* =========================================================
-   COURIER & TRACKING NUMBER (shown to customers only when the admin switch is ON)
-========================================================= */
-const COURIERS=['Steadfast','Pathao','RedX','Paperfly','eCourier','SA Paribahan','Sundarban','Other'];
-function courierBox(i,o){
-  const cur=o.courier||'';
-  return `<hr><b>🚚 Courier &amp; tracking</b><div class="form-grid" style="margin-top:8px"><label>Courier<select id="courierSel"><option value="">— none —</option>${COURIERS.map(c=>`<option ${cur===c?'selected':''}>${c}</option>`).join('')}${cur&&!COURIERS.includes(cur)?`<option selected>${esc(cur)}</option>`:''}</select></label><label>Tracking / consignment no.<input id="trackNo" value="${esc(o.tracking_no||'')}" placeholder="e.g. 12345678"></label></div><div class="btn-row"><button class="btn primary" onclick="saveCourier(${i})">Save courier info</button></div>`;
-}
-async function saveCourier(i){
-  const o=ordersCache[i];if(!o)return;
-  const courier=($('courierSel')?.value||'').trim(),tracking_no=($('trackNo')?.value||'').trim().slice(0,60);
-  try{
-    const {error}=await sb.from('orders').update({courier:courier||null,tracking_no:tracking_no||null,updated_at:new Date().toISOString()}).eq('id',o.id);
-    if(error)throw error;
-    o.courier=courier||null;o.tracking_no=tracking_no||null;
-    alert('Courier info saved.');
-  }catch(e){
-    if(/courier|tracking_no|column/i.test(e?.message||''))alert('One-time setup needed: run 9_tracking.sql in Supabase > SQL Editor, then try again.');
-    else showError(e)
-  }
-}
-function trackingCard(s){
-  return `<div class="card" style="margin-top:16px"><h3>🚚 Parcel tracking for customers</h3>
+  ${e.length?e.map(t=>`<tr><td>${esc(t.day)}</td><td>${esc(EXP_KINDS[t.kind]||t.kind)}</td><td><b>${money(t.amount)}</b></td><td>${esc(t.note||"")}</td><td><button class="btn danger" onclick="deleteExpense(${t.id})">Delete</button></td></tr>`).join(""):'<tr><td colspan="5" class="empty">No costs added in this period</td></tr>'}</tbody></table></div>`}async function addExpense(){const e=Number($("expAmt")?.value);if(!Number.isFinite(e)||e<=0){alert("Enter the amount.");return}try{const{error:t}=await sb.from("expenses").insert({day:$("expDay").value||dhakaDay(new Date),kind:$("expKind").value,amount:e,note:($("expNote").value||"").trim()});if(t)throw t;await loadProtect(),render()}catch(t){showError(t)}}async function deleteExpense(e){if(confirm("Delete this cost?"))try{const{error:t}=await sb.from("expenses").delete().eq("id",e);if(t)throw t;await loadProtect(),render()}catch(t){showError(t)}}window.blocked=blockedPage,window.leads=leadsPage,window.blockNumber=blockNumber,window.unblockNumber=unblockNumber,window.markLead=markLead,window.deleteLead=deleteLead,window.addExpense=addExpense,window.deleteExpense=deleteExpense,window.loadProtect=loadProtect;const COURIERS=["Steadfast","Pathao","RedX","Paperfly","eCourier","SA Paribahan","Sundarban","Other"];function courierBox(e,t){const o=t.courier||"";return`<hr><b>🚚 Courier &amp; tracking</b><div class="form-grid" style="margin-top:8px"><label>Courier<select id="courierSel"><option value="">— none —</option>${COURIERS.map(n=>`<option ${o===n?"selected":""}>${n}</option>`).join("")}${o&&!COURIERS.includes(o)?`<option selected>${esc(o)}</option>`:""}</select></label><label>Tracking / consignment no.<input id="trackNo" value="${esc(t.tracking_no||"")}" placeholder="e.g. 12345678"></label></div><div class="btn-row"><button class="btn primary" onclick="saveCourier(${e})">Save courier info</button></div>`}async function saveCourier(e){const t=ordersCache[e];if(!t)return;const o=($("courierSel")?.value||"").trim(),n=($("trackNo")?.value||"").trim().slice(0,60);try{const{error:a}=await sb.from("orders").update({courier:o||null,tracking_no:n||null,updated_at:new Date().toISOString()}).eq("id",t.id);if(a)throw a;t.courier=o||null,t.tracking_no=n||null,alert("Courier info saved.")}catch(a){/courier|tracking_no|column/i.test(a?.message||"")?alert("One-time setup needed: run 9_tracking.sql in Supabase > SQL Editor, then try again."):showError(a)}}function trackingCard(e){return`<div class="card" style="margin-top:16px"><h3>🚚 Parcel tracking for customers</h3>
   <p>When ON, customers who track their order with their phone number also see the courier name and tracking number you saved on the order. When OFF, they see nothing (the website never even receives it). You can switch it any time.</p>
-  ${s.has_tracking?'':'<p style="color:#b45309"><b>One-time setup needed:</b> run <code>9_tracking.sql</code> in Supabase &gt; SQL Editor, then press Refresh.</p>'}
-  <label style="display:flex;gap:8px;align-items:center;font-weight:700"><input id="trackToggle" type="checkbox" ${s.show_tracking?'checked':''} ${s.has_tracking?'':'disabled'}> Show courier &amp; tracking number to customers</label>
-  <div class="btn-row"><button class="btn primary" id="saveTrackBtn" onclick="saveTrackingSetting()" ${s.has_tracking?'':'disabled'}>Save</button></div></div>`
-}
-async function saveTrackingSetting(){
-  const s=storeSettingsCache||{};const on=!!$('trackToggle')?.checked;const btn=$('saveTrackBtn');
-  try{
-    if(btn){btn.disabled=true;btn.textContent='Saving...'}
-    const {error}=await sb.from('store_settings').upsert({id:1,store_name:s.store_name||'Paboo',show_tracking:on,updated_at:new Date().toISOString()},{onConflict:'id'});
-    if(error)throw error;
-    storeSettingsCache={...s,show_tracking:on};
-    alert(on?'Customers can now see courier & tracking number.':'Tracking info is now hidden from customers.');
-    render()
-  }catch(e){showError(e);if(btn){btn.disabled=false;btn.textContent='Save'}}
-}
-window.courierBox=courierBox;window.saveCourier=saveCourier;window.trackingCard=trackingCard;window.saveTrackingSetting=saveTrackingSetting;
-
-
-/* =====================================================================================
-   Update 24 — admin redesign: grouped sidebar, split orders, search, bell, FAB, site hub
-   ===================================================================================== */
-function deptMap(){const m=new Map();productsCache.forEach(p=>m.set(String(p.id),deptOf(p)));return m}
-function orderDepts(o,pm){
-  pm=pm||deptMap();let it=o.items;
-  if(typeof it==='string'){try{it=JSON.parse(it)}catch(e){it=[]}}
-  const s=new Set();
-  (Array.isArray(it)?it:[]).forEach(x=>{
-    let d=pm.get(String(x&&(x.id||x.product_id)));
-    if(!d){const nm=String((x&&x.name)||'').replace(/\s*\(.*\)\s*$/,'').trim().toLowerCase();const p=nm&&productsCache.find(p=>String(p.name||'').trim().toLowerCase()===nm);d=p?deptOf(p):(x&&x.dept==='clothing'?'clothing':'gadget')}
-    s.add(d)
-  });
-  if(!s.size)s.add('gadget');return s
-}
-function bn(n){try{return Number(n||0).toLocaleString('bn-BD')}catch(e){return String(n)}}
-function tk(n){return '৳'+bn(Math.round(Number(n)||0))}
-function orderTotal(o){return Number(o.total??(Number(o.subtotal||0)+Number(o.delivery_charge??o.delivery_fee??0)))||0}
-function ordKpi(){
-  try{
-    const pm=deptMap(),day=(typeof dhakaDay==='function')?dhakaDay(new Date().toISOString()):new Date().toISOString().slice(0,10);
-    const list=ordersCache.filter(o=>!orderDept||orderDepts(o,pm).has(orderDept));
-    const ok=list.filter(o=>(o.status||'Pending')!=='Cancelled');
-    const today=ok.filter(o=>o.created_at&&((typeof dhakaDay==='function')?dhakaDay(o.created_at):String(o.created_at).slice(0,10))===day);
-    const pend=list.filter(o=>(o.status||'Pending')==='Pending').length;
-    return `<div class="ord-kpi"><div><small>আজকের বিক্রি</small><b>${tk(today.reduce((s,o)=>s+orderTotal(o),0))}</b></div><div><small>আজকের অর্ডার</small><b>${bn(today.length)}</b></div><div><small>Pending</small><b>${bn(pend)}</b></div><div><small>মোট অর্ডার</small><b>${bn(list.length)}</b></div></div>`
-  }catch(e){return ''}
-}
-/* sidebar groups + icon mode + theme */
-function toggleGrp(btn){const g=btn.closest('.grp');if(!g)return;g.classList.toggle('open');saveGrp()}
-function saveGrp(){try{const o={};document.querySelectorAll('.grp').forEach(g=>o[g.dataset.g]=g.classList.contains('open')?1:0);localStorage.setItem('gbbd_admin_grp',JSON.stringify(o))}catch(e){}}
-function loadGrp(){try{const o=JSON.parse(localStorage.getItem('gbbd_admin_grp')||'{}');document.querySelectorAll('.grp').forEach(g=>{if(o[g.dataset.g]===0)g.classList.remove('open')})}catch(e){}}
-function openGrpFor(key){const b=document.querySelector('.nav[data-section="'+key+'"]');const g=b&&b.closest('.grp');if(g&&!g.classList.contains('open')){g.classList.add('open');saveGrp()}}
-function toggleMini(){const d=document.documentElement;const on=d.classList.toggle('sb-mini');try{localStorage.setItem('gbbd_admin_mini',on?'1':'0')}catch(e){}const t=document.querySelector('.mini-btn span');if(t)t.textContent=on?'বড় করুন':'ছোট করুন'}
-function toggleAdminTheme(){const d=document.documentElement;const dk=d.classList.toggle('dk');try{localStorage.setItem('gbbd_admin_theme',dk?'dark':'light')}catch(e){}themeIcon()}
-function themeIcon(){const b=$('themeBtn');if(b)b.textContent=document.documentElement.classList.contains('dk')?'☀':'🌙'}
-/* dept counts on sidebar */
-const _gbUpdBadge=updateOrderBadge;
-updateOrderBadge=function(){
-  _gbUpdBadge();
-  try{
-    const pm=deptMap(),c={clothing:0,gadget:0};
-    ordersCache.forEach(o=>{if((o.status||'Pending')==='Pending')orderDepts(o,pm).forEach(d=>c[d]++)});
-    document.querySelectorAll('.nav-badge[data-cnt]').forEach(e=>{const n=c[e.dataset.cnt]||0;e.textContent=n;e.style.display=n?'':'none'});
-    const b=document.querySelector('.nav[data-section="orders"] .nav-badge');if(b&&!b.classList.contains('cnt-b')&&!b.classList.contains('cnt-g'))b.style.cssText='';
-    if(b&&b.textContent==='0')b.style.display='none'
-  }catch(e){}
-};
-/* ---- notifications (bell) ---- */
-function readSet(){try{return new Set(JSON.parse(localStorage.getItem('gbbd_admin_read')||'[]'))}catch(e){return new Set()}}
-function saveRead(s){try{localStorage.setItem('gbbd_admin_read',JSON.stringify([...s].slice(-400)))}catch(e){}}
-function ago(t){const m=Math.max(0,Math.round((Date.now()-new Date(t).getTime())/60000));if(m<1)return 'এইমাত্র';if(m<60)return bn(m)+' মিনিট আগে';const h=Math.round(m/60);if(h<24)return bn(h)+' ঘণ্টা আগে';return bn(Math.round(h/24))+' দিন আগে'}
-function notifs(){
-  const out=[],now=Date.now(),win=3*864e5;
-  ordersCache.forEach((o,i)=>{
-    if(!o.created_at||now-new Date(o.created_at).getTime()>win)return;
-    const id=o.order_number||o.id,s=o.status||'Pending',nm=o.customer_name||o.name||'';
-    if(s==='Pending')out.push({k:'o:'+o.id,ic:'🛍',t:'নতুন অর্ডার '+id,s:nm+' · '+tk(orderTotal(o))+' · '+ago(o.created_at),go:()=>openOrderSearch(String(id)),at:new Date(o.created_at).getTime()});
-    else if(s==='Cancelled')out.push({k:'c:'+o.id,ic:'✖',t:'অর্ডার বাতিল '+id,s:nm+' · '+ago(o.created_at),go:()=>openOrderSearch(String(id)),at:new Date(o.created_at).getTime()-1});
-  });
-  productsCache.filter(p=>p.active!==false&&Number(p.stock)<=3).slice(0,12).forEach(p=>{const n=Number(p.stock)||0;out.push({k:'p:'+p.id+':'+n,ic:'📦',t:(n<=0?'স্টক শেষ: ':'স্টক কম: ')+p.name,s:n<=0?'এখনই স্টক যোগ করুন':'মাত্র '+bn(n)+'টা বাকি',go:()=>{go(deptOf(p)==='clothing'?'clothing':'gadget')},at:1})});
-  try{const nl=(leadsCache||[]).filter(l=>!l.contacted).length;if(nl)out.push({k:'l:'+nl,ic:'🛒',t:bn(nl)+'টা অসম্পূর্ণ অর্ডার',s:'কাস্টমারকে WhatsApp করুন',go:()=>go('leads'),at:2})}catch(e){}
-  return out.sort((x,y)=>y.at-x.at).slice(0,25)
-}
-function updateBell(){
-  const el=$('bellCount');if(!el)return;
-  const r=readSet(),n=notifs().filter(x=>!r.has(x.k)).length;
-  el.textContent=n>99?'99+':n;el.classList.toggle('hidden',!n);
-  const base='Paboo — Admin Panel';document.title=n?'('+n+') '+base:base
-}
-function renderBell(){
-  const p=$('bellPanel');if(!p)return;const r=readSet(),l=notifs();
-  window.__nt=l;
-  p.innerHTML=`<div class="bp-h"><span>নোটিফিকেশন</span><button type="button" onclick="markAllRead()">সব পড়া হয়েছে</button></div><div class="bp-l">${l.length?l.map((x,i)=>`<div class="bp-i ${r.has(x.k)?'':'un'}" onclick="bellGo(${i})"><i>${x.ic}</i><div><b>${esc(x.t)}</b><small>${esc(x.s)}</small></div></div>`).join(''):'<div class="bp-e">কোনো নতুন খবর নেই 🎉</div>'}</div>`
-}
-function toggleBell(e){
-  if(e)e.stopPropagation();const p=$('bellPanel');if(!p)return;
-  const open=p.classList.contains('hidden');
-  if(open){renderBell();p.classList.remove('hidden')}else p.classList.add('hidden')
-}
-function markAllRead(){const r=readSet();notifs().forEach(x=>r.add(x.k));saveRead(r);renderBell();updateBell()}
-function bellGo(i){const x=(window.__nt||[])[i];if(!x)return;const r=readSet();r.add(x.k);saveRead(r);$('bellPanel')?.classList.add('hidden');updateBell();x.go&&x.go()}
-function openOrderSearch(q){
-  go('orders');
-  setTimeout(()=>{const i=$('orderSearch');if(i){i.value=q;filterOrders()}},30)
-}
-/* ---- quick add (FAB) ---- */
-function toggleFab(e){if(e)e.stopPropagation();$('fab')?.classList.toggle('open')}
-function closeFab(){$('fab')?.classList.remove('open')}
-function fabDo(k){
-  closeFab();
-  if(k==='product')addProduct();
-  else if(k==='category')addCategory();
-  else if(k==='coupon'){addCoupon()}
-  else if(k==='offer')addOffer();
-}
-/* ---- command palette ---- */
-const CK_PAGES=[
- ['dashboard','▦','Dashboard','হোম ড্যাশবোর্ড হিসাব overview'],['reports','📈','Reports','রিপোর্ট লাভ বিক্রি profit'],
- ['orders','▤','সব অর্ডার','orders অর্ডার'],['orders-clothing','👕','পোশাকের অর্ডার','clothing অর্ডার জামা'],['orders-gadget','🎧','গ্যাজেটের অর্ডার','gadget অর্ডার'],
- ['leads','🛒','অসম্পূর্ণ অর্ডার','incomplete leads'],['blocked','🚫','ব্লক নম্বর','blocked fake ফেক'],
- ['clothing','👕','পোশাক পণ্য','clothing products জামা'],['gadget','🎧','গ্যাজেট পণ্য','gadget products'],['products','▣','All Products','সব পণ্য'],
- ['categories','🗂','Categories','ক্যাটাগরি'],['offers','🏷','Offers & Deals','অফার ডিল'],['coupons','🎟','Coupons','কুপন ডিসকাউন্ট'],
- ['customers','♙','Customers','কাস্টমার'],['site','🌐','সাইট নিয়ন্ত্রণ','site control website ওয়েবসাইট'],
- ['delivery','🚚','Delivery','ডেলিভারি চার্জ'],['payments','৳','Payments','পেমেন্ট bkash nagad bKash নগদ'],['policies','📜','Policies','নীতিমালা ওয়ারেন্টি রিটার্ন'],['settings','⚙','Settings','সেটিংস']
-];
-const CK_SET=[['sgAppear','🎨','রং ও থিম, কার্ট রং','theme color colour রং থিম কার্ট চেকআউট cart'],['sgSocial','📣','সোশ্যাল ও যোগাযোগ','facebook whatsapp tiktok ফেসবুক'],['sgCloth','👕','পোশাক অপশন, সাইজ গাইড','size guide সাইজ কালার variant'],['sgTrack','🔎','অর্ডার ট্র্যাকিং','tracking courier কুরিয়ার']];
-const CK_ACT=[['product','＋','নতুন পণ্য যোগ করুন','add product'],['category','🗂','নতুন ক্যাটাগরি','add category'],['coupon','🎟','নতুন কুপন','add coupon'],['offer','🏷','নতুন অফার','add offer deal']];
-let ckSel=0,ckItems=[];
-function ckNorm(s){return String(s||'').toLowerCase()}
-function ckMatch(h,q){h=ckNorm(h);return q.split(/\s+/).filter(Boolean).every(w=>h.includes(w))}
-function ckBuild(qr){
-  const q=ckNorm(qr).trim(),G=[];
-  const pages=CK_PAGES.filter(p=>!q||ckMatch(p[2]+' '+p[3],q)).slice(0,q?6:8).map(p=>({ic:p[1],t:p[2],s:'পেজ',run:()=>go(p[0])}));
-  const sets=q?CK_SET.filter(p=>ckMatch(p[2]+' '+p[3],q)).map(p=>({ic:p[1],t:p[2],s:'সেটিংস',run:()=>goSettings(p[0])})):[];
-  const acts=CK_ACT.filter(p=>!q||ckMatch(p[2]+' '+p[3],q)).slice(0,q?3:4).map(p=>({ic:p[1],t:p[2],s:'দ্রুত কাজ',run:()=>fabDo(p[0])}));
-  if(q){
-    const os=[];for(let i=0;i<ordersCache.length&&os.length<6;i++){const o=ordersCache[i];const id=String(o.order_number||o.id||'');const nm=String(o.customer_name||o.name||'');const ph=String(o.phone||o.customer_phone||'');if(ckMatch(id+' '+nm+' '+ph+' '+(o.district||''),q))os.push({ic:'▤',t:id+' · '+(nm||'—'),s:(o.status||'Pending')+' · '+tk(orderTotal(o)),run:()=>openOrderSearch(id)})}
-    if(os.length)G.push(['অর্ডার',os]);
-    const seen=new Set(),cs=[];
-    for(const o of ordersCache){const ph=String(o.phone||o.customer_phone||'');const nm=String(o.customer_name||o.name||'');if(!ph||seen.has(ph))continue;if(ckMatch(nm+' '+ph,q)){seen.add(ph);cs.push({ic:'♙',t:(nm||'—')+' · '+ph,s:'কাস্টমার',run:()=>openOrderSearch(ph)});if(cs.length>=5)break}}
-    if(cs.length)G.push(['কাস্টমার',cs]);
-    const ps=[];productsCache.forEach((p,i)=>{if(ps.length<6&&ckMatch((p.name||'')+' '+(p.category||'')+' '+(p.brand||''),q))ps.push({ic:deptOf(p)==='clothing'?'👕':'🎧',t:p.name,s:tk(p.price)+' · স্টক '+bn(p.stock),run:()=>editProduct(i)})});
-    if(ps.length)G.push(['পণ্য',ps]);
-  }
-  if(sets.length)G.push(['সেটিংস',sets]);
-  if(acts.length)G.push(['দ্রুত কাজ',acts]);
-  if(pages.length)G.push(['পেজ',pages]);
-  return G
-}
-function ckRender(){
-  const G=ckBuild($('cmdkInput')?.value||'');ckItems=[];let h='';
-  G.forEach(([n,items])=>{h+='<div class="ck-g">'+esc(n)+'</div>';items.forEach(it=>{const i=ckItems.push(it)-1;h+=`<div class="ck-r" data-i="${i}"><i>${it.ic}</i><span>${esc(it.t)}</span><small>${esc(it.s)}</small></div>`})});
-  $('cmdkList').innerHTML=ckItems.length?h:'<div class="ck-e">কিছু পাওয়া যায়নি</div>';
-  ckSel=0;ckMark()
-}
-function ckMark(){document.querySelectorAll('#cmdkList .ck-r').forEach(e=>e.classList.toggle('on',+e.dataset.i===ckSel));document.querySelector('#cmdkList .ck-r.on')?.scrollIntoView({block:'nearest'})}
-function ckRun(i){const it=ckItems[i];if(!it)return;closeCmdk();setTimeout(()=>it.run(),20)}
-function openCmdk(){const c=$('cmdk');if(!c)return;closeFab();$('bellPanel')?.classList.add('hidden');c.classList.remove('hidden');const i=$('cmdkInput');i.value='';ckRender();setTimeout(()=>i.focus(),10)}
-function closeCmdk(){$('cmdk')?.classList.add('hidden')}
-/* ---- site control hub ---- */
-function goSettings(id){go('settings');setTimeout(()=>{const e=$(id);if(e){e.open=true;e.scrollIntoView({behavior:'smooth',block:'start'})}},60)}
-function sitePage(){
-  const s=storeSettingsCache||{};
-  const T=(ic,t,d,fn,warn)=>`<button class="hub-tile" type="button" onclick="${fn}"><i>${ic}</i><b>${t}</b><small>${d}</small>${warn?'<em>SQL বাকি</em>':''}</button>`;
-  return `<div class="section-head"><div><h3>🌐 সাইট নিয়ন্ত্রণ</h3><p>আপনার ওয়েবসাইটে যা যা দেখা যায়, সব এখান থেকে এক ক্লিকে বদলান</p></div><div class="toolbar"><a class="btn primary" style="text-decoration:none" href="https://paboobd.github.io" target="_blank" rel="noopener">↗ সাইট দেখুন</a></div></div>
+  ${e.has_tracking?"":'<p style="color:#b45309"><b>One-time setup needed:</b> run <code>9_tracking.sql</code> in Supabase &gt; SQL Editor, then press Refresh.</p>'}
+  <label style="display:flex;gap:8px;align-items:center;font-weight:700"><input id="trackToggle" type="checkbox" ${e.show_tracking?"checked":""} ${e.has_tracking?"":"disabled"}> Show courier &amp; tracking number to customers</label>
+  <div class="btn-row"><button class="btn primary" id="saveTrackBtn" onclick="saveTrackingSetting()" ${e.has_tracking?"":"disabled"}>Save</button></div></div>`}async function saveTrackingSetting(){const e=storeSettingsCache||{},t=!!$("trackToggle")?.checked,o=$("saveTrackBtn");try{o&&(o.disabled=!0,o.textContent="Saving...");const{error:n}=await sb.from("store_settings").upsert({id:1,store_name:e.store_name||"Paboo",show_tracking:t,updated_at:new Date().toISOString()},{onConflict:"id"});if(n)throw n;storeSettingsCache={...e,show_tracking:t},alert(t?"Customers can now see courier & tracking number.":"Tracking info is now hidden from customers."),render()}catch(n){showError(n),o&&(o.disabled=!1,o.textContent="Save")}}window.courierBox=courierBox,window.saveCourier=saveCourier,window.trackingCard=trackingCard,window.saveTrackingSetting=saveTrackingSetting;function deptMap(){const e=new Map;return productsCache.forEach(t=>e.set(String(t.id),deptOf(t))),e}function orderDepts(e,t){t=t||deptMap();let o=e.items;if(typeof o=="string")try{o=JSON.parse(o)}catch{o=[]}const n=new Set;return(Array.isArray(o)?o:[]).forEach(a=>{let r=t.get(String(a&&(a.id||a.product_id)));if(!r){const s=String(a&&a.name||"").replace(/\s*\(.*\)\s*$/,"").trim().toLowerCase(),i=s&&productsCache.find(c=>String(c.name||"").trim().toLowerCase()===s);r=i?deptOf(i):a&&a.dept==="clothing"?"clothing":"gadget"}n.add(r)}),n.size||n.add("gadget"),n}function bn(e){try{return Number(e||0).toLocaleString("bn-BD")}catch{return String(e)}}function tk(e){return"৳"+bn(Math.round(Number(e)||0))}function orderTotal(e){return Number(e.total??Number(e.subtotal||0)+Number(e.delivery_charge??e.delivery_fee??0))||0}function ordKpi(){try{const e=deptMap(),t=typeof dhakaDay=="function"?dhakaDay(new Date().toISOString()):new Date().toISOString().slice(0,10),o=ordersCache.filter(s=>!orderDept||orderDepts(s,e).has(orderDept)),a=o.filter(s=>(s.status||"Pending")!=="Cancelled").filter(s=>s.created_at&&(typeof dhakaDay=="function"?dhakaDay(s.created_at):String(s.created_at).slice(0,10))===t),r=o.filter(s=>(s.status||"Pending")==="Pending").length;return`<div class="ord-kpi"><div><small>আজকের বিক্রি</small><b>${tk(a.reduce((s,i)=>s+orderTotal(i),0))}</b></div><div><small>আজকের অর্ডার</small><b>${bn(a.length)}</b></div><div><small>Pending</small><b>${bn(r)}</b></div><div><small>মোট অর্ডার</small><b>${bn(o.length)}</b></div></div>`}catch{return""}}function toggleGrp(e){const t=e.closest(".grp");t&&(t.classList.toggle("open"),saveGrp())}function saveGrp(){try{const e={};document.querySelectorAll(".grp").forEach(t=>e[t.dataset.g]=t.classList.contains("open")?1:0),localStorage.setItem("gbbd_admin_grp",JSON.stringify(e))}catch{}}function loadGrp(){try{const e=JSON.parse(localStorage.getItem("gbbd_admin_grp")||"{}");document.querySelectorAll(".grp").forEach(t=>{e[t.dataset.g]===0&&t.classList.remove("open")})}catch{}}function openGrpFor(e){const t=document.querySelector('.nav[data-section="'+e+'"]'),o=t&&t.closest(".grp");o&&!o.classList.contains("open")&&(o.classList.add("open"),saveGrp())}function toggleMini(){const t=document.documentElement.classList.toggle("sb-mini");try{localStorage.setItem("gbbd_admin_mini",t?"1":"0")}catch{}const o=document.querySelector(".mini-btn span");o&&(o.textContent=t?"বড় করুন":"ছোট করুন")}function toggleAdminTheme(){const t=document.documentElement.classList.toggle("dk");try{localStorage.setItem("gbbd_admin_theme",t?"dark":"light")}catch{}themeIcon()}function themeIcon(){const e=$("themeBtn");e&&(e.textContent=document.documentElement.classList.contains("dk")?"☀":"🌙")}const _gbUpdBadge=updateOrderBadge;updateOrderBadge=function(){_gbUpdBadge();try{const e=deptMap(),t={clothing:0,gadget:0};ordersCache.forEach(n=>{(n.status||"Pending")==="Pending"&&orderDepts(n,e).forEach(a=>t[a]++)}),document.querySelectorAll(".nav-badge[data-cnt]").forEach(n=>{const a=t[n.dataset.cnt]||0;n.textContent=a,n.style.display=a?"":"none"});const o=document.querySelector('.nav[data-section="orders"] .nav-badge');o&&!o.classList.contains("cnt-b")&&!o.classList.contains("cnt-g")&&(o.style.cssText=""),o&&o.textContent==="0"&&(o.style.display="none")}catch{}};function readSet(){try{return new Set(JSON.parse(localStorage.getItem("gbbd_admin_read")||"[]"))}catch{return new Set}}function saveRead(e){try{localStorage.setItem("gbbd_admin_read",JSON.stringify([...e].slice(-400)))}catch{}}function ago(e){const t=Math.max(0,Math.round((Date.now()-new Date(e).getTime())/6e4));if(t<1)return"এইমাত্র";if(t<60)return bn(t)+" মিনিট আগে";const o=Math.round(t/60);return o<24?bn(o)+" ঘণ্টা আগে":bn(Math.round(o/24))+" দিন আগে"}function notifs(){const e=[],t=Date.now(),o=3*864e5;ordersCache.forEach((n,a)=>{if(!n.created_at||t-new Date(n.created_at).getTime()>o)return;const r=n.order_number||n.id,s=n.status||"Pending",i=n.customer_name||n.name||"";s==="Pending"?e.push({k:"o:"+n.id,ic:"🛍",t:"নতুন অর্ডার "+r,s:i+" · "+tk(orderTotal(n))+" · "+ago(n.created_at),go:()=>openOrderSearch(String(r)),at:new Date(n.created_at).getTime()}):s==="Cancelled"&&e.push({k:"c:"+n.id,ic:"✖",t:"অর্ডার বাতিল "+r,s:i+" · "+ago(n.created_at),go:()=>openOrderSearch(String(r)),at:new Date(n.created_at).getTime()-1})}),productsCache.filter(n=>n.active!==!1&&Number(n.stock)<=3).slice(0,12).forEach(n=>{const a=Number(n.stock)||0;e.push({k:"p:"+n.id+":"+a,ic:"📦",t:(a<=0?"স্টক শেষ: ":"স্টক কম: ")+n.name,s:a<=0?"এখনই স্টক যোগ করুন":"মাত্র "+bn(a)+"টা বাকি",go:()=>{go(deptOf(n)==="clothing"?"clothing":"gadget")},at:1})});try{const n=(leadsCache||[]).filter(a=>!a.contacted).length;n&&e.push({k:"l:"+n,ic:"🛒",t:bn(n)+"টা অসম্পূর্ণ অর্ডার",s:"কাস্টমারকে WhatsApp করুন",go:()=>go("leads"),at:2})}catch{}return e.sort((n,a)=>a.at-n.at).slice(0,25)}function updateBell(){const e=$("bellCount");if(!e)return;const t=readSet(),o=notifs().filter(a=>!t.has(a.k)).length;e.textContent=o>99?"99+":o,e.classList.toggle("hidden",!o);const n="Paboo — Admin Panel";document.title=o?"("+o+") "+n:n}function renderBell(){const e=$("bellPanel");if(!e)return;const t=readSet(),o=notifs();window.__nt=o,e.innerHTML=`<div class="bp-h"><span>নোটিফিকেশন</span><button type="button" onclick="markAllRead()">সব পড়া হয়েছে</button></div><div class="bp-l">${o.length?o.map((n,a)=>`<div class="bp-i ${t.has(n.k)?"":"un"}" onclick="bellGo(${a})"><i>${n.ic}</i><div><b>${esc(n.t)}</b><small>${esc(n.s)}</small></div></div>`).join(""):'<div class="bp-e">কোনো নতুন খবর নেই 🎉</div>'}</div>`}function toggleBell(e){e&&e.stopPropagation();const t=$("bellPanel");if(!t)return;t.classList.contains("hidden")?(renderBell(),t.classList.remove("hidden")):t.classList.add("hidden")}function markAllRead(){const e=readSet();notifs().forEach(t=>e.add(t.k)),saveRead(e),renderBell(),updateBell()}function bellGo(e){const t=(window.__nt||[])[e];if(!t)return;const o=readSet();o.add(t.k),saveRead(o),$("bellPanel")?.classList.add("hidden"),updateBell(),t.go&&t.go()}function openOrderSearch(e){go("orders"),setTimeout(()=>{const t=$("orderSearch");t&&(t.value=e,filterOrders())},30)}function toggleFab(e){e&&e.stopPropagation(),$("fab")?.classList.toggle("open")}function closeFab(){$("fab")?.classList.remove("open")}function fabDo(e){closeFab(),e==="product"?addProduct():e==="category"?addCategory():e==="coupon"?addCoupon():e==="offer"&&addOffer()}const CK_PAGES=[["dashboard","▦","Dashboard","হোম ড্যাশবোর্ড হিসাব overview"],["reports","📈","Reports","রিপোর্ট লাভ বিক্রি profit"],["orders","▤","সব অর্ডার","orders অর্ডার"],["orders-clothing","👕","পোশাকের অর্ডার","clothing অর্ডার জামা"],["orders-gadget","🎧","গ্যাজেটের অর্ডার","gadget অর্ডার"],["leads","🛒","অসম্পূর্ণ অর্ডার","incomplete leads"],["blocked","🚫","ব্লক নম্বর","blocked fake ফেক"],["clothing","👕","পোশাক পণ্য","clothing products জামা"],["gadget","🎧","গ্যাজেট পণ্য","gadget products"],["products","▣","All Products","সব পণ্য"],["categories","🗂","Categories","ক্যাটাগরি"],["offers","🏷","Offers & Deals","অফার ডিল"],["coupons","🎟","Coupons","কুপন ডিসকাউন্ট"],["customers","♙","Customers","কাস্টমার"],["site","🌐","সাইট নিয়ন্ত্রণ","site control website ওয়েবসাইট"],["delivery","🚚","Delivery","ডেলিভারি চার্জ"],["payments","৳","Payments","পেমেন্ট bkash nagad bKash নগদ"],["policies","📜","Policies","নীতিমালা ওয়ারেন্টি রিটার্ন"],["settings","⚙","Settings","সেটিংস"]],CK_SET=[["sgAppear","🎨","রং ও থিম, কার্ট রং","theme color colour রং থিম কার্ট চেকআউট cart"],["sgSocial","📣","সোশ্যাল ও যোগাযোগ","facebook whatsapp tiktok ফেসবুক"],["sgCloth","👕","পোশাক অপশন, সাইজ গাইড","size guide সাইজ কালার variant"],["sgTrack","🔎","অর্ডার ট্র্যাকিং","tracking courier কুরিয়ার"]],CK_ACT=[["product","＋","নতুন পণ্য যোগ করুন","add product"],["category","🗂","নতুন ক্যাটাগরি","add category"],["coupon","🎟","নতুন কুপন","add coupon"],["offer","🏷","নতুন অফার","add offer deal"]];let ckSel=0,ckItems=[];function ckNorm(e){return String(e||"").toLowerCase()}function ckMatch(e,t){return e=ckNorm(e),t.split(/\s+/).filter(Boolean).every(o=>e.includes(o))}function ckBuild(e){const t=ckNorm(e).trim(),o=[],n=CK_PAGES.filter(s=>!t||ckMatch(s[2]+" "+s[3],t)).slice(0,t?6:8).map(s=>({ic:s[1],t:s[2],s:"পেজ",run:()=>go(s[0])})),a=t?CK_SET.filter(s=>ckMatch(s[2]+" "+s[3],t)).map(s=>({ic:s[1],t:s[2],s:"সেটিংস",run:()=>goSettings(s[0])})):[],r=CK_ACT.filter(s=>!t||ckMatch(s[2]+" "+s[3],t)).slice(0,t?3:4).map(s=>({ic:s[1],t:s[2],s:"দ্রুত কাজ",run:()=>fabDo(s[0])}));if(t){const s=[];for(let d=0;d<ordersCache.length&&s.length<6;d++){const u=ordersCache[d],m=String(u.order_number||u.id||""),g=String(u.customer_name||u.name||""),v=String(u.phone||u.customer_phone||"");ckMatch(m+" "+g+" "+v+" "+(u.district||""),t)&&s.push({ic:"▤",t:m+" · "+(g||"—"),s:(u.status||"Pending")+" · "+tk(orderTotal(u)),run:()=>openOrderSearch(m)})}s.length&&o.push(["অর্ডার",s]);const i=new Set,c=[];for(const d of ordersCache){const u=String(d.phone||d.customer_phone||""),m=String(d.customer_name||d.name||"");if(!(!u||i.has(u))&&ckMatch(m+" "+u,t)&&(i.add(u),c.push({ic:"♙",t:(m||"—")+" · "+u,s:"কাস্টমার",run:()=>openOrderSearch(u)}),c.length>=5))break}c.length&&o.push(["কাস্টমার",c]);const l=[];productsCache.forEach((d,u)=>{l.length<6&&ckMatch((d.name||"")+" "+(d.category||"")+" "+(d.brand||""),t)&&l.push({ic:deptOf(d)==="clothing"?"👕":"🎧",t:d.name,s:tk(d.price)+" · স্টক "+bn(d.stock),run:()=>editProduct(u)})}),l.length&&o.push(["পণ্য",l])}return a.length&&o.push(["সেটিংস",a]),r.length&&o.push(["দ্রুত কাজ",r]),n.length&&o.push(["পেজ",n]),o}function ckRender(){const e=ckBuild($("cmdkInput")?.value||"");ckItems=[];let t="";e.forEach(([o,n])=>{t+='<div class="ck-g">'+esc(o)+"</div>",n.forEach(a=>{const r=ckItems.push(a)-1;t+=`<div class="ck-r" data-i="${r}"><i>${a.ic}</i><span>${esc(a.t)}</span><small>${esc(a.s)}</small></div>`})}),$("cmdkList").innerHTML=ckItems.length?t:'<div class="ck-e">কিছু পাওয়া যায়নি</div>',ckSel=0,ckMark()}function ckMark(){document.querySelectorAll("#cmdkList .ck-r").forEach(e=>e.classList.toggle("on",+e.dataset.i===ckSel)),document.querySelector("#cmdkList .ck-r.on")?.scrollIntoView({block:"nearest"})}function ckRun(e){const t=ckItems[e];t&&(closeCmdk(),setTimeout(()=>t.run(),20))}function openCmdk(){const e=$("cmdk");if(!e)return;closeFab(),$("bellPanel")?.classList.add("hidden"),e.classList.remove("hidden");const t=$("cmdkInput");t.value="",ckRender(),setTimeout(()=>t.focus(),10)}function closeCmdk(){$("cmdk")?.classList.add("hidden")}function goSettings(e){go("settings"),setTimeout(()=>{const t=$(e);t&&(t.open=!0,t.scrollIntoView({behavior:"smooth",block:"start"}))},60)}function sitePage(){const e=storeSettingsCache||{},t=(o,n,a,r,s)=>`<button class="hub-tile" type="button" onclick="${r}"><i>${o}</i><b>${n}</b><small>${a}</small>${s?"<em>SQL বাকি</em>":""}</button>`;return`<div class="section-head"><div><h3>🌐 সাইট নিয়ন্ত্রণ</h3><p>আপনার ওয়েবসাইটে যা যা দেখা যায়, সব এখান থেকে এক ক্লিকে বদলান</p></div><div class="toolbar"><a class="btn primary" style="text-decoration:none" href="https://paboobd.github.io" target="_blank" rel="noopener">↗ সাইট দেখুন</a></div></div>
   <div class="hub-h">চেহারা</div><div class="hub-grid">
-  ${T('🎨','থিম ও কার্ট রং','সাইটের থিম, কার্ট ও চেকআউটের রং',"goSettings('sgAppear')",!s.has_cart_theme)}
-  ${T('🏷','অফার ও ডিল','কম্বো অফার, ফ্ল্যাশ সেল, সময়সূচি',"go('offers')")}
-  ${T('📜','নীতিমালা','ওয়ারেন্টি, রিটার্ন, ডেলিভারি কার্ড',"go('policies')")}
-  ${T('📣','সোশ্যাল ও যোগাযোগ','Facebook, WhatsApp, TikTok বাটন',"goSettings('sgSocial')",!s.has_social)}</div>
+  ${t("🎨","থিম ও কার্ট রং","সাইটের থিম, কার্ট ও চেকআউটের রং","goSettings('sgAppear')",!e.has_cart_theme)}
+  ${t("🏷","অফার ও ডিল","কম্বো অফার, ফ্ল্যাশ সেল, সময়সূচি","go('offers')")}
+  ${t("📜","নীতিমালা","ওয়ারেন্টি, রিটার্ন, ডেলিভারি কার্ড","go('policies')")}
+  ${t("📣","সোশ্যাল ও যোগাযোগ","Facebook, WhatsApp, TikTok বাটন","goSettings('sgSocial')",!e.has_social)}</div>
   <div class="hub-h">পণ্য</div><div class="hub-grid">
-  ${T('👕','পোশাক','পোশাকের ক্যাটাগরি ও পণ্য',"go('clothing')")}
-  ${T('🎧','গ্যাজেট','গ্যাজেটের ক্যাটাগরি ও পণ্য',"go('gadget')")}
-  ${T('🗂','ক্যাটাগরি','ক্যাটাগরি যোগ, মুছুন',"go('categories')")}
-  ${T('👗','পোশাক অপশন','কালার পিকার, ভ্যারিয়েন্ট, সাইজ গাইড',"goSettings('sgCloth')",!(s.has_cols&&s.has_variants&&s.has_size_guide))}</div>
+  ${t("👕","পোশাক","পোশাকের ক্যাটাগরি ও পণ্য","go('clothing')")}
+  ${t("🎧","গ্যাজেট","গ্যাজেটের ক্যাটাগরি ও পণ্য","go('gadget')")}
+  ${t("🗂","ক্যাটাগরি","ক্যাটাগরি যোগ, মুছুন","go('categories')")}
+  ${t("👗","পোশাক অপশন","কালার পিকার, ভ্যারিয়েন্ট, সাইজ গাইড","goSettings('sgCloth')",!(e.has_cols&&e.has_variants&&e.has_size_guide))}</div>
   <div class="hub-h">বিক্রি ও অর্ডার</div><div class="hub-grid">
-  ${T('🎟','কুপন','ডিসকাউন্ট কোড বানান',"go('coupons')")}
-  ${T('🚚','ডেলিভারি','ঢাকা, আশেপাশে ও বাইরের চার্জ',"go('delivery')")}
-  ${T('৳','পেমেন্ট','COD, bKash, Nagad চালু বা বন্ধ',"go('payments')")}
-  ${T('🔎','অর্ডার ট্র্যাকিং','কুরিয়ার ট্র্যাকিং দেখানো',"goSettings('sgTrack')",!s.has_tracking)}
-  ${T('🛒','অসম্পূর্ণ অর্ডার','যারা অর্ডার না করে চলে গেছে',"go('leads')")}
-  ${T('🚫','ব্লক নম্বর','ফেক অর্ডার আটকান',"go('blocked')")}</div>
+  ${t("🎟","কুপন","ডিসকাউন্ট কোড বানান","go('coupons')")}
+  ${t("🚚","ডেলিভারি","ঢাকা, আশেপাশে ও বাইরের চার্জ","go('delivery')")}
+  ${t("৳","পেমেন্ট","COD, bKash, Nagad চালু বা বন্ধ","go('payments')")}
+  ${t("🔎","অর্ডার ট্র্যাকিং","কুরিয়ার ট্র্যাকিং দেখানো","goSettings('sgTrack')",!e.has_tracking)}
+  ${t("🛒","অসম্পূর্ণ অর্ডার","যারা অর্ডার না করে চলে গেছে","go('leads')")}
+  ${t("🚫","ব্লক নম্বর","ফেক অর্ডার আটকান","go('blocked')")}</div>
   <div class="hub-h">স্টোর তথ্য</div><div class="hub-grid">
-  ${T('🏪','স্টোরের নাম, ফোন, ঠিকানা','কন্টাক্ট পেজে যা দেখায়',"go('settings')")}
-  ${T('📈','রিপোর্ট','লাভ, বিক্রি, জনপ্রিয় পণ্য',"go('reports')")}</div>`
-}
-/* ---- wiring ---- */
-document.addEventListener('keydown',e=>{
-  const k=e.key,cm=!$('cmdk')?.classList.contains('hidden');
-  if((e.ctrlKey||e.metaKey)&&String(k).toLowerCase()==='k'){e.preventDefault();cm?closeCmdk():openCmdk();return}
-  if(cm){
-    if(k==='Escape'){closeCmdk();return}
-    if(k==='ArrowDown'){e.preventDefault();ckSel=Math.min(ckItems.length-1,ckSel+1);ckMark()}
-    else if(k==='ArrowUp'){e.preventDefault();ckSel=Math.max(0,ckSel-1);ckMark()}
-    else if(k==='Enter'){e.preventDefault();ckRun(ckSel)}
-    return
-  }
-  if(k==='Escape'){closeFab();$('bellPanel')?.classList.add('hidden')}
-  const t=e.target,typing=t&&/INPUT|TEXTAREA|SELECT/.test(t.tagName);
-  if(k==='/'&&!typing&&!e.ctrlKey&&!e.metaKey&&$('app')&&!$('app').classList.contains('hidden')){e.preventDefault();openCmdk()}
-});
-document.addEventListener('input',e=>{if(e.target&&e.target.id==='cmdkInput')ckRender()});
-document.addEventListener('click',e=>{
-  const r=e.target.closest&&e.target.closest('#cmdkList .ck-r');if(r){ckRun(+r.dataset.i);return}
-  if(!e.target.closest('.bell-wrap'))$('bellPanel')?.classList.add('hidden');
-  if(!e.target.closest('#fab'))closeFab();
-});
-document.addEventListener('DOMContentLoaded',()=>{loadGrp();themeIcon();const t=document.querySelector('.mini-btn span');if(t&&document.documentElement.classList.contains('sb-mini'))t.textContent='বড় করুন'});
-let _gbPoll=0;
-function adminPollStart(){
-  if(_gbPoll)return;
-  _gbPoll=setInterval(async()=>{
-    if(document.hidden||$('app')?.classList.contains('hidden'))return;
-    try{await refreshOrders();updateOrderBadge();updateBell();
-      if(currentSection==='dashboard'&&$('modal')?.classList.contains('hidden'))render();
-      if(currentSection==='orders'&&$('modal')?.classList.contains('hidden')&&!document.activeElement?.closest?.('#content input,#content select,#content textarea')&&!selOrders.size)filterOrders()
-    }catch(e){}
-  },60000);
-}
-Object.assign(window,{toggleGrp,toggleMini,toggleAdminTheme,toggleBell,markAllRead,bellGo,toggleFab,fabDo,openCmdk,closeCmdk,goSettings,sitePage,openOrderSearch,go});
-
-/* phone card tables: copy each column title onto its cells (CSS shows it as a label) */
-function labelTables(root){
-  try{
-    (root||document).querySelectorAll('#content table.table').forEach(t=>{
-      const hs=[...t.querySelectorAll('thead th')].map(h=>(h.textContent||'').trim());
-      if(!hs.length)return;
-      t.querySelectorAll('tbody tr').forEach(tr=>{
-        if(tr.dataset.lb===String(hs.length))return;
-        [...tr.children].forEach((td,i)=>{if(td.tagName==='TD'&&!td.hasAttribute('colspan'))td.setAttribute('data-label',hs[i]||'')});
-        tr.dataset.lb=String(hs.length)
-      })
-    })
-  }catch(e){}
-}
-(function(){
-  let t=0;const run=()=>{t=0;labelTables()};
-  const start=()=>{const c=document.getElementById('content');if(!c)return;new MutationObserver(()=>{if(!t)t=requestAnimationFrame(run)}).observe(c,{childList:true,subtree:true});run()};
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start);else start()
-})();
+  ${t("🏪","স্টোরের নাম, ফোন, ঠিকানা","কন্টাক্ট পেজে যা দেখায়","go('settings')")}
+  ${t("📈","রিপোর্ট","লাভ, বিক্রি, জনপ্রিয় পণ্য","go('reports')")}</div>`}document.addEventListener("keydown",e=>{const t=e.key,o=!$("cmdk")?.classList.contains("hidden");if((e.ctrlKey||e.metaKey)&&String(t).toLowerCase()==="k"){e.preventDefault(),o?closeCmdk():openCmdk();return}if(o){if(t==="Escape"){closeCmdk();return}t==="ArrowDown"?(e.preventDefault(),ckSel=Math.min(ckItems.length-1,ckSel+1),ckMark()):t==="ArrowUp"?(e.preventDefault(),ckSel=Math.max(0,ckSel-1),ckMark()):t==="Enter"&&(e.preventDefault(),ckRun(ckSel));return}t==="Escape"&&(closeFab(),$("bellPanel")?.classList.add("hidden"));const n=e.target,a=n&&/INPUT|TEXTAREA|SELECT/.test(n.tagName);t==="/"&&!a&&!e.ctrlKey&&!e.metaKey&&$("app")&&!$("app").classList.contains("hidden")&&(e.preventDefault(),openCmdk())}),document.addEventListener("input",e=>{e.target&&e.target.id==="cmdkInput"&&ckRender()}),document.addEventListener("click",e=>{const t=e.target.closest&&e.target.closest("#cmdkList .ck-r");if(t){ckRun(+t.dataset.i);return}e.target.closest(".bell-wrap")||$("bellPanel")?.classList.add("hidden"),e.target.closest("#fab")||closeFab()}),document.addEventListener("DOMContentLoaded",()=>{loadGrp(),themeIcon();const e=document.querySelector(".mini-btn span");e&&document.documentElement.classList.contains("sb-mini")&&(e.textContent="বড় করুন")});let _gbPoll=0;function adminPollStart(){_gbPoll||(_gbPoll=setInterval(async()=>{if(!(document.hidden||$("app")?.classList.contains("hidden")))try{await refreshOrders(),updateOrderBadge(),updateBell(),currentSection==="dashboard"&&$("modal")?.classList.contains("hidden")&&render(),currentSection==="orders"&&$("modal")?.classList.contains("hidden")&&!document.activeElement?.closest?.("#content input,#content select,#content textarea")&&!selOrders.size&&filterOrders()}catch{}},6e4))}Object.assign(window,{toggleGrp,toggleMini,toggleAdminTheme,toggleBell,markAllRead,bellGo,toggleFab,fabDo,openCmdk,closeCmdk,goSettings,sitePage,openOrderSearch,go});function labelTables(e){try{(e||document).querySelectorAll("#content table.table").forEach(t=>{const o=[...t.querySelectorAll("thead th")].map(n=>(n.textContent||"").trim());o.length&&t.querySelectorAll("tbody tr").forEach(n=>{n.dataset.lb!==String(o.length)&&([...n.children].forEach((a,r)=>{a.tagName==="TD"&&!a.hasAttribute("colspan")&&a.setAttribute("data-label",o[r]||"")}),n.dataset.lb=String(o.length))})})}catch{}}(function(){let e=0;const t=()=>{e=0,labelTables()},o=()=>{const n=document.getElementById("content");n&&(new MutationObserver(()=>{e||(e=requestAnimationFrame(t))}).observe(n,{childList:!0,subtree:!0}),t())};document.readyState==="loading"?document.addEventListener("DOMContentLoaded",o):o()})();
