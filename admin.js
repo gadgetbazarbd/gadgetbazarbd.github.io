@@ -518,9 +518,18 @@ async function saveCartTheme(reset){
     const cart_theme=reset?null:{a:$('ctA').value,b:$('ctB').value};
     const {error}=await sb.from('store_settings').upsert({id:1,store_name:s.store_name||'Paboo',cart_theme,updated_at:new Date().toISOString()},{onConflict:'id'});
     if(error)throw error;
+    if(!reset){
+      const c=await sb.from('store_settings').select('cart_theme').eq('id',1).maybeSingle();
+      const got=c&&c.data&&c.data.cart_theme;
+      if(!c.error&&(!got||String(got.a).toLowerCase()!==cart_theme.a.toLowerCase()))throw new Error('রং ডাটাবেসে সেভ হয়নি। Supabase > SQL Editor এ 16_cart_theme.sql চালিয়ে আবার চেষ্টা করুন।');
+    }
     storeSettingsCache={...s,cart_theme:cart_theme||{}};
-    alert('Saved. Refresh your website to see the change.');render();
-  }catch(e){showError(e);if(btn){btn.disabled=false;btn.textContent='Save'}}
+    alert('✅ সেভ হয়েছে। সাইট রিফ্রেশ করলে নতুন রং দেখা যাবে।');render();
+  }catch(e){
+    const m=String((e&&e.message)||e||'');
+    showError(/cart_theme|schema cache|column/i.test(m)&&!/সেভ হয়নি/.test(m)?new Error('কার্ট রং সেভ করা যায়নি।\n\nকারণ: '+m+'\n\nসমাধান: Supabase > SQL Editor এ 16_cart_theme.sql চালান, তারপর অ্যাডমিন রিফ্রেশ করুন।'):e);
+    const b2=$('saveCtBtn');if(b2){b2.disabled=false;b2.textContent='Save'}
+  }
 }
 Object.assign(window,{ceAddPreset,ceColorImg,ceApplyTpl,ceFillStock,copyProduct,saveSizeGuide,ctPick,ctPrev,saveCartTheme});
 Object.assign(window,{deptPage,deptChange,ceAddColor,ceDelColor,ceToggleSize,ceAddSize,ceDelSize,ceAddCol,ceDelCol,ceStk,ceRefreshStock});
@@ -2053,7 +2062,7 @@ function leadsPage(){
     const ph=waPhone(l.phone);
     return `<tr><td><b>${esc(l.name||'—')}</b><br><small>${esc(l.phone||'')}</small></td><td>${items||'—'}</td><td>${money(l.total)}</td><td><small>${esc(new Date(l.updated_at).toLocaleString('en-BD'))}</small></td><td>${l.contacted?'<span class="pill green">Contacted</span>':'<span class="pill yellow">New</span>'}</td>
     <td class="actions">${ph?`<a class="btn" style="background:#1fa855;color:#fff;text-decoration:none;display:inline-block" target="_blank" rel="noopener" href="https://wa.me/${ph}?text=${encodeURIComponent(leadMsg(l))}" onclick="markLead(${i},true)">WhatsApp</a>`:''}<button class="btn muted" onclick="markLead(${i},${!l.contacted})">${l.contacted?'Mark new':'Mark contacted'}</button><button class="btn danger" onclick="deleteLead(${i})">Delete</button></td></tr>`}).join('');
-  return `<div class="section-head"><div><h3>Incomplete orders</h3><p>Customers who typed their phone at checkout but did not place the order. A lead disappears automatically once they order.</p></div><button class="btn muted" onclick="loadProtect().then(render)">↻ Refresh</button></div>${setupNote()}
+  return `<div class="section-head"><div><h3>Incomplete orders</h3><p>Customers who typed their phone at checkout but did not place the order. A lead disappears automatically once they order.</p></div><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn muted" onclick="loadProtect().then(render)">↻ Refresh</button><button class="btn primary" onclick="checkLeadSetup()">🔧 সেটআপ পরীক্ষা</button></div></div>${setupNote()}
   <div class="table-wrap"><table class="table"><thead><tr><th>Customer</th><th>Cart</th><th>Total</th><th>Last seen</th><th>Status</th><th>Actions</th></tr></thead><tbody>${rows||'<tr><td colspan="6" class="empty">No incomplete orders right now</td></tr>'}</tbody></table></div>`;
 }
 async function markLead(i,v){const l=leadsCache[i];if(!l)return;try{const {error}=await sb.from('incomplete_orders').update({contacted:!!v}).eq('phone_key',l.phone_key);if(error)throw error;l.contacted=!!v;setTimeout(render,200)}catch(e){showError(e)}}
